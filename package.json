@@ -1,0 +1,22 @@
+{
+  "name": "gemsim-platform",
+  "version": "1.0.0",
+  "description": "Enterprise Architecture, Business Strategy, and Operations Simulation SaaS",
+  "private": true,
+  "scripts": {
+    "dev:server": "tsx watch server/src/index.ts",
+    "dev:client": "npm --prefix client run dev",
+    "dev": "concurrently -k -n \"SERVER,CLIENT\" -c \"blue,magenta\" \"npm run dev:server\" \"npm run dev:client\"",
+    "build:client": "npm --prefix client run build",
+    "build:server": "tsc -p server/tsconfig.json",
+    "build": "npm run build:client && npm run build:server",
+    "start": "node server/dist/index.js",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.7"
+  }
+}

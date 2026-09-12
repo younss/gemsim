@@ -1,0 +1,66 @@
+# Standard docker-compose.yml mirror of podman-compose.yml
+version: '3.8'
+
+services:
+  gemsim-app:
+    container_name: gemsim-app
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: localhost/gemsim-app:latest
+    user: "10001:10001"
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - HOST=0.0.0.0
+      - DATA_DIR=/app/data
+      - DB_PATH=/app/data/gemsim.db
+      - DEFAULT_AI_PROVIDER=${DEFAULT_AI_PROVIDER:-fallback}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://gemsim-ollama:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gemma:2b}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-3-5-sonnet-20241022}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+    volumes:
+      - gemsim-data:/app/data:Z
+    networks:
+      - gemsim-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:4000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  gemsim-ollama:
+    container_name: gemsim-ollama
+    image: docker.io/ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama:Z
+    networks:
+      - gemsim-net
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  gemsim-data:
+    driver: local
+  ollama-models:
+    driver: local
+
+networks:
+  gemsim-net:
+    driver: bridge

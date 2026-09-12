@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Build artifacts
+dist/
+*/dist/
+server/public/
+
+# SQLite Data & Logs
+server/data/*.db*
+*.log
+
+# Local environment overrides
+.env.local
+.DS_Store
