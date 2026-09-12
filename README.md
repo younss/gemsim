@@ -78,6 +78,44 @@ Teams navigate strategic dilemmas across discrete quarterly cycles, balancing mo
 
 ---
 
+### 4. 🛠️ AI Scenario Studio (Generative Authoring & 3D Synthesis)
+Design, synthesize, and validate playable enterprise simulations from plain-text natural language prompts in seconds using local or cloud AI models.
+
+<p align="center">
+  <img src="docs/screenshots/studio-generation.gif" alt="GemSim AI Game Studio Generation" width="95%" style="border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);" />
+</p>
+
+| 3D Topology Preview & Synthesis | 👥 C-Suite Personas & Agendas | 📅 4-Quarter Timeline & Fog of War |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/studio-scenario-inspector.png" alt="Studio 3D Topology Preview" width="100%" /> | <img src="docs/screenshots/studio-stakeholders.png" alt="Studio Stakeholder Personas" width="100%" /> | <img src="docs/screenshots/studio-timeline.png" alt="Studio Strategic Timeline" width="100%" /> |
+| *Interactive 3D WebGL preview of generated architecture nodes and layer planes.* | *Psychological profiling, cognitive biases, and hidden agendas (Dr. Sarah Lin & David Thornton).* | *Strategic evolution across Q1-Q4 with Author View vs Player Fog of War toggles.* |
+
+- **Natural Language Synthesis**: Enter industry briefs or complex multi-paragraph corporate cases (Healthcare EHR, Core Banking Modernization, Mirage Offshore Sourcing).
+- **5-Phase Generation Pipeline**: Progressive real-time compilation from topology graph and competing stakeholder dialectics to crisis roadmaps and mathematical constraint validation.
+- **Active AI Engine Diagnostics**: Switch seamlessly at runtime between Local Ollama (`gemma4:12b`), Google Gemini, Claude, OpenAI, or the offline zero-dependency heuristic engine with live latency monitoring.
+- **One-Click Publishing**: Instant export and activation directly into the multiplayer simulation library.
+
+---
+
+### 5. 🕹️ Facilitator Master Operations War Room
+Empower workshop facilitators, enterprise architects, and executive trainers with a unified mission control cockpit to orchestrate multi-team competitive simulations in real time.
+
+<p align="center">
+  <img src="docs/screenshots/facilitator-cockpit.gif" alt="Facilitator Master Operations Cockpit" width="95%" style="border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);" />
+</p>
+
+| 📊 Multi-Team Telemetry Leaderboard | ⚡ Live Crisis & Black Swan Injector | 🔗 Workshop Invites & Role Isolation |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/facilitator-cockpit.png" alt="Facilitator Multi-Team Leaderboard" width="100%" /> | <img src="docs/screenshots/facilitator-crisis.png" alt="Facilitator Crisis Injector" width="100%" /> | <img src="docs/screenshots/facilitator-invites.png" alt="Workshop Team Invite Hub" width="100%" /> |
+| *Side-by-side real-time tracking of Alpha, Beta, and Gamma squads (TDI, Velocity, OpEx, Trust).* | *Trigger on-demand systemic shocks (Zero-Day Exploits, Cloud Blackouts, Regulatory Audits).* | *Role-isolated squad join links with strict browser sandboxing and facilitator PIN security.* |
+
+- **Master Simulation Controls**: Synchronized countdown timer, Play/Pause, round advance triggers (Q1 to Q4), and real-time broadcast emergency alerts.
+- **Live Crisis & Black Swan Injection**: Test team resilience by triggering unexpected operational emergencies on the fly, forcing squads to adapt their quarterly roadmaps.
+- **Role Isolation & Security**: Player squads receive dedicated links restricting access strictly to their arena, protecting facilitator controls and the AI Studio behind PIN authentication.
+- **Executive Post-Mortem Debriefing**: Automated comparative radar charts, performance rankings, and exportable executive JSON/Markdown reports at session conclusion.
+
+---
+
 ## 🏗️ System Architecture & Decoupled Components
 
 ```mermaid
