@@ -34,6 +34,7 @@ services:
       - ANTHROPIC_MODEL=${ANTHROPIC_MODEL:-claude-3-5-sonnet-20241022}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o-mini}
+      - FACILITATOR_PIN=${FACILITATOR_PIN:-1337}
     volumes:
       # :Z enables proper SELinux volume relabeling in rootless Podman
       - gemsim-data:/app/data:Z

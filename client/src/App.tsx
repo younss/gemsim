@@ -108,9 +108,10 @@ export const App: React.FC = () => {
   }, []);
 
   // Facilitator Passcode Unlock Handler
-  const handleUnlockFacilitator = () => {
-    const validPasscode = currentSession?.facilitatorPasscode || '1337';
-    if (unlockPasscode.trim() === validPasscode || unlockPasscode.trim() === '1337') {
+  const handleUnlockFacilitator = async () => {
+    if (!currentSession) return;
+    const isValid = await api.verifyFacilitatorPin(currentSession.id, unlockPasscode);
+    if (isValid) {
       setUserRole('ADMIN');
       setIsTeamLocked(false);
       setActiveView('FACILITATOR');
@@ -295,7 +296,7 @@ export const App: React.FC = () => {
                   type="password"
                   value={unlockPasscode}
                   onChange={e => setUnlockPasscode(e.target.value)}
-                  placeholder="Enter PIN (e.g. 1337)"
+                  placeholder="Enter Facilitator PIN"
                   autoFocus
                   className="w-full bg-dark-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm font-mono text-cyan-300 focus:outline-none focus:border-cyan-500 placeholder:text-slate-600"
                 />

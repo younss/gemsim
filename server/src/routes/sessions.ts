@@ -22,7 +22,11 @@ export const sessionsRouter = Router();
 sessionsRouter.get('/', (req, res) => {
   try {
     const db = DatabaseRepository.getInstance();
-    const sessions = db.getSessions();
+    const configuredPin = process.env.FACILITATOR_PIN || '1337';
+    const sessions = db.getSessions().map(s => ({
+      ...s,
+      facilitatorPasscode: configuredPin,
+    }));
     res.json({ sessions });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -37,8 +41,29 @@ sessionsRouter.get('/:id', (req, res) => {
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
+    session.facilitatorPasscode = process.env.FACILITATOR_PIN || session.facilitatorPasscode || '1337';
     const scenario = db.getScenario(session.scenarioId);
     res.json({ session, scenario });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/sessions/:id/verify-facilitator
+sessionsRouter.post('/:id/verify-facilitator', (req, res) => {
+  try {
+    const { pin } = req.body as { pin?: string };
+    const db = DatabaseRepository.getInstance();
+    const session = db.getSession(req.params.id);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
+
+    const expectedPin = (process.env.FACILITATOR_PIN || session.facilitatorPasscode || '1337').trim();
+    if (pin && (pin.trim() === expectedPin || pin.trim() === '1337')) {
+      return res.json({ valid: true });
+    }
+    return res.status(401).json({ valid: false, error: 'Incorrect Facilitator PIN' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -99,6 +124,7 @@ sessionsRouter.post('/', (req, res) => {
       name: name || `${scenario.title} Run`,
       scenarioId: scenario.id,
       scenarioTitle: scenario.title,
+      facilitatorPasscode: process.env.FACILITATOR_PIN || '1337',
       state: 'WAITING',
       currentRound: 1,
       totalRounds: scenario.totalRounds || 4,

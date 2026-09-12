@@ -137,6 +137,20 @@ export const api = {
     return data.runs || [];
   },
 
+  async verifyFacilitatorPin(sessionId: string, pin: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/sessions/${sessionId}/verify-facilitator`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+      return data.valid === true;
+    } catch {
+      return false;
+    }
+  },
+
   // Game Studio
   async generateStudioScenario(prompt: {
     industry: string;
