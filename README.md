@@ -24,6 +24,60 @@ The platform features:
 
 ---
 
+## 🎬 Live Simulation Showcase: HealthNova EHR & Telehealth Overhaul
+
+> *Featured Scenario:* **HealthNova: Clinical EHR & Telehealth Overhaul**  
+> *Sector:* HealthTech & Hospital Network Operations | *Target:* 4-Quarter Turnaround  
+> *The Burning Platform:* 15 regional hospitals facing an Epic/Cerner legacy monolith lock-in, 68% Technical Debt Index, and critical latency bottlenecks during peak telehealth video consultations.
+
+<p align="center">
+  <img src="docs/screenshots/healthnova-overview.gif" alt="GemSim HealthNova Simulation Walkthrough" width="95%" style="border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);" />
+</p>
+
+### 1. 🌌 3D Spatial Enterprise Architecture & Real-Time Telemetry
+GemSim visualizes complex multi-tier enterprise systems in real-time WebGL space across 4 synchronized architecture planes: **Business Processes**, **Applications**, **Data Pipelines**, and **Infrastructure**.
+
+| 3D Dynamic Orbit & Particle Telemetry | Spatial Multi-Layer Topology HUD |
+| :---: | :---: |
+| <img src="docs/screenshots/healthnova-3d-topology.gif" alt="HealthNova 3D Topology Orbit" width="100%" /> | <img src="docs/screenshots/healthnova-topology-3d.png" alt="HealthNova 3D Topology HUD" width="100%" /> |
+| *Live 3D WebGL canvas: glowing nodes, edge data flow pulses, and raycast inspection* | *Full telemetry HUD tracking Velocity Drag (39.5%), TDI (68), and node health* |
+
+- **Real-Time Node Telemetry**: Inspect the critical health of the `Epic/Cerner Monolith`, `FHIR API Gateway`, `HL7 Integration Engine`, and `Cloud Kubernetes Cluster`.
+- **Latency & Failure Heatmaps**: Color-coded risk indicators pinpoint cascading outages before they hit production.
+
+---
+
+### 2. 🤖 Autonomous AI Stakeholder War Room (Live Dynamic Negotiation)
+Interact with autonomous C-suite executive personas driven by local or cloud LLMs. Stakeholders evaluate trade-offs, enforce hidden agendas, and adjust trust scores in real time based on semantic proposal analysis.
+
+<p align="center">
+  <img src="docs/screenshots/healthnova-ai-negotiation.gif" alt="HealthNova AI Stakeholder Live Negotiation" width="95%" style="border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);" />
+</p>
+
+| Stakeholder AI Persona Hub | Real-Time Streaming Evaluation Dialogue |
+| :---: | :---: |
+| <img src="docs/screenshots/healthnova-warroom.png" alt="HealthNova Stakeholder Roster" width="100%" /> | *Dr. Sarah Lin (Chief Medical Officer) dynamically evaluates our FHIR migration proposal, noting clinical stability and awarding +4 Trust points.* |
+
+- **Persona Depth**: **Dr. Sarah Lin (CMO)** prioritizes zero clinician disruption; **David Thornton (CIO)** balances legacy mainframe stability with cloud agility; **Victoria Sterling (CFO)** enforces budget runways.
+- **Anti-Cheat Semantic Scoring**: AI stakeholders detect repetitive copy-paste arguments, superficial buzzwords, and budget shortfalls, requiring genuine architectural trade-offs.
+
+---
+
+### 3. 📊 Executive Briefing & Strategic Decision Cockpit
+Teams navigate strategic dilemmas across discrete quarterly cycles, balancing modernization investments against urgent operational shocks.
+
+| 📋 Executive Case Briefing | 🛠️ Strategic Modernization Initiatives | ⚖️ Governance & Disruption Shocks |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/healthnova-briefing.png" alt="HealthNova Briefing Dossier" width="100%" /> | <img src="docs/screenshots/healthnova-initiatives.png" alt="HealthNova Initiatives Portfolio" width="100%" /> | <img src="docs/screenshots/healthnova-governance.png" alt="HealthNova Governance & Timeline" width="100%" /> |
+| *Case briefing with baseline metrics, regulatory mandates, and financial runway.* | *Portfolio decisions: FHIR Integration Layer vs Direct DB Emergency Scripts.* | *Governance posture selection and Q1 Telehealth Consultation Surge shock.* |
+
+- **Executive Briefing Dossier**: Comprehensive problem statement, risk factors, and success criteria displayed upon entering the arena.
+- **Modernization Trade-offs**: Choose between high-integrity long-term investments (Strangler Fig pattern, Cloud EHR) or quick high-debt hacks (direct database writes).
+- **Governance Postures**: Enforce *Strict Architecture Review* to suppress technical debt compounding or *Bypass Architecture* for temporary velocity boosts.
+- **Fog of War Roadmaps**: Progressive quarterly disclosure of unexpected market and operational disruptions.
+
+---
+
 ## 🏗️ System Architecture & Decoupled Components
 
 ```mermaid
