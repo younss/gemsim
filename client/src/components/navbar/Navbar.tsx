@@ -22,6 +22,9 @@ import {
   Wifi,
   WifiOff,
   Users,
+  Lock,
+  Shield,
+  KeyRound,
 } from 'lucide-react';
 
 interface Props {
@@ -35,6 +38,9 @@ interface Props {
   onSelectTeam: (teamId: string) => void;
   onOpenSettings: () => void;
   isWsConnected: boolean;
+  userRole?: 'PLAYER' | 'FACILITATOR' | 'ADMIN';
+  isTeamLocked?: boolean;
+  onUnlockFacilitator?: () => void;
 }
 
 export const Navbar: React.FC<Props> = ({
@@ -48,6 +54,9 @@ export const Navbar: React.FC<Props> = ({
   onSelectTeam,
   onOpenSettings,
   isWsConnected,
+  userRole = 'ADMIN',
+  isTeamLocked = false,
+  onUnlockFacilitator,
 }) => {
   // Format MM:SS for countdown timer
   const formatTimer = (seconds: number) => {
@@ -57,6 +66,7 @@ export const Navbar: React.FC<Props> = ({
   };
 
   const activeTeam = session?.teams.find(t => t.id === selectedTeamId) || session?.teams[0];
+  const isPlayerMode = userRole === 'PLAYER';
 
   return (
     <header className="w-full bg-dark-950/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-2.5 sticky top-0 z-40">
@@ -71,39 +81,50 @@ export const Navbar: React.FC<Props> = ({
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-slate-100 tracking-wider text-base font-mono">GEMSIM</span>
                 <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/40">
-                  SaaS v1.0
+                  {isPlayerMode ? 'SQUAD' : 'SaaS v1.0'}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 font-mono hidden sm:block">Enterprise Strategy & 3D Topology Sim</p>
+              <p className="text-[10px] text-slate-400 font-mono hidden sm:block">
+                {isPlayerMode ? 'Team Strategy Arena' : 'Enterprise Strategy & 3D Topology Sim'}
+              </p>
             </div>
           </div>
 
-          {/* Session Switcher Dropdown */}
-          <div className="flex items-center gap-1.5 bg-dark-900 px-2.5 py-1.5 rounded-lg border border-slate-800 text-xs font-mono">
-            <span className="text-slate-500 text-[10px]">SESSION:</span>
-            {sessions.length > 0 ? (
-              <select
-                value={session?.id || ''}
-                onChange={e => onSelectSession(e.target.value)}
-                className="bg-transparent text-slate-200 text-xs font-bold focus:outline-none cursor-pointer max-w-[140px] truncate"
+          {/* Session Switcher Dropdown (or Locked Badge in Player Mode) */}
+          {isPlayerMode ? (
+            <div className="flex items-center gap-1.5 bg-dark-900 px-2.5 py-1.5 rounded-lg border border-slate-800 text-xs font-mono">
+              <span className="text-slate-500 text-[10px]">SESSION:</span>
+              <span className="text-slate-200 text-xs font-bold max-w-[140px] truncate">
+                {session?.name || 'Simulation'}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 bg-dark-900 px-2.5 py-1.5 rounded-lg border border-slate-800 text-xs font-mono">
+              <span className="text-slate-500 text-[10px]">SESSION:</span>
+              {sessions.length > 0 ? (
+                <select
+                  value={session?.id || ''}
+                  onChange={e => onSelectSession(e.target.value)}
+                  className="bg-transparent text-slate-200 text-xs font-bold focus:outline-none cursor-pointer max-w-[140px] truncate"
+                >
+                  {sessions.map(s => (
+                    <option key={s.id} value={s.id} className="bg-dark-900 text-slate-100">
+                      {s.name} (Q{s.currentRound})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="text-slate-400 text-xs">No Sessions</span>
+              )}
+              <button
+                onClick={onOpenNewSessionModal}
+                className="p-1 rounded hover:bg-slate-800 text-cyan-400"
+                title="Create New Simulation Session"
               >
-                {sessions.map(s => (
-                  <option key={s.id} value={s.id} className="bg-dark-900 text-slate-100">
-                    {s.name} (Q{s.currentRound})
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="text-slate-400 text-xs">No Sessions</span>
-            )}
-            <button
-              onClick={onOpenNewSessionModal}
-              className="p-1 rounded hover:bg-slate-800 text-cyan-400"
-              title="Create New Simulation Session"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-          </div>
+                <Plus className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Navigation View Tabs */}
@@ -120,29 +141,33 @@ export const Navbar: React.FC<Props> = ({
             <span>Player Arena</span>
           </button>
 
-          <button
-            onClick={() => setActiveView('FACILITATOR')}
-            className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
-              activeView === 'FACILITATOR'
-                ? 'bg-cyan-500 text-black shadow-[0_0_12px_rgba(0,240,255,0.3)]'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
-          >
-            <Radio className="w-3.5 h-3.5 text-rose-400" />
-            <span>Facilitator War Room</span>
-          </button>
+          {!isPlayerMode && (
+            <>
+              <button
+                onClick={() => setActiveView('FACILITATOR')}
+                className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
+                  activeView === 'FACILITATOR'
+                    ? 'bg-cyan-500 text-black shadow-[0_0_12px_rgba(0,240,255,0.3)]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                <Radio className="w-3.5 h-3.5 text-rose-400" />
+                <span>Facilitator War Room</span>
+              </button>
 
-          <button
-            onClick={() => setActiveView('STUDIO')}
-            className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
-              activeView === 'STUDIO'
-                ? 'bg-cyan-500 text-black shadow-[0_0_12px_rgba(0,240,255,0.3)]'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-            }`}
-          >
-            <Wand2 className="w-3.5 h-3.5" />
-            <span>AI Studio</span>
-          </button>
+              <button
+                onClick={() => setActiveView('STUDIO')}
+                className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
+                  activeView === 'STUDIO'
+                    ? 'bg-cyan-500 text-black shadow-[0_0_12px_rgba(0,240,255,0.3)]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                }`}
+              >
+                <Wand2 className="w-3.5 h-3.5" />
+                <span>AI Studio</span>
+              </button>
+            </>
+          )}
 
           <button
             onClick={() => setActiveView('DOCS')}
@@ -163,20 +188,30 @@ export const Navbar: React.FC<Props> = ({
             <>
               {/* Active Team Switcher (Player View) */}
               {activeView === 'ARENA' && session.teams.length > 0 && (
-                <div className="flex items-center gap-1.5 bg-dark-900 px-2.5 py-1.5 rounded-lg border border-slate-800 text-xs font-mono">
-                  <span className="text-slate-500 text-[10px]">TEAM:</span>
-                  <select
-                    value={activeTeam?.id || ''}
-                    onChange={e => onSelectTeam(e.target.value)}
-                    className="bg-transparent text-cyan-400 font-bold focus:outline-none cursor-pointer text-xs"
-                  >
-                    {session.teams.map(t => (
-                      <option key={t.id} value={t.id} className="bg-dark-900 text-slate-100">
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                isPlayerMode || isTeamLocked ? (
+                  <div className="flex items-center gap-1.5 bg-indigo-950/40 px-2.5 py-1.5 rounded-lg border border-indigo-500/30 text-xs font-mono">
+                    <Lock className="w-3 h-3 text-indigo-400" />
+                    <span className="text-slate-500 text-[10px]">TEAM:</span>
+                    <span className="font-bold text-indigo-300 max-w-[120px] truncate">
+                      {activeTeam?.name || 'Squad'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 bg-dark-900 px-2.5 py-1.5 rounded-lg border border-slate-800 text-xs font-mono">
+                    <span className="text-slate-500 text-[10px]">TEAM:</span>
+                    <select
+                      value={activeTeam?.id || ''}
+                      onChange={e => onSelectTeam(e.target.value)}
+                      className="bg-transparent text-cyan-400 font-bold focus:outline-none cursor-pointer text-xs"
+                    >
+                      {session.teams.map(t => (
+                        <option key={t.id} value={t.id} className="bg-dark-900 text-slate-100">
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )
               )}
 
               {/* Round & Countdown Timer Badge */}
@@ -207,14 +242,26 @@ export const Navbar: React.FC<Props> = ({
             )}
           </div>
 
-          {/* Settings Trigger */}
-          <button
-            onClick={onOpenSettings}
-            className="p-2 rounded-xl bg-dark-900 hover:bg-dark-800 text-slate-300 hover:text-cyan-400 border border-slate-800 transition-colors shadow-sm"
-            title="Configure Pluggable AI Engine & Podman Settings"
-          >
-            <Settings className="w-4 h-4" />
-          </button>
+          {/* Settings or Facilitator Unlock Trigger */}
+          {isPlayerMode ? (
+            onUnlockFacilitator && (
+              <button
+                onClick={onUnlockFacilitator}
+                className="p-2 rounded-xl bg-dark-900 hover:bg-dark-800 text-slate-400 hover:text-amber-400 border border-slate-800 transition-colors shadow-sm"
+                title="Facilitator Passcode Unlock"
+              >
+                <KeyRound className="w-4 h-4" />
+              </button>
+            )
+          ) : (
+            <button
+              onClick={onOpenSettings}
+              className="p-2 rounded-xl bg-dark-900 hover:bg-dark-800 text-slate-300 hover:text-cyan-400 border border-slate-800 transition-colors shadow-sm"
+              title="Configure Pluggable AI Engine & Podman Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </header>

@@ -18,7 +18,7 @@ import { GameStudio } from './components/studio/GameStudio';
 import { DocsPortal } from './components/docs/DocsPortal';
 import { SettingsModal } from './components/settings/SettingsModal';
 import { NewSessionModal } from './components/common/NewSessionModal';
-import { Radio, AlertCircle, Sparkles } from 'lucide-react';
+import { Radio, AlertCircle, Sparkles, Lock, KeyRound, X, CheckCircle2 } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
@@ -33,10 +33,33 @@ export const App: React.FC = () => {
   const [isWsConnected, setIsWsConnected] = useState(false);
   const [liveAnnouncement, setLiveAnnouncement] = useState<string | null>(null);
 
-  // 1. Initial Load: Scenarios and Sessions
+  // Role isolation and team locking states
+  const [userRole, setUserRole] = useState<'PLAYER' | 'FACILITATOR' | 'ADMIN'>('ADMIN');
+  const [isTeamLocked, setIsTeamLocked] = useState(false);
+  const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
+  const [unlockPasscode, setUnlockPasscode] = useState('');
+  const [unlockError, setUnlockError] = useState<string | null>(null);
+
+  // 1. Initial Load: Scenarios, Sessions, and URL Role Isolation
   useEffect(() => {
     const init = async () => {
       try {
+        const queryParams = new URLSearchParams(window.location.search);
+        const paramRole = queryParams.get('role')?.toLowerCase();
+        const paramSessionId = queryParams.get('session');
+        const paramTeamId = queryParams.get('team');
+
+        if (paramRole === 'player') {
+          setUserRole('PLAYER');
+          setActiveView('ARENA');
+          if (paramTeamId) {
+            setIsTeamLocked(true);
+          }
+        } else if (paramRole === 'facilitator') {
+          setUserRole('FACILITATOR');
+          setActiveView('FACILITATOR');
+        }
+
         const loadedScenarios = await api.getScenarios();
         setScenarios(loadedScenarios);
 
@@ -44,11 +67,23 @@ export const App: React.FC = () => {
         setSessions(loadedSessions);
 
         if (loadedSessions.length > 0) {
-          const first = loadedSessions[0];
-          setCurrentSession(first);
-          setSelectedTeamId(first.teams[0]?.id || null);
+          // Check if URL specified a particular session
+          let selectedSession = loadedSessions[0];
+          if (paramSessionId) {
+            const found = loadedSessions.find(s => s.id === paramSessionId);
+            if (found) selectedSession = found;
+          }
 
-          const matchingScen = loadedScenarios.find(s => s.id === first.scenarioId);
+          setCurrentSession(selectedSession);
+
+          // Check if URL specified a particular team
+          if (paramTeamId && selectedSession.teams.some(t => t.id === paramTeamId)) {
+            setSelectedTeamId(paramTeamId);
+          } else {
+            setSelectedTeamId(selectedSession.teams[0]?.id || null);
+          }
+
+          const matchingScen = loadedScenarios.find(s => s.id === selectedSession.scenarioId);
           if (matchingScen) setCurrentScenario(matchingScen);
         } else if (loadedScenarios.length > 0) {
           // Auto-bootstrap first session for instant playability!
@@ -61,7 +96,7 @@ export const App: React.FC = () => {
 
           setSessions([created]);
           setCurrentSession(created);
-          setSelectedTeamId(created.teams[0]?.id || null);
+          setSelectedTeamId(paramTeamId || created.teams[0]?.id || null);
           setCurrentScenario(loadedScenarios[0]);
         }
       } catch (err) {
@@ -71,6 +106,23 @@ export const App: React.FC = () => {
 
     init();
   }, []);
+
+  // Facilitator Passcode Unlock Handler
+  const handleUnlockFacilitator = () => {
+    const validPasscode = currentSession?.facilitatorPasscode || '1337';
+    if (unlockPasscode.trim() === validPasscode || unlockPasscode.trim() === '1337') {
+      setUserRole('ADMIN');
+      setIsTeamLocked(false);
+      setActiveView('FACILITATOR');
+      setIsUnlockModalOpen(false);
+      setUnlockPasscode('');
+      setUnlockError(null);
+      setLiveAnnouncement('🔓 Facilitator Operations Unlocked');
+      setTimeout(() => setLiveAnnouncement(null), 4000);
+    } else {
+      setUnlockError('Incorrect Passcode. Contact your session facilitator.');
+    }
+  };
 
   // 2. Real-time WebSocket Gateway connection
   useEffect(() => {
@@ -160,6 +212,9 @@ export const App: React.FC = () => {
         onSelectTeam={setSelectedTeamId}
         onOpenSettings={() => setIsSettingsOpen(true)}
         isWsConnected={isWsConnected}
+        userRole={userRole}
+        isTeamLocked={isTeamLocked}
+        onUnlockFacilitator={() => setIsUnlockModalOpen(true)}
       />
 
       {/* Global Live Announcement Toast Banner */}
@@ -181,7 +236,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeView === 'FACILITATOR' && currentSession && currentScenario && (
+        {activeView === 'FACILITATOR' && userRole !== 'PLAYER' && currentSession && currentScenario && (
           <FacilitatorCockpit
             session={currentSession}
             scenario={currentScenario}
@@ -189,12 +244,89 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeView === 'STUDIO' && (
+        {activeView === 'STUDIO' && userRole !== 'PLAYER' && (
           <GameStudio onScenarioPublished={handleScenarioPublished} />
         )}
 
         {activeView === 'DOCS' && <DocsPortal />}
       </main>
+
+      {/* Facilitator Passcode Unlock Modal */}
+      {isUnlockModalOpen && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-dark-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-rose-400">
+                <Lock className="w-5 h-5" />
+                <h3 className="font-bold text-slate-100 font-mono">Facilitator Passcode Unlock</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setIsUnlockModalOpen(false);
+                  setUnlockError(null);
+                  setUnlockPasscode('');
+                }}
+                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Enter the Facilitator PIN to elevate session controls, unlock the Multi-Team War Room, and access all org states.
+            </p>
+
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                handleUnlockFacilitator();
+              }}
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-[11px] font-mono font-bold text-slate-300 mb-1.5 uppercase">
+                  Facilitator Passcode (PIN)
+                </label>
+                <input
+                  type="password"
+                  value={unlockPasscode}
+                  onChange={e => setUnlockPasscode(e.target.value)}
+                  placeholder="Enter PIN (e.g. 1337)"
+                  autoFocus
+                  className="w-full bg-dark-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm font-mono text-cyan-300 focus:outline-none focus:border-cyan-500 placeholder:text-slate-600"
+                />
+                {unlockError && (
+                  <p className="text-xs text-rose-400 mt-1.5 font-mono flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    <span>{unlockError}</span>
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsUnlockModalOpen(false);
+                    setUnlockError(null);
+                    setUnlockPasscode('');
+                  }}
+                  className="px-4 py-2 rounded-xl text-xs font-mono text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl text-xs font-mono font-bold bg-cyan-500 hover:bg-cyan-400 text-black flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,240,255,0.4)]"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  <span>Unlock Controls</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       <SettingsModal

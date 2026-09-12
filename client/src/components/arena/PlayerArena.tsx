@@ -31,7 +31,9 @@ import {
   Lock,
   ChevronRight,
   Flame,
+  BookOpen,
 } from 'lucide-react';
+import { ExecutiveBriefingModal } from '../briefing/ExecutiveBriefingModal';
 
 interface Props {
   session: SimulationSession;
@@ -58,6 +60,16 @@ export const PlayerArena: React.FC<Props> = ({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
+  const [isBriefingOpen, setIsBriefingOpen] = useState(false);
+
+  // Auto-open executive dossier on first encounter of this scenario/team
+  React.useEffect(() => {
+    const key = `gemsim_briefing_seen_${scenario.id}_${team.id}`;
+    if (!localStorage.getItem(key)) {
+      setIsBriefingOpen(true);
+      localStorage.setItem(key, 'true');
+    }
+  }, [scenario.id, team.id]);
 
   // Current Round Event (if any)
   const currentEvent = scenario.roundEvents.find(e => e.roundNumber === session.currentRound);
@@ -102,6 +114,35 @@ export const PlayerArena: React.FC<Props> = ({
 
   return (
     <div className="flex flex-col gap-6 w-full">
+      {/* Executive Mission Banner & Dossier Quick Action */}
+      <div className="bg-gradient-to-r from-dark-850 via-dark-800 to-indigo-950/40 p-4 rounded-xl border border-cyan-500/30 shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-xl shrink-0">
+            {team.avatar}
+          </div>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-mono font-bold text-cyan-300">
+                {team.name}
+              </span>
+              <span className="text-xs text-slate-400 font-mono">// {scenario.industry}</span>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                QUARTER {session.currentRound} OF {scenario.totalRounds || 4}
+              </span>
+            </div>
+            <h2 className="text-sm sm:text-base font-bold text-slate-100 truncate mt-0.5">{scenario.title}</h2>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setIsBriefingOpen(true)}
+          className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500/20 to-indigo-500/20 hover:from-cyan-500/30 hover:to-indigo-500/30 text-cyan-300 border border-cyan-500/40 font-mono text-xs font-bold flex items-center gap-2 shadow-[0_0_15px_rgba(0,240,255,0.15)] transition-all shrink-0"
+        >
+          <BookOpen className="w-4 h-4 text-cyan-400 animate-pulse" />
+          <span>📖 Case Study Dossier & Objectives</span>
+        </button>
+      </div>
+
       {/* 1. Executive Telemetry Cockpit (HUD) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* TCO & Cash */}
@@ -597,6 +638,15 @@ export const PlayerArena: React.FC<Props> = ({
           )}
         </div>
       )}
+
+      {/* Executive Case Study & Mission Briefing Modal */}
+      <ExecutiveBriefingModal
+        isOpen={isBriefingOpen}
+        onClose={() => setIsBriefingOpen(false)}
+        scenario={scenario}
+        session={session}
+        team={team}
+      />
     </div>
   );
 };

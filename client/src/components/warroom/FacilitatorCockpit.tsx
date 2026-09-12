@@ -27,7 +27,9 @@ import {
   ShieldAlert,
   BarChart3,
   Sliders,
+  Share2,
 } from 'lucide-react';
+import { WorkshopInvitesModal } from './WorkshopInvitesModal';
 
 interface Props {
   session: SimulationSession;
@@ -43,6 +45,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
   const [broadcastText, setBroadcastText] = useState('');
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [activeTab, setActiveTab] = useState<'TELEMETRY' | 'CONTROLS' | 'INJECTION' | 'DEBRIEF'>('TELEMETRY');
+  const [isInvitesOpen, setIsInvitesOpen] = useState(false);
 
   // Master Timer actions
   const handleToggleTimer = async () => {
@@ -226,6 +229,17 @@ export const FacilitatorCockpit: React.FC<Props> = ({
             title="Reset Session to Q1"
           >
             Reset
+          </button>
+
+          <div className="h-6 w-px bg-slate-700 mx-1" />
+
+          <button
+            onClick={() => setIsInvitesOpen(true)}
+            className="px-3.5 py-2 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)]"
+            title="Manage & Share Team Access Links"
+          >
+            <Share2 className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Share Team Invites</span>
           </button>
         </div>
       </div>
@@ -540,6 +554,13 @@ export const FacilitatorCockpit: React.FC<Props> = ({
           </div>
         </div>
       )}
+
+      {/* Workshop Team Links Modal */}
+      <WorkshopInvitesModal
+        isOpen={isInvitesOpen}
+        onClose={() => setIsInvitesOpen(false)}
+        session={session}
+      />
     </div>
   );
 };
