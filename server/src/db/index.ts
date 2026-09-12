@@ -7,7 +7,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { Scenario, SimulationSession, ChatMessage } from '../types/index.js';
+import { Scenario, SimulationSession, ChatMessage, ArchivedSimulationRun } from '../types/index.js';
 import { SEED_SCENARIOS } from './seeds.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -64,6 +64,18 @@ export class DatabaseRepository {
         updated_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS simulation_runs (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        scenario_id TEXT NOT NULL,
+        run_number INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        winner_team_name TEXT,
+        total_rounds INTEGER NOT NULL,
+        data TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS chat_messages (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,
@@ -82,6 +94,7 @@ export class DatabaseRepository {
 
       CREATE INDEX IF NOT EXISTS idx_sessions_scenario ON sessions(scenario_id);
       CREATE INDEX IF NOT EXISTS idx_chat_session_team ON chat_messages(session_id, team_id);
+      CREATE INDEX IF NOT EXISTS idx_runs_session ON simulation_runs(session_id);
     `);
   }
 
@@ -218,5 +231,53 @@ export class DatabaseRepository {
       JSON.stringify(message),
       now
     );
+  }
+
+  public deleteChatMessagesForSession(sessionId: string): void {
+    this.db.prepare('DELETE FROM chat_messages WHERE session_id = ?').run(sessionId);
+  }
+
+  public getChatMessageCountForSession(sessionId: string): number {
+    const row = this.db.prepare('SELECT COUNT(*) as count FROM chat_messages WHERE session_id = ?').get(sessionId) as { count: number } | undefined;
+    return row?.count || 0;
+  }
+
+  // --- Simulation Runs (Archived Game Results) ---
+
+  public saveSimulationRun(run: ArchivedSimulationRun): void {
+    const stmt = this.db.prepare(`
+      INSERT INTO simulation_runs (id, session_id, scenario_id, run_number, title, winner_team_name, total_rounds, data, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        data = excluded.data
+    `);
+    stmt.run(
+      run.id,
+      run.sessionId,
+      run.scenarioId,
+      run.runNumber,
+      run.sessionName,
+      run.winnerTeamName || null,
+      run.totalRounds,
+      JSON.stringify(run),
+      run.completedAt || new Date().toISOString()
+    );
+  }
+
+  public getSimulationRuns(sessionId?: string): ArchivedSimulationRun[] {
+    let sql = 'SELECT data FROM simulation_runs';
+    const params: any[] = [];
+    if (sessionId) {
+      sql += ' WHERE session_id = ?';
+      params.push(sessionId);
+    }
+    sql += ' ORDER BY created_at DESC';
+    const rows = this.db.prepare(sql).all(...params) as Array<{ data: string }>;
+    return rows.map(r => JSON.parse(r.data));
+  }
+
+  public getSimulationRun(id: string): ArchivedSimulationRun | null {
+    const row = this.db.prepare('SELECT data FROM simulation_runs WHERE id = ?').get(id) as { data: string } | undefined;
+    return row ? JSON.parse(row.data) : null;
   }
 }

@@ -72,7 +72,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
         setMessages(history);
       }
     });
-  }, [activeStakeholderId, session.id, team.id]);
+  }, [activeStakeholderId, session.id, team.id, session.updatedAt, session.currentRound]);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });

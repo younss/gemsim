@@ -289,6 +289,39 @@ export interface AISettingsState {
   availableOllamaModels?: string[];
 }
 
+export interface ArchivedSimulationRun {
+  id: string;
+  sessionId: string;
+  scenarioId: string;
+  sessionName: string;
+  scenarioTitle: string;
+  runNumber: number;
+  completedAt: string;
+  totalRounds: number;
+  winnerTeamName?: string;
+  teams: Array<{
+    id: string;
+    name: string;
+    avatar: string;
+    finalMetrics: TeamMetrics;
+    history: RoundResult[];
+  }>;
+  executiveDebriefSummary: {
+    rankings: Array<{
+      rank: number;
+      teamName: string;
+      technicalDebtIndex: string;
+      deliveryVelocity: string;
+      stakeholderTrust: string;
+      budgetRemaining: string;
+      tco: string;
+      resilienceIndex: string;
+      complianceScore: string;
+    }>;
+  };
+  chatTranscriptCount?: number;
+}
+
 // WebSocket Telemetry Protocol Messages
 export type WSClientMessage =
   | { type: 'JOIN_SESSION'; sessionId: string; teamId?: string; role: 'PLAYER' | 'FACILITATOR' }
@@ -303,6 +336,8 @@ export type WSServerMessage =
   | { type: 'TIMER_TICK'; secondsRemaining: number; isRunning: boolean }
   | { type: 'TEAM_UPDATED'; team: Team }
   | { type: 'ROUND_RESOLVED'; session: SimulationSession; results: Record<string, RoundResult> }
+  | { type: 'SESSION_RESET'; sessionId: string; session: SimulationSession; archivedRun?: ArchivedSimulationRun }
   | { type: 'STAKEHOLDER_RESPONSE'; teamId: string; message: ChatMessage }
   | { type: 'ANNOUNCEMENT'; message: string; timestamp: string }
   | { type: 'TELEMETRY_PULSE'; activeTeams: number; round: number; avgTdi: number; avgTrust: number };
+

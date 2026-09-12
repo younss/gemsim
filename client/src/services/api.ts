@@ -12,6 +12,7 @@ import {
   ProposalEvaluation,
   AIProviderType,
   RoundEvent,
+  ArchivedSimulationRun,
   WSServerMessage,
   WSClientMessage,
 } from '../types/index';
@@ -122,13 +123,18 @@ export const api = {
     return res.json();
   },
 
-  async resetSession(sessionId: string): Promise<SimulationSession> {
+  async resetSession(sessionId: string): Promise<{ session: SimulationSession; archivedRun?: ArchivedSimulationRun }> {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
+    return res.json();
+  },
+
+  async getSessionRuns(sessionId: string): Promise<ArchivedSimulationRun[]> {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/runs`);
     const data = await res.json();
-    return data.session;
+    return data.runs || [];
   },
 
   // Game Studio

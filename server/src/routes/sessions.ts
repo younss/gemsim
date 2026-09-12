@@ -12,6 +12,7 @@ import {
   TeamDecision,
   RoundResult,
   RoundEvent,
+  ArchivedSimulationRun,
 } from '../types/index.js';
 import { broadcastToSession } from '../socket/handler.js';
 
@@ -308,6 +309,17 @@ sessionsRouter.post('/:id/broadcast', (req, res) => {
   }
 });
 
+// GET /api/sessions/:id/runs
+sessionsRouter.get('/:id/runs', (req, res) => {
+  try {
+    const db = DatabaseRepository.getInstance();
+    const runs = db.getSimulationRuns(req.params.id);
+    res.json({ runs });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/sessions/:id/reset
 sessionsRouter.post('/:id/reset', (req, res) => {
   try {
@@ -322,17 +334,79 @@ sessionsRouter.post('/:id/reset', (req, res) => {
       return res.status(404).json({ error: 'Scenario not found' });
     }
 
+    // 1. Check if the session has played rounds and archive simulation run
+    let archivedRun: ArchivedSimulationRun | null = null;
+    const hasPlayedRounds = session.currentRound > 1 || session.teams.some(t => t.history.length > 0);
+
+    if (hasPlayedRounds) {
+      const existingRuns = db.getSimulationRuns(session.id);
+      const runNumber = existingRuns.length + 1;
+
+      // Sort teams to determine winner and rankings
+      const sortedTeams = [...session.teams].sort((a, b) => {
+        const scoreA = (100 - a.metrics.technicalDebtIndex) * 1.5 + a.metrics.deliveryVelocity + a.metrics.stakeholderTrust * 1.2;
+        const scoreB = (100 - b.metrics.technicalDebtIndex) * 1.5 + b.metrics.deliveryVelocity + b.metrics.stakeholderTrust * 1.2;
+        return scoreB - scoreA;
+      });
+
+      archivedRun = {
+        id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        sessionId: session.id,
+        scenarioId: scenario.id,
+        sessionName: session.name,
+        scenarioTitle: scenario.title,
+        runNumber,
+        completedAt: new Date().toISOString(),
+        totalRounds: session.currentRound,
+        winnerTeamName: sortedTeams[0]?.name,
+        teams: session.teams.map(t => ({
+          id: t.id,
+          name: t.name,
+          avatar: t.avatar,
+          finalMetrics: { ...t.metrics },
+          history: [...t.history],
+        })),
+        executiveDebriefSummary: {
+          rankings: sortedTeams.map((t, idx) => ({
+            rank: idx + 1,
+            teamName: t.name,
+            technicalDebtIndex: `${t.metrics.technicalDebtIndex}%`,
+            deliveryVelocity: `${t.metrics.deliveryVelocity} pts`,
+            stakeholderTrust: `${t.metrics.stakeholderTrust}%`,
+            budgetRemaining: `$${t.metrics.budgetRemaining}K`,
+            tco: `$${t.metrics.tco}K`,
+            resilienceIndex: `${t.metrics.resilienceIndex}/100`,
+            complianceScore: `${t.metrics.complianceScore}%`,
+          })),
+        },
+        chatTranscriptCount: db.getChatMessageCountForSession(session.id),
+      };
+
+      db.saveSimulationRun(archivedRun);
+      console.log(`[SessionReset] Archived simulation run ${archivedRun.id} (Run #${runNumber}) before reset`);
+    }
+
+    // 2. Clear active AI stakeholder chat messages for this session
+    db.deleteChatMessagesForSession(session.id);
+
+    // 3. Reset session state, timers, and round back to Q1
     session.currentRound = 1;
     session.state = 'WAITING';
     session.isTimerRunning = false;
     session.timerSecondsRemaining = session.roundDurationSeconds;
 
+    // 4. Reset each team's score, metrics, decisions, and stakeholder trust back to scenario baseline
     for (const team of session.teams) {
       team.metrics = { ...scenario.baselineMetrics };
       team.history = [];
       team.decisionSubmitted = false;
       team.activeInitiatives = [];
       team.nodeHealthOverrides = {};
+      team.currentRoundDecisions = {
+        selectedInitiativeIds: [],
+        governancePosture: 'BALANCED_AGILE',
+        customPacts: [],
+      };
       const trustMap: Record<string, number> = {};
       for (const sh of scenario.stakeholders) {
         trustMap[sh.id] = sh.baseTrust ?? 60;
@@ -343,12 +417,20 @@ sessionsRouter.post('/:id/reset', (req, res) => {
     session.updatedAt = new Date().toISOString();
     db.saveSession(session);
 
+    // 5. Broadcast reset event & updated session state via WebSockets
+    broadcastToSession(session.id, {
+      type: 'SESSION_RESET',
+      sessionId: session.id,
+      session,
+      archivedRun: archivedRun || undefined,
+    });
+
     broadcastToSession(session.id, {
       type: 'SESSION_STATE',
       session,
     });
 
-    res.json({ session });
+    res.json({ session, archivedRun });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

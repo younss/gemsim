@@ -62,6 +62,13 @@ export const PlayerArena: React.FC<Props> = ({
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
 
+  // Sync local decision state when team changes or when session resets back to Q1
+  React.useEffect(() => {
+    setSelectedInitiatives(team.currentRoundDecisions?.selectedInitiativeIds || []);
+    setGovernancePosture(team.currentRoundDecisions?.governancePosture || 'BALANCED_AGILE');
+    setSelectedEventChoice(team.currentRoundDecisions?.eventChoiceId);
+  }, [team.id, session.currentRound, team.decisionSubmitted, session.updatedAt]);
+
   // Auto-open executive dossier on first encounter of this scenario/team
   React.useEffect(() => {
     const key = `gemsim_briefing_seen_${scenario.id}_${team.id}`;

@@ -152,6 +152,10 @@ export const App: React.FC = () => {
         setCurrentSession(msg.session);
         setLiveAnnouncement(`🎉 Round ${msg.session.currentRound - 1} results resolved!`);
         setTimeout(() => setLiveAnnouncement(null), 6000);
+      } else if (msg.type === 'SESSION_RESET') {
+        setCurrentSession(msg.session);
+        setLiveAnnouncement('🔄 Simulation reset to Quarter 1. Past run results archived in Debrief.');
+        setTimeout(() => setLiveAnnouncement(null), 6000);
       } else if (msg.type === 'ANNOUNCEMENT') {
         setLiveAnnouncement(msg.message);
         setTimeout(() => setLiveAnnouncement(null), 7000);

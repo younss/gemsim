@@ -3,12 +3,13 @@
 // Multi-Team Oversight, Master Round Controls, Event Injection, and Post-Mortem Debrief
 // ============================================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   SimulationSession,
   Scenario,
   Team,
   RoundEvent,
+  ArchivedSimulationRun,
 } from '../../types/index';
 import { api } from '../../services/api';
 import {
@@ -28,6 +29,9 @@ import {
   BarChart3,
   Sliders,
   Share2,
+  Archive,
+  History,
+  Calendar,
 } from 'lucide-react';
 import { WorkshopInvitesModal } from './WorkshopInvitesModal';
 
@@ -46,6 +50,15 @@ export const FacilitatorCockpit: React.FC<Props> = ({
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [activeTab, setActiveTab] = useState<'TELEMETRY' | 'CONTROLS' | 'INJECTION' | 'DEBRIEF'>('TELEMETRY');
   const [isInvitesOpen, setIsInvitesOpen] = useState(false);
+  const [archivedRuns, setArchivedRuns] = useState<ArchivedSimulationRun[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<'CURRENT' | string>('CURRENT');
+
+  // Load archived runs for this session
+  useEffect(() => {
+    api.getSessionRuns(session.id).then(runs => {
+      setArchivedRuns(runs);
+    }).catch(err => console.error('Failed to fetch runs:', err));
+  }, [session.id, session.updatedAt]);
 
   // Master Timer actions
   const handleToggleTimer = async () => {
@@ -85,12 +98,16 @@ export const FacilitatorCockpit: React.FC<Props> = ({
     }
   };
 
-  // Master Session Reset
+  // Master Session Reset (Preserves Previous Simulation Results in Run Archives)
   const handleResetSession = async () => {
-    if (!confirm('Are you sure you want to reset this simulation back to Quarter 1? All team history will be cleared.')) return;
+    if (!confirm('Start a new simulation? Previous round history, scorecards, and debrief metrics will be safely preserved in Debrief History Archives. Active team scores, AI roleplay chats, and decisions will be reset back to Quarter 1.')) return;
     try {
-      const updated = await api.resetSession(session.id);
+      const { session: updated, archivedRun } = await api.resetSession(session.id);
       onSessionUpdated(updated);
+      if (archivedRun) {
+        setArchivedRuns(prev => [archivedRun, ...prev]);
+        setSelectedRunId(archivedRun.id);
+      }
     } catch (err) {
       console.error('Reset session error:', err);
     }
@@ -139,8 +156,21 @@ export const FacilitatorCockpit: React.FC<Props> = ({
 
   const allTeamsSubmitted = session.teams.every(t => t.decisionSubmitted);
 
-  // Export Executive Summary
+  const selectedArchivedRun = archivedRuns.find(r => r.id === selectedRunId);
+
+  // Export Executive Summary (Current or Selected Archived Run)
   const handleExportSummary = () => {
+    if (selectedArchivedRun) {
+      const blob = new Blob([JSON.stringify(selectedArchivedRun, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${session.name.replace(/\s+/g, '_')}_Run${selectedArchivedRun.runNumber}_Debrief.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      return;
+    }
+
     const summary = {
       simulationName: session.name,
       scenarioTitle: scenario.title,
@@ -477,81 +507,175 @@ export const FacilitatorCockpit: React.FC<Props> = ({
               className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-lg"
             >
               <Download className="w-4 h-4" />
-              <span>Export Executive Briefing (.JSON)</span>
+              <span>{selectedArchivedRun ? `Export Run #${selectedArchivedRun.runNumber} (.JSON)` : 'Export Executive Briefing (.JSON)'}</span>
             </button>
           </div>
 
-          {/* Winner Showcase */}
-          {sortedTeams[0] && (
-            <div className="p-6 rounded-xl bg-gradient-to-r from-amber-500/10 via-dark-800 to-cyan-500/10 border border-amber-500/40 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-3xl shadow-lg">
-                  🏆
-                </div>
-                <div>
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400 font-bold">
-                    TOP PERFORMING STRATEGY
-                  </span>
-                  <h3 className="text-xl font-extrabold text-slate-100">{sortedTeams[0].name}</h3>
-                  <p className="text-xs text-slate-300 mt-1">
-                    Achieved optimal balance of Technical Debt Remediation ({sortedTeams[0].metrics.technicalDebtIndex}%) and Delivery Velocity ({sortedTeams[0].metrics.deliveryVelocity} pts).
-                  </p>
+          {/* Run Version Selector: Current Live Run vs Past Archived Runs */}
+          <div className="flex items-center gap-2 bg-dark-900 p-2 rounded-xl border border-slate-800 text-xs font-mono overflow-x-auto">
+            <span className="text-slate-500 text-[10px] pl-1 flex items-center gap-1 font-bold shrink-0">
+              <Archive className="w-3.5 h-3.5 text-cyan-400" />
+              <span>SIMULATION RUN:</span>
+            </span>
+            <button
+              onClick={() => setSelectedRunId('CURRENT')}
+              className={`px-3 py-1.5 rounded-lg font-bold transition-all shrink-0 ${
+                selectedRunId === 'CURRENT'
+                  ? 'bg-cyan-500 text-black shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              Live Session (Q{session.currentRound})
+            </button>
+
+            {archivedRuns.map(run => (
+              <button
+                key={run.id}
+                onClick={() => setSelectedRunId(run.id)}
+                className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all shrink-0 ${
+                  selectedRunId === run.id
+                    ? 'bg-amber-500 text-black shadow-sm'
+                    : 'text-slate-400 hover:text-amber-300 hover:bg-slate-800'
+                }`}
+              >
+                <Trophy className="w-3 h-3" />
+                <span>Run #{run.runNumber} ({run.winnerTeamName || 'Archived'})</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Archived Run View */}
+          {selectedArchivedRun ? (
+            <div className="space-y-6">
+              <div className="p-6 rounded-xl bg-gradient-to-r from-amber-500/10 via-dark-800 to-indigo-500/10 border border-amber-500/40 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-3xl shadow-lg">
+                    🏆
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400 font-bold">
+                        ARCHIVED SIMULATION RUN #{selectedArchivedRun.runNumber}
+                      </span>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
+                        {new Date(selectedArchivedRun.completedAt).toLocaleString()}
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-extrabold text-slate-100">{selectedArchivedRun.winnerTeamName || 'Archived Organization'}</h3>
+                    <p className="text-xs text-slate-300 mt-1">
+                      Historical simulation record preserved safely during session reset. {selectedArchivedRun.teams.length} organizations competed across {selectedArchivedRun.totalRounds} quarters.
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 font-mono text-center">
-                <div className="bg-dark-900/80 p-2.5 rounded-lg border border-slate-700">
-                  <span className="text-[10px] text-slate-500 block">FINAL TDI</span>
-                  <span className="text-emerald-400 font-bold text-sm">{sortedTeams[0].metrics.technicalDebtIndex}%</span>
-                </div>
-                <div className="bg-dark-900/80 p-2.5 rounded-lg border border-slate-700">
-                  <span className="text-[10px] text-slate-500 block">VELOCITY</span>
-                  <span className="text-cyan-400 font-bold text-sm">{sortedTeams[0].metrics.deliveryVelocity}</span>
-                </div>
-                <div className="bg-dark-900/80 p-2.5 rounded-lg border border-slate-700">
-                  <span className="text-[10px] text-slate-500 block">TRUST</span>
-                  <span className="text-indigo-400 font-bold text-sm">{sortedTeams[0].metrics.stakeholderTrust}%</span>
-                </div>
+              {/* Comparative Table for Archived Run */}
+              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-dark-850">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-dark-900 text-slate-400 uppercase text-[10px] border-b border-slate-800">
+                    <tr>
+                      <th className="p-3">Rank</th>
+                      <th className="p-3">Organization</th>
+                      <th className="p-3">Tech Debt (TDI)</th>
+                      <th className="p-3">Delivery Velocity</th>
+                      <th className="p-3">Stakeholder Trust</th>
+                      <th className="p-3">Resilience</th>
+                      <th className="p-3">Cash Reserves</th>
+                      <th className="p-3">Total TCO</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 text-slate-200">
+                    {selectedArchivedRun.executiveDebriefSummary.rankings.map(rank => (
+                      <tr key={rank.rank} className="hover:bg-dark-800/50 transition-colors">
+                        <td className="p-3 font-bold text-cyan-400">#{rank.rank}</td>
+                        <td className="p-3 font-bold text-slate-100">{rank.teamName}</td>
+                        <td className="p-3 font-bold text-emerald-400">{rank.technicalDebtIndex}</td>
+                        <td className="p-3 font-bold text-cyan-400">{rank.deliveryVelocity}</td>
+                        <td className="p-3">{rank.stakeholderTrust}</td>
+                        <td className="p-3 text-emerald-400">{rank.resilienceIndex}</td>
+                        <td className="p-3">{rank.budgetRemaining}</td>
+                        <td className="p-3 text-slate-400">{rank.tco}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
-          )}
+          ) : (
+            <>
+              {/* Winner Showcase for Live Session */}
+              {sortedTeams[0] && (
+                <div className="p-6 rounded-xl bg-gradient-to-r from-amber-500/10 via-dark-800 to-cyan-500/10 border border-amber-500/40 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/50 flex items-center justify-center text-3xl shadow-lg">
+                      🏆
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400 font-bold">
+                        TOP PERFORMING STRATEGY
+                      </span>
+                      <h3 className="text-xl font-extrabold text-slate-100">{sortedTeams[0].name}</h3>
+                      <p className="text-xs text-slate-300 mt-1">
+                        Achieved optimal balance of Technical Debt Remediation ({sortedTeams[0].metrics.technicalDebtIndex}%) and Delivery Velocity ({sortedTeams[0].metrics.deliveryVelocity} pts).
+                      </p>
+                    </div>
+                  </div>
 
-          {/* Comparative Table */}
-          <div className="overflow-x-auto rounded-xl border border-slate-800 bg-dark-850">
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-dark-900 text-slate-400 uppercase text-[10px] border-b border-slate-800">
-                <tr>
-                  <th className="p-3">Rank</th>
-                  <th className="p-3">Organization</th>
-                  <th className="p-3">Tech Debt (TDI)</th>
-                  <th className="p-3">Delivery Velocity</th>
-                  <th className="p-3">Stakeholder Trust</th>
-                  <th className="p-3">Resilience</th>
-                  <th className="p-3">Cash Reserves</th>
-                  <th className="p-3">Total TCO</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-200">
-                {sortedTeams.map((t, idx) => (
-                  <tr key={t.id} className="hover:bg-dark-800/50 transition-colors">
-                    <td className="p-3 font-bold text-cyan-400">#{idx + 1}</td>
-                    <td className="p-3 font-bold text-slate-100 flex items-center gap-2">
-                      <span>{t.avatar}</span>
-                      <span>{t.name}</span>
-                    </td>
-                    <td className={`p-3 font-bold ${t.metrics.technicalDebtIndex > 60 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                      {t.metrics.technicalDebtIndex}%
-                    </td>
-                    <td className="p-3 font-bold text-cyan-400">{t.metrics.deliveryVelocity} pts</td>
-                    <td className="p-3">{t.metrics.stakeholderTrust}%</td>
-                    <td className="p-3 text-emerald-400">{t.metrics.resilienceIndex}/100</td>
-                    <td className="p-3">${t.metrics.budgetRemaining.toLocaleString()}K</td>
-                    <td className="p-3 text-slate-400">${t.metrics.tco.toLocaleString()}K</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  <div className="grid grid-cols-3 gap-3 font-mono text-center">
+                    <div className="bg-dark-900/80 p-2.5 rounded-lg border border-slate-700">
+                      <span className="text-[10px] text-slate-500 block">FINAL TDI</span>
+                      <span className="text-emerald-400 font-bold text-sm">{sortedTeams[0].metrics.technicalDebtIndex}%</span>
+                    </div>
+                    <div className="bg-dark-900/80 p-2.5 rounded-lg border border-slate-700">
+                      <span className="text-[10px] text-slate-500 block">VELOCITY</span>
+                      <span className="text-cyan-400 font-bold text-sm">{sortedTeams[0].metrics.deliveryVelocity}</span>
+                    </div>
+                    <div className="bg-dark-900/80 p-2.5 rounded-lg border border-slate-700">
+                      <span className="text-[10px] text-slate-500 block">TRUST</span>
+                      <span className="text-indigo-400 font-bold text-sm">{sortedTeams[0].metrics.stakeholderTrust}%</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Comparative Table for Live Session */}
+              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-dark-850">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-dark-900 text-slate-400 uppercase text-[10px] border-b border-slate-800">
+                    <tr>
+                      <th className="p-3">Rank</th>
+                      <th className="p-3">Organization</th>
+                      <th className="p-3">Tech Debt (TDI)</th>
+                      <th className="p-3">Delivery Velocity</th>
+                      <th className="p-3">Stakeholder Trust</th>
+                      <th className="p-3">Resilience</th>
+                      <th className="p-3">Cash Reserves</th>
+                      <th className="p-3">Total TCO</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800 text-slate-200">
+                    {sortedTeams.map((t, idx) => (
+                      <tr key={t.id} className="hover:bg-dark-800/50 transition-colors">
+                        <td className="p-3 font-bold text-cyan-400">#{idx + 1}</td>
+                        <td className="p-3 font-bold text-slate-100 flex items-center gap-2">
+                          <span>{t.avatar}</span>
+                          <span>{t.name}</span>
+                        </td>
+                        <td className={`p-3 font-bold ${t.metrics.technicalDebtIndex > 60 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                          {t.metrics.technicalDebtIndex}%
+                        </td>
+                        <td className="p-3 font-bold text-cyan-400">{t.metrics.deliveryVelocity} pts</td>
+                        <td className="p-3">{t.metrics.stakeholderTrust}%</td>
+                        <td className="p-3 text-emerald-400">{t.metrics.resilienceIndex}/100</td>
+                        <td className="p-3">${t.metrics.budgetRemaining.toLocaleString()}K</td>
+                        <td className="p-3 text-slate-400">${t.metrics.tco.toLocaleString()}K</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       )}
 
