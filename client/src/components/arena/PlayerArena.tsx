@@ -61,6 +61,11 @@ export const PlayerArena: React.FC<Props> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
+  const [selectedRadarQuarter, setSelectedRadarQuarter] = useState<number>(session.currentRound || 1);
+
+  React.useEffect(() => {
+    setSelectedRadarQuarter(session.currentRound || 1);
+  }, [session.currentRound]);
 
   // Sync local decision state when team changes or when session resets back to Q1
   React.useEffect(() => {
@@ -557,95 +562,218 @@ export const PlayerArena: React.FC<Props> = ({
               </p>
             </div>
 
-            {currentEvent ? (
-              <div className={`p-5 rounded-xl border shadow-xl space-y-4 ${
-                isInjectedCrisis
-                  ? 'bg-dark-850 border-rose-500/50 ring-1 ring-rose-500/20'
-                  : 'bg-dark-850 border-rose-500/30'
-              }`}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40">
-                    {isInjectedCrisis ? '⚡ INJECTED BLACK SWAN' : `${currentEvent.severity} SEVERITY: ${currentEvent.type}`}
-                  </span>
-                  <span className="text-xs text-slate-500 font-mono">Quarter {currentEvent.roundNumber}</span>
-                </div>
+            {/* 4-Quarter Threat Horizon Radar & Progressive Surprise Navigator */}
+            <div className="bg-dark-850 p-3 rounded-xl border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Shield className="w-3 h-3 text-cyan-400" />
+                  <span>Strategic Threat Horizon & Fog of War:</span>
+                </span>
+                <span className="text-[10px] font-mono text-slate-500">
+                  {selectedRadarQuarter === session.currentRound
+                    ? 'Active Focus'
+                    : selectedRadarQuarter < session.currentRound
+                    ? 'Past Debrief'
+                    : 'Classified Horizon'}
+                </span>
+              </div>
 
-                <h4 className="text-lg font-bold text-slate-100">{currentEvent.title}</h4>
-                <p className="text-sm text-slate-300 leading-relaxed">{currentEvent.description}</p>
+              <div className="grid grid-cols-4 gap-2">
+                {[1, 2, 3, 4].map(qNum => {
+                  const isPast = qNum < session.currentRound;
+                  const isCurrent = qNum === session.currentRound;
+                  const isFuture = qNum > session.currentRound;
+                  const isSelected = selectedRadarQuarter === qNum;
 
-                {/* Immediate Damage Telemetry Box */}
-                {currentEvent.immediateImpact && (
-                  <div className="bg-rose-950/20 border border-rose-500/30 rounded-lg p-3 text-xs font-mono space-y-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-400 block mb-1">
-                      Immediate Damage Applied Upon Detection:
-                    </span>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="bg-dark-900/80 p-2 rounded border border-rose-500/20">
-                        <span className="text-[10px] text-slate-400 block">Cash Penalty</span>
-                        <span className="text-rose-400 font-bold">-${currentEvent.immediateImpact.budgetFine}K</span>
-                      </div>
-                      <div className="bg-dark-900/80 p-2 rounded border border-rose-500/20">
-                        <span className="text-[10px] text-slate-400 block">TDI Spike</span>
-                        <span className="text-rose-400 font-bold">+{currentEvent.immediateImpact.tdiSurge}%</span>
-                      </div>
-                      <div className="bg-dark-900/80 p-2 rounded border border-rose-500/20">
-                        <span className="text-[10px] text-slate-400 block">Velocity Drag</span>
-                        <span className="text-rose-400 font-bold">-{Math.abs(currentEvent.immediateImpact.velocityPenalty)} pts</span>
-                      </div>
-                    </div>
-                    {currentEvent.immediateImpact.downedNodeIds && currentEvent.immediateImpact.downedNodeIds.length > 0 && (
-                      <div className="pt-1 text-[11px] text-amber-300 flex items-center gap-1.5">
-                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-                        <span>Compromised Nodes: {currentEvent.immediateImpact.downedNodeIds.join(', ')}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="space-y-2.5 pt-3 border-t border-slate-800">
-                  <span className="text-xs font-mono font-semibold text-slate-400">Select Remediation Strategy:</span>
-                  {currentEvent.choices.map(choice => (
-                    <div
-                      key={choice.id}
-                      onClick={() => !team.decisionSubmitted && setSelectedEventChoice(choice.id)}
-                      className={`p-3.5 rounded-xl border text-xs transition-all cursor-pointer ${
-                        selectedEventChoice === choice.id
-                          ? 'bg-cyan-500/10 border-cyan-500 ring-1 ring-cyan-500 shadow-md'
-                          : 'bg-dark-900 border-slate-800 hover:border-slate-700'
+                  return (
+                    <button
+                      key={qNum}
+                      onClick={() => setSelectedRadarQuarter(qNum)}
+                      className={`p-2 rounded-lg border text-left transition-all relative ${
+                        isSelected
+                          ? isCurrent
+                            ? 'bg-rose-500/20 border-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.3)] ring-1 ring-rose-500'
+                            : 'bg-indigo-500/20 border-indigo-500 ring-1 ring-indigo-500'
+                          : isPast
+                          ? 'bg-dark-900 border-emerald-500/30 hover:border-emerald-500/60'
+                          : isCurrent
+                          ? 'bg-rose-950/40 border-rose-500/50 hover:border-rose-400'
+                          : 'bg-dark-900/60 border-slate-800 hover:border-slate-700 opacity-60 hover:opacity-100'
                       }`}
                     >
-                      <div className="font-semibold text-slate-200 mb-1.5 flex items-center justify-between gap-2">
-                        <span>{choice.text}</span>
-                        {selectedEventChoice === choice.id && (
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500 text-black font-bold shrink-0">
-                            SELECTED
-                          </span>
-                        )}
+                      <div className="flex items-center justify-between mb-0.5">
+                        <span className="font-mono text-xs font-bold text-slate-100">Q{qNum}</span>
+                        {isPast && <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />}
+                        {isCurrent && <Flame className="w-3.5 h-3.5 text-rose-500 animate-pulse" />}
+                        {isFuture && <Lock className="w-3.5 h-3.5 text-slate-500" />}
                       </div>
-                      <div className="flex flex-wrap items-center gap-3 text-[10px] font-mono text-slate-400">
-                        <span>Cost: ${choice.capExImpact}K</span>
-                        <span className={choice.tdiImpact <= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                          TDI: {choice.tdiImpact <= 0 ? `${choice.tdiImpact}%` : `+${choice.tdiImpact}%`}
-                        </span>
-                        <span>Velocity: {choice.velocityImpact >= 0 ? `+${choice.velocityImpact}%` : `${choice.velocityImpact}%`}</span>
-                        {choice.nodeHealthImpacts && Object.keys(choice.nodeHealthImpacts).length > 0 && (
-                          <span className="text-cyan-400 font-semibold">
-                            Recovers: {Object.keys(choice.nodeHealthImpacts).join(', ')}
-                          </span>
-                        )}
-                        {choice.trustImpact && Object.keys(choice.trustImpact).length > 0 && (
-                          <span className="text-indigo-300">
-                            Trust: {Object.entries(choice.trustImpact).map(([k, v]) => `${k} (${v > 0 ? `+${v}` : v}%)`).join(', ')}
-                          </span>
-                        )}
+                      <div className="text-[10px] font-mono truncate">
+                        {isPast && <span className="text-emerald-400">Resolved</span>}
+                        {isCurrent && <span className="text-rose-400 font-bold">Active Shock</span>}
+                        {isFuture && <span className="text-slate-500">Fog of War</span>}
                       </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Render based on selectedRadarQuarter */}
+            {selectedRadarQuarter === session.currentRound ? (
+              // ACTIVE CRISIS FOR CURRENT ROUND
+              currentEvent ? (
+                <div className={`p-5 rounded-xl border shadow-xl space-y-4 ${
+                  isInjectedCrisis
+                    ? 'bg-dark-850 border-rose-500/50 ring-1 ring-rose-500/20'
+                    : 'bg-dark-850 border-rose-500/30'
+                }`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40">
+                      {isInjectedCrisis ? '⚡ INJECTED BLACK SWAN' : `${currentEvent.severity} SEVERITY: ${currentEvent.type}`}
+                    </span>
+                    <span className="text-xs text-slate-500 font-mono">Quarter {currentEvent.roundNumber} Active</span>
+                  </div>
+
+                  <h4 className="text-lg font-bold text-slate-100">{currentEvent.title}</h4>
+                  <p className="text-sm text-slate-300 leading-relaxed">{currentEvent.description}</p>
+
+                  {/* Immediate Damage Telemetry Box */}
+                  {currentEvent.immediateImpact && (
+                    <div className="bg-rose-950/20 border border-rose-500/30 rounded-lg p-3 text-xs font-mono space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-rose-400 block mb-1">
+                        Immediate Damage Applied Upon Detection:
+                      </span>
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="bg-dark-900/80 p-2 rounded border border-rose-500/20">
+                          <span className="text-[10px] text-slate-400 block">Cash Penalty</span>
+                          <span className="text-rose-400 font-bold">-${currentEvent.immediateImpact.budgetFine}K</span>
+                        </div>
+                        <div className="bg-dark-900/80 p-2 rounded border border-rose-500/20">
+                          <span className="text-[10px] text-slate-400 block">TDI Spike</span>
+                          <span className="text-rose-400 font-bold">+{currentEvent.immediateImpact.tdiSurge}%</span>
+                        </div>
+                        <div className="bg-dark-900/80 p-2 rounded border border-rose-500/20">
+                          <span className="text-[10px] text-slate-400 block">Velocity Drag</span>
+                          <span className="text-rose-400 font-bold">-{Math.abs(currentEvent.immediateImpact.velocityPenalty)} pts</span>
+                        </div>
+                      </div>
+                      {currentEvent.immediateImpact.downedNodeIds && currentEvent.immediateImpact.downedNodeIds.length > 0 && (
+                        <div className="pt-1 text-[11px] text-amber-300 flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                          <span>Compromised Nodes: {currentEvent.immediateImpact.downedNodeIds.join(', ')}</span>
+                        </div>
+                      )}
                     </div>
-                  ))}
+                  )}
+
+                  <div className="space-y-2.5 pt-3 border-t border-slate-800">
+                    <span className="text-xs font-mono font-semibold text-slate-400">Select Remediation Strategy:</span>
+                    {currentEvent.choices.map(choice => (
+                      <div
+                        key={choice.id}
+                        onClick={() => !team.decisionSubmitted && setSelectedEventChoice(choice.id)}
+                        className={`p-3.5 rounded-xl border text-xs transition-all cursor-pointer ${
+                          selectedEventChoice === choice.id
+                            ? 'bg-cyan-500/10 border-cyan-500 ring-1 ring-cyan-500 shadow-md'
+                            : 'bg-dark-900 border-slate-800 hover:border-slate-700'
+                        }`}
+                      >
+                        <div className="font-semibold text-slate-200 mb-1.5 flex items-center justify-between gap-2">
+                          <span>{choice.text}</span>
+                          {selectedEventChoice === choice.id && (
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500 text-black font-bold shrink-0">
+                              SELECTED
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-[10px] font-mono text-slate-400">
+                          <span>Cost: ${choice.capExImpact}K</span>
+                          <span className={choice.tdiImpact <= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                            TDI: {choice.tdiImpact <= 0 ? `${choice.tdiImpact}%` : `+${choice.tdiImpact}%`}
+                          </span>
+                          <span>Velocity: {choice.velocityImpact >= 0 ? `+${choice.velocityImpact}%` : `${choice.velocityImpact}%`}</span>
+                          {choice.nodeHealthImpacts && Object.keys(choice.nodeHealthImpacts).length > 0 && (
+                            <span className="text-cyan-400 font-semibold">
+                              Recovers: {Object.keys(choice.nodeHealthImpacts).join(', ')}
+                            </span>
+                          )}
+                          {choice.trustImpact && Object.keys(choice.trustImpact).length > 0 && (
+                            <span className="text-indigo-300">
+                              Trust: {Object.entries(choice.trustImpact).map(([k, v]) => `${k} (${v > 0 ? `+${v}` : v}%)`).join(', ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
+              ) : (
+                <div className="bg-dark-850 p-8 rounded-xl border border-slate-800 text-center text-slate-500 text-xs">
+                  No active disruptions scheduled for this quarter.
+                </div>
+              )
+            ) : selectedRadarQuarter < session.currentRound ? (
+              // PAST RESOLVED QUARTER
+              <div className="p-5 rounded-xl border border-emerald-500/30 bg-dark-850 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                    ✅ QUARTER {selectedRadarQuarter} DISRUPTION RESOLVED
+                  </span>
+                  <button
+                    onClick={() => setSelectedRadarQuarter(session.currentRound)}
+                    className="text-[11px] text-cyan-400 underline font-mono"
+                  >
+                    Return to Active Q{session.currentRound}
+                  </button>
+                </div>
+                <h4 className="text-base font-bold text-slate-200">
+                  {scenario.roundEvents.find(e => e.roundNumber === selectedRadarQuarter)?.title || `Quarter ${selectedRadarQuarter} Disruption`}
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Cette perturbation passée a été absorbée par l'équipe. Les impacts budgétaires et les dérives de dette résiduelle ont été consolidés dans l'historique du tour.
+                </p>
               </div>
             ) : (
-              <div className="bg-dark-850 p-8 rounded-xl border border-slate-800 text-center text-slate-500 text-xs">
-                No active disruptions scheduled for this quarter.
+              // FUTURE QUARTER UNDER STRATEGIC FOG OF WAR
+              <div className="p-6 rounded-xl border border-indigo-500/40 bg-gradient-to-b from-dark-850 to-indigo-950/20 space-y-4 relative overflow-hidden">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-mono font-bold px-2.5 py-1 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 flex items-center gap-1.5">
+                    <Lock className="w-3.5 h-3.5" />
+                    <span>BROUILLARD DE GUERRE // VECTEUR CLASSIFIÉ</span>
+                  </span>
+                  <span className="text-xs font-mono text-slate-400">Quarter {selectedRadarQuarter} Horizon</span>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="text-lg font-bold text-slate-200 flex items-center gap-2">
+                    <span>Horizon Inconnu : Menace Émergente</span>
+                  </h4>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Pour garantir le réalisme stratégique et la tension opérationnelle, les crises futures ne sont <strong>JAMAIS dévoilées à l'avance</strong>. Les détails précis de l'incident et les choix de remédiation d'urgence se débloqueront à l'ouverture du Trimestre {selectedRadarQuarter}.
+                  </p>
+                </div>
+
+                <div className="bg-dark-900/80 p-3.5 rounded-xl border border-slate-800 space-y-2 text-xs font-mono">
+                  <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider block">
+                    Sondes de Télémétrie Prédictive (Signaux Faibles) :
+                  </span>
+                  <div className="space-y-1 text-slate-400 text-[11px]">
+                    <p>• Sonde Dette Technique : Vulnérabilité accrue si le TDI dépasse 60%.</p>
+                    <p>• Sonde Réglementaire : Surveillance des transferts et audits de conformité.</p>
+                    <p>• Sonde Résilience : Les composants en état Critique aggravent le risque de Black Swan.</p>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-xs text-indigo-300">
+                  💡 <strong>Principe de Conception Résiliente :</strong> Ne sur-optimisez pas pour un problème connu ! Investissez dès maintenant dans le découplage et la diminution du TDI pour immuniser l'entreprise contre ce choc à venir.
+                </div>
+
+                <button
+                  onClick={() => setSelectedRadarQuarter(session.currentRound)}
+                  className="w-full py-2.5 rounded-lg bg-dark-800 hover:bg-dark-750 text-cyan-400 border border-slate-700 text-xs font-mono font-bold"
+                >
+                  Revenir à la crise active du Trimestre {session.currentRound}
+                </button>
               </div>
             )}
           </div>

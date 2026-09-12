@@ -235,6 +235,29 @@ export const api = {
     return res.json();
   },
 
+  async callBoardroomMeeting(payload: {
+    sessionId: string;
+    teamId: string;
+    playerMessage: string;
+  }): Promise<{
+    replies: ChatMessage[];
+    boardResolution: any;
+    updatedTrustMap: Record<string, number>;
+    averageTrust: number;
+    usedProvider: string;
+  }> {
+    const res = await fetch(`${API_BASE}/ai/boardroom`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Boardroom meeting failed');
+    }
+    return res.json();
+  },
+
   async getChatHistory(sessionId: string, teamId: string, stakeholderId?: string): Promise<ChatMessage[]> {
     let url = `${API_BASE}/ai/chat/${sessionId}/${teamId}`;
     if (stakeholderId) url += `?stakeholderId=${stakeholderId}`;

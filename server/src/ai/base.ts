@@ -109,189 +109,197 @@ Respond ONLY with a valid JSON object matching this exact schema:
   public async generateScenario(
     prompt: ScenarioGenerationPrompt
   ): Promise<Partial<Scenario>> {
-    const systemPrompt = `You are an elite Enterprise Architect and Executive Simulation Designer.
-Generate a complete, playable enterprise simulation scenario in strict JSON format based on:
-Industry: ${prompt.industry}
-Challenge: ${prompt.businessChallenge}
-Difficulty: ${prompt.difficulty || 'INTERMEDIATE'}
-Directives: ${prompt.customDirectives || 'Standard executive pressures'}
+    const systemPrompt = `You are an elite Enterprise Architect and Executive Simulation Game Designer.
+Your task is to transform the user's scenario specification into a complete, operational, playable enterprise simulation scenario in strict JSON format.
 
-Respond ONLY with valid JSON matching this schema:
+CRITICAL DESIGN DIRECTIVES:
+1. DOMAIN & PROMPT FIDELITY: You MUST invent or extract all scenario elements directly from the user's prompt. NEVER output hardcoded defaults (such as "Marcus Vance", "Priya Patel", "Dr. Elena Rostova", "Strangler Fig Core", or generic banking monoliths) unless the prompt specifically asks for them.
+2. LANGUAGE RULE: If the user's prompt is in French, generate ALL titles, descriptions, stakeholder names, dialogues, round event dilemmas, and initiative names in French! If in English, in English.
+3. 3D SPATIAL TOPOLOGY: Build a realistic spatial topology (minimum 6 nodes, 6 edges) reflecting the problem domain:
+   - If the prompt specifies Onshore vs Offshore (or Cloud vs Edge): place Onshore / Core nodes on the left (x: -7 to -2), Central Bridge / Governance nodes at (x: 0), and Offshore / External nodes on the right (x: 2 to 7).
+   - Assign realistic positions: layer ('BUSINESS', 'APPLICATION', 'DATA', 'INFRASTRUCTURE'), health (10-100), technicalDebt (0-100), telemetry.
+4. AUTONOMOUS PERSONAS: Generate 3 to 4 executive NPCs directly matching the factions in the prompt (e.g. CFO / Finance, Vendor / ESN Account Director, Onshore Operations Delivery Lead). Include their distinct personality, hidden agenda, biases, decision weights, and reactive dialogue.
+5. 4-QUARTER CHRONOLOGICAL TIMELINE: Generate exactly 4 round events (Q1, Q2, Q3, Q4) with meaningful strategic dilemmas and selectable remediation choices matching the story arc.
+6. STRATEGIC INITIATIVES CATALOG: Generate 4 to 6 strategic initiatives directly addressing the trade-offs described in the prompt.
+
+Output ONLY valid JSON matching this structure:
 {
-  "title": "Codename: Operation Title",
+  "title": "<Specific, evocative scenario title, e.g. from prompt>",
   "industry": "${prompt.industry}",
   "difficulty": "${prompt.difficulty || 'INTERMEDIATE'}",
-  "description": "Executive overview of the transformation challenge (2 paragraphs)",
-  "businessContext": "Detailed corporate history and bottlenecks",
+  "description": "<Executive overview in 2 paragraphs tailored to the prompt>",
+  "businessContext": "<Detailed corporate context and crisis triggers from the prompt>",
   "baselineMetrics": {
-    "tco": 2000, "budgetRemaining": 1400, "opEx": 500, "capExSpent": 300,
-    "technicalDebtIndex": 68, "deliveryVelocity": 46, "stakeholderTrust": 54,
-    "resilienceIndex": 50, "complianceScore": 62, "modernizedNodesCount": 1
+    "tco": 2200, "budgetRemaining": 1500, "opEx": 550, "capExSpent": 350,
+    "technicalDebtIndex": 45, "deliveryVelocity": 55, "stakeholderTrust": 45,
+    "resilienceIndex": 50, "complianceScore": 75, "modernizedNodesCount": 1
   },
   "winLossConditions": {
     "maxTechnicalDebtIndex": 45, "minStakeholderTrustAvg": 60,
-    "minDeliveryVelocity": 65, "minResilienceIndex": 72,
-    "maxTCOBudget": 4200, "targetCapabilitiesModernized": 4
+    "minDeliveryVelocity": 65, "minResilienceIndex": 70,
+    "maxTCOBudget": 4500, "targetCapabilitiesModernized": 4
   },
   "totalRounds": 4,
   "topology": {
     "nodes": [
       {
-        "id": "node-1", "name": "Client Portal / Touchpoint", "layer": "BUSINESS",
-        "description": "Customer channel", "health": 75, "technicalDebt": 30,
-        "criticalPath": true, "costPerRound": 45, "position": {"x": -5, "y": 5, "z": 0},
+        "id": "node-1", "name": "<Node Name reflecting the domain>", "layer": "BUSINESS",
+        "description": "<Component role in the enterprise architecture>", "health": 70, "technicalDebt": 35,
+        "criticalPath": true, "costPerRound": 50, "position": {"x": -6, "y": 4, "z": 0},
         "status": "HEALTHY", "dependencies": ["node-2"],
-        "telemetry": {"latencyMs": 45, "throughputRps": 2200, "errorRatePercent": 0.1, "failureRisk": 18}
+        "telemetry": {"latencyMs": 50, "throughputRps": 2000, "errorRatePercent": 0.1, "failureRisk": 20}
       },
       {
-        "id": "node-2", "name": "Core Monolithic Transaction Service", "layer": "APPLICATION",
-        "description": "Legacy monolith bottleneck", "health": 40, "technicalDebt": 82,
-        "criticalPath": true, "costPerRound": 160, "position": {"x": 0, "y": 2, "z": 0},
+        "id": "node-2", "name": "<Critical Core/Monolith or Gateway Node>", "layer": "APPLICATION",
+        "description": "<System description>", "health": 45, "technicalDebt": 75,
+        "criticalPath": true, "costPerRound": 150, "position": {"x": -2, "y": 2, "z": 0},
         "status": "CRITICAL", "dependencies": ["node-3"],
-        "telemetry": {"latencyMs": 680, "throughputRps": 550, "errorRatePercent": 3.8, "failureRisk": 85}
+        "telemetry": {"latencyMs": 600, "throughputRps": 600, "errorRatePercent": 3.5, "failureRisk": 80}
       },
       {
-        "id": "node-3", "name": "Enterprise Core Database", "layer": "DATA",
-        "description": "Shared relational database with table locks", "health": 48, "technicalDebt": 74,
-        "criticalPath": true, "costPerRound": 110, "position": {"x": 0, "y": -2, "z": 0},
+        "id": "node-3", "name": "<Integration Bridge / Cross-Border Pipeline / Data Fabric>", "layer": "INFRASTRUCTURE",
+        "description": "<Bridge between architectures>", "health": 60, "technicalDebt": 50,
+        "criticalPath": true, "costPerRound": 80, "position": {"x": 0, "y": 0, "z": 0},
         "status": "DEGRADED", "dependencies": ["node-4"],
-        "telemetry": {"latencyMs": 420, "throughputRps": 900, "errorRatePercent": 2.4, "failureRisk": 72}
+        "telemetry": {"latencyMs": 150, "throughputRps": 1800, "errorRatePercent": 1.2, "failureRisk": 45}
       },
       {
-        "id": "node-4", "name": "Primary Datacenter Infrastructure", "layer": "INFRASTRUCTURE",
-        "description": "Aging on-prem server footprint", "health": 55, "technicalDebt": 65,
-        "criticalPath": true, "costPerRound": 130, "position": {"x": 0, "y": -5, "z": 0},
+        "id": "node-4", "name": "<External / Offshore / Remote Delivery Node>", "layer": "APPLICATION",
+        "description": "<Remote delivery center or cloud cluster>", "health": 55, "technicalDebt": 65,
+        "criticalPath": false, "costPerRound": 90, "position": {"x": 4, "y": 2, "z": 0},
         "status": "DEGRADED", "dependencies": [],
-        "telemetry": {"latencyMs": 110, "throughputRps": 3200, "errorRatePercent": 0.9, "failureRisk": 50}
+        "telemetry": {"latencyMs": 280, "throughputRps": 1200, "errorRatePercent": 2.0, "failureRisk": 60}
       },
       {
-        "id": "node-5", "name": "Cloud Native Microservices Mesh", "layer": "APPLICATION",
-        "description": "Decoupled modern services", "health": 90, "technicalDebt": 12,
-        "criticalPath": false, "costPerRound": 50, "position": {"x": 5, "y": 2, "z": 0},
-        "status": "MODERNIZED", "dependencies": ["node-6"],
-        "telemetry": {"latencyMs": 22, "throughputRps": 3800, "errorRatePercent": 0.02, "failureRisk": 8}
+        "id": "node-5", "name": "<Core Database / Sovereign Vault>", "layer": "DATA",
+        "description": "<Regulated data storage>", "health": 65, "technicalDebt": 55,
+        "criticalPath": true, "costPerRound": 100, "position": {"x": -4, "y": -3, "z": 0},
+        "status": "HEALTHY", "dependencies": [],
+        "telemetry": {"latencyMs": 80, "throughputRps": 3000, "errorRatePercent": 0.3, "failureRisk": 35}
       },
       {
-        "id": "node-6", "name": "Kafka Event Streaming Fabric", "layer": "DATA",
-        "description": "High-throughput asynchronous streaming bus", "health": 92, "technicalDebt": 10,
-        "criticalPath": false, "costPerRound": 45, "position": {"x": 4, "y": -2, "z": 0},
-        "status": "MODERNIZED", "dependencies": [],
-        "telemetry": {"latencyMs": 8, "throughputRps": 8500, "errorRatePercent": 0.01, "failureRisk": 5}
+        "id": "node-6", "name": "<Remote Software Factory / Secondary Node>", "layer": "APPLICATION",
+        "description": "<Distributed feature factory>", "health": 50, "technicalDebt": 70,
+        "criticalPath": false, "costPerRound": 60, "position": {"x": 6, "y": 5, "z": 0},
+        "status": "DEGRADED", "dependencies": [],
+        "telemetry": {"latencyMs": 320, "throughputRps": 800, "errorRatePercent": 2.5, "failureRisk": 65}
       }
     ],
     "edges": [
-      {"id": "e1", "fromId": "node-1", "toId": "node-2", "protocol": "HTTPS/REST", "bandwidthMbps": 1500, "status": "BOTTLENECK", "latencyMs": 320},
-      {"id": "e2", "fromId": "node-2", "toId": "node-3", "protocol": "JDBC Direct Pool", "bandwidthMbps": 500, "status": "BOTTLENECK", "latencyMs": 480},
-      {"id": "e3", "fromId": "node-3", "toId": "node-4", "protocol": "Storage Fiber", "bandwidthMbps": 1000, "status": "NORMAL", "latencyMs": 35},
-      {"id": "e4", "fromId": "node-1", "toId": "node-5", "protocol": "mTLS gRPC", "bandwidthMbps": 2500, "status": "OPTIMIZED", "latencyMs": 14},
-      {"id": "e5", "fromId": "node-5", "toId": "node-6", "protocol": "Kafka Wire", "bandwidthMbps": 5000, "status": "OPTIMIZED", "latencyMs": 6}
+      {"id": "e1", "fromId": "node-1", "toId": "node-2", "protocol": "HTTPS/REST", "bandwidthMbps": 1000, "status": "NORMAL", "latencyMs": 30},
+      {"id": "e2", "fromId": "node-2", "toId": "node-3", "protocol": "CI/CD Pipeline", "bandwidthMbps": 500, "status": "BOTTLENECK", "latencyMs": 220},
+      {"id": "e3", "fromId": "node-3", "toId": "node-4", "protocol": "VPN Transfrontalier", "bandwidthMbps": 300, "status": "BOTTLENECK", "latencyMs": 290},
+      {"id": "e4", "fromId": "node-2", "toId": "node-5", "protocol": "JDBC Direct Pool", "bandwidthMbps": 1500, "status": "OPTIMIZED", "latencyMs": 20},
+      {"id": "e5", "fromId": "node-4", "toId": "node-6", "protocol": "Remote Git / Code Stream", "bandwidthMbps": 1000, "status": "NORMAL", "latencyMs": 110}
     ]
   },
   "stakeholders": [
     {
-      "id": "sh-cfo", "name": "Marcus Vance", "title": "Chief Financial Officer",
-      "role": "Corporate Finance", "avatar": "💼", "personality": "Conservative, margin-obsessed",
-      "bias": "Demands payback within 2 quarters", "hiddenAgenda": "Avoid earnings per share dilution",
-      "negotiationTolerance": 50, "baseTrust": 55,
-      "decisionWeights": {"financialAcumen": 0.7, "deliverySpeed": 0.1, "architecturalRigor": 0.1, "regulatoryCompliance": 0.1},
-      "sampleDialogue": {"greeting": "Show me the ROI.", "resistance": "CapEx is excessive.", "concession": "Lower ongoing OpEx and I agree."}
+      "id": "sh-1", "name": "<Stakeholder 1 Name>", "title": "<Executive Title, e.g. CFO>",
+      "role": "<Role in the organization>", "avatar": "💼", "personality": "<Psychological description>",
+      "bias": "<Primary bias>", "hiddenAgenda": "<Secret objective>",
+      "negotiationTolerance": 45, "baseTrust": 50,
+      "decisionWeights": {"financialAcumen": 0.6, "deliverySpeed": 0.2, "architecturalRigor": 0.1, "regulatoryCompliance": 0.1},
+      "sampleDialogue": {"greeting": "<In-character greeting>", "resistance": "<Pushback statement>", "concession": "<Condition for agreement>"}
     },
     {
-      "id": "sh-cpo", "name": "Priya Patel", "title": "VP of Product",
-      "role": "Commercial Growth", "avatar": "🚀", "personality": "Fast-paced, growth-oriented",
-      "bias": "Cannot tolerate feature roadmap freezes", "hiddenAgenda": "Hit Q3 customer growth bonuses",
-      "negotiationTolerance": 45, "baseTrust": 60,
-      "decisionWeights": {"financialAcumen": 0.1, "deliverySpeed": 0.7, "architecturalRigor": 0.1, "regulatoryCompliance": 0.1},
-      "sampleDialogue": {"greeting": "When do we ship?", "resistance": "Refactoring slows us down.", "concession": "Guarantee parallel squads and I support."}
+      "id": "sh-2", "name": "<Stakeholder 2 Name>", "title": "<Executive Title, e.g. Vendor / ESN Director>",
+      "role": "<Role in the organization>", "avatar": "🌍", "personality": "<Psychological description>",
+      "bias": "<Primary bias>", "hiddenAgenda": "<Secret objective>",
+      "negotiationTolerance": 55, "baseTrust": 50,
+      "decisionWeights": {"financialAcumen": 0.2, "deliverySpeed": 0.5, "architecturalRigor": 0.1, "regulatoryCompliance": 0.2},
+      "sampleDialogue": {"greeting": "<In-character greeting>", "resistance": "<Pushback statement>", "concession": "<Condition for agreement>"}
     },
     {
-      "id": "sh-cto", "name": "Dr. Elena Rostova", "title": "Chief Enterprise Architect",
-      "role": "Architecture Governance", "avatar": "🛡️", "personality": "Principled, rigor-focused",
-      "bias": "Opposes direct database shortcuts", "hiddenAgenda": "Establish domain-driven standards",
-      "negotiationTolerance": 65, "baseTrust": 65,
-      "decisionWeights": {"financialAcumen": 0.15, "deliverySpeed": 0.1, "architecturalRigor": 0.65, "regulatoryCompliance": 0.1},
-      "sampleDialogue": {"greeting": "Shortcuts compound into outages.", "resistance": "Direct coupling will break.", "concession": "Use strangler fig patterns."}
+      "id": "sh-3", "name": "<Stakeholder 3 Name>", "title": "<Executive Title, e.g. Delivery / Operations Lead>",
+      "role": "<Role in the organization>", "avatar": "⚠️", "personality": "<Psychological description>",
+      "bias": "<Primary bias>", "hiddenAgenda": "<Secret objective>",
+      "negotiationTolerance": 35, "baseTrust": 60,
+      "decisionWeights": {"financialAcumen": 0.1, "deliverySpeed": 0.2, "architecturalRigor": 0.4, "regulatoryCompliance": 0.3},
+      "sampleDialogue": {"greeting": "<In-character greeting>", "resistance": "<Pushback statement>", "concession": "<Condition for agreement>"}
     }
   ],
   "roundEvents": [
     {
-      "roundNumber": 1, "title": "Q1: Challenger Feature Surge", "description": "Competitor launched agile features pulling customer share.",
-      "type": "COMPETITIVE_SURGE", "severity": "MEDIUM",
-      "immediateImpact": {"budgetFine": 50, "tdiSurge": 6, "velocityPenalty": 0},
+      "roundNumber": 1, "title": "<Q1 Event Title matching the prompt's 1st challenge>",
+      "description": "<Contextual event description>", "type": "COMPETITIVE_SURGE", "severity": "MEDIUM",
+      "immediateImpact": {"budgetFine": 60, "tdiSurge": 8, "velocityPenalty": -10},
       "choices": [
-        {"id": "ev1-1", "text": "Deploy quick API bypass patch", "capExImpact": 60, "tdiImpact": 14, "velocityImpact": 15, "trustImpact": {"sh-cpo": 12, "sh-cto": -14}},
-        {"id": "ev1-2", "text": "Build decoupled microservice contract", "capExImpact": 140, "tdiImpact": -8, "velocityImpact": -5, "trustImpact": {"sh-cto": 14, "sh-cpo": -6}}
+        {"id": "ev1-1", "text": "<Dilemma Option A>", "capExImpact": 120, "tdiImpact": -8, "velocityImpact": -5, "trustImpact": {"sh-1": -5, "sh-3": 12}},
+        {"id": "ev1-2", "text": "<Dilemma Option B>", "capExImpact": 40, "tdiImpact": 12, "velocityImpact": 10, "trustImpact": {"sh-1": 10, "sh-3": -12}}
       ]
     },
     {
-      "roundNumber": 2, "title": "Q2: Regulatory Compliance Audit", "description": "Unannounced federal audit on legacy security and encryption.",
-      "type": "AUDIT", "severity": "HIGH",
-      "immediateImpact": {"budgetFine": 110, "tdiSurge": 0, "velocityPenalty": -10},
+      "roundNumber": 2, "title": "<Q2 Event Title matching the prompt's 2nd challenge>",
+      "description": "<Contextual event description>", "type": "AUDIT", "severity": "HIGH",
+      "immediateImpact": {"budgetFine": 120, "tdiSurge": 6, "velocityPenalty": -15},
       "choices": [
-        {"id": "ev2-1", "text": "Execute zero-trust audit remediation", "capExImpact": 160, "tdiImpact": -10, "velocityImpact": 5, "trustImpact": {"sh-cto": 12}},
-        {"id": "ev2-2", "text": "Apply surface patches and pay penalty", "capExImpact": 70, "tdiImpact": 6, "velocityImpact": 0, "trustImpact": {"sh-cto": -12, "sh-cfo": 6}}
+        {"id": "ev2-1", "text": "<Dilemma Option A>", "capExImpact": 150, "tdiImpact": -10, "velocityImpact": 5, "trustImpact": {"sh-3": 14, "sh-1": -8}},
+        {"id": "ev2-2", "text": "<Dilemma Option B>", "capExImpact": 60, "tdiImpact": 8, "velocityImpact": -5, "trustImpact": {"sh-2": 8, "sh-3": -10}}
       ]
     },
     {
-      "roundNumber": 3, "title": "Q3: Monolith Deadlock Crisis", "description": "High volume locks transaction tables for 40 minutes.",
-      "type": "CRISIS", "severity": "BLACK_SWAN",
-      "immediateImpact": {"budgetFine: 240, "tdiSurge": 8, "velocityPenalty: -20},
+      "roundNumber": 3, "title": "<Q3 Event Title matching the prompt's 3rd challenge>",
+      "description": "<Contextual event description>", "type": "CRISIS", "severity": "BLACK_SWAN",
+      "immediateImpact": {"budgetFine": 200, "tdiSurge": 10, "velocityPenalty": -20},
       "choices": [
-        {"id": "ev3-1", "text": "Emergency Kafka read-replica sharding", "capExImpact": 180, "tdiImpact": -14, "velocityImpact": 6, "trustImpact": {"sh-cto": 16, "sh-cfo": -10}},
-        {"id": "ev3-2", "text": "Overprovision hardware compute", "capExImpact": 240, "tdiImpact": 6, "velocityImpact": -4, "trustImpact": {"sh-cfo": -16, "sh-cpo": 8}}
+        {"id": "ev3-1", "text": "<Dilemma Option A>", "capExImpact": 180, "tdiImpact": -12, "velocityImpact": 8, "trustImpact": {"sh-3": 15, "sh-1": -10}},
+        {"id": "ev3-2", "text": "<Dilemma Option B>", "capExImpact": 90, "tdiImpact": 10, "velocityImpact": -10, "trustImpact": {"sh-2": 10, "sh-3": -15}}
       ]
     },
     {
-      "roundNumber": 4, "title": "Q4: Executive Board Modernization Review", "description": "Final review of transformation progress and debt reduction.",
-      "type": "MARKET_SHIFT", "severity": "HIGH",
-      "immediateImpact": {"budgetFine: 0, "tdiSurge": 0, "velocityPenalty": 0},
+      "roundNumber": 4, "title": "<Q4 Event Title matching the prompt's 4th challenge / Target Model>",
+      "description": "<Contextual event description>", "type": "MARKET_SHIFT", "severity": "HIGH",
+      "immediateImpact": {"budgetFine": 0, "tdiSurge": 0, "velocityPenalty": 0},
       "choices": [
-        {"id": "ev4-1", "text": "Present modernization achievements and scale roadmap", "capExImpact": 90, "tdiImpact": -4, "velocityImpact": 8, "trustImpact": {"sh-cfo": 10, "sh-cpo": 10, "sh-cto": 12}},
-        {"id": "ev4-2", "text": "Enact budget freeze to inflate short-term cash reserves", "capExImpact": -80, "tdiImpact": 10, "velocityImpact: -14, "trustImpact": {"sh-cfo": 16, "sh-cto": -16, "sh-cpo": -12}}
+        {"id": "ev4-1", "text": "<Target Model Option A>", "capExImpact": 100, "tdiImpact": -6, "velocityImpact": 10, "trustImpact": {"sh-1": 12, "sh-3": 10}},
+        {"id": "ev4-2", "text": "<Target Model Option B>", "capExImpact": 0, "tdiImpact": 14, "velocityImpact": -10, "trustImpact": {"sh-2": 15, "sh-3": -20}}
       ]
     }
   ],
   "initiativesCatalog": [
     {
-      "id": "init-strangler", "name": "Strangler Fig Core Modernization", "category": "MODERNIZATION",
-      "description": "Decouple legacy monolith into domain microservices with anti-corruption layer.",
-      "capExCost": 300, "opExDelta": -35, "tdiDelta": -20, "velocityDelta": 15,
-      "resilienceDelta": 18, "complianceDelta": 10, "trustDelta": {"sh-cto": 14, "sh-cpo": 6},
-      "affectedNodeIds": ["node-2", "node-5"], "durationRounds": 1, "riskLevel": "MEDIUM"
+      "id": "init-1", "name": "<Strategic Initiative 1 directly reflecting prompt solution>", "category": "MODERNIZATION",
+      "description": "<Detailed description of architectural initiative>",
+      "capExCost": 280, "opExDelta": -35, "tdiDelta": -18, "velocityDelta": 15,
+      "resilienceDelta": 20, "complianceDelta": 12, "trustDelta": {"sh-3": 14, "sh-1": 6},
+      "affectedNodeIds": ["node-2", "node-3"], "durationRounds": 1, "riskLevel": "MEDIUM"
     },
     {
-      "id": "init-kafka-bus", "name": "Event-Driven Messaging & Kafka Decoupling", "category": "MODERNIZATION",
-      "description": "Replace synchronous point-to-point batch calls with distributed event streams.",
-      "capExCost": 240, "opExDelta": -20, "tdiDelta": -15, "velocityDelta": 12,
-      "resilienceDelta": 20, "complianceDelta": 6, "trustDelta": {"sh-cto": 12},
-      "affectedNodeIds": ["node-3", "node-6"], "durationRounds": 1, "riskLevel": "LOW"
+      "id": "init-2", "name": "<Strategic Initiative 2 directly reflecting prompt solution>", "category": "MODERNIZATION",
+      "description": "<Detailed description of architectural initiative>",
+      "capExCost": 220, "opExDelta": -20, "tdiDelta": -14, "velocityDelta": 12,
+      "resilienceDelta": 16, "complianceDelta": 10, "trustDelta": {"sh-3": 12},
+      "affectedNodeIds": ["node-3", "node-4"], "durationRounds": 1, "riskLevel": "LOW"
     },
     {
-      "id": "init-cloud-mesh", "name": "Multi-Region Cloud Infrastructure Migration", "category": "CLOUD_INFRA",
-      "description": "Retire bare-metal servers and deploy containerized autoscaling cloud mesh.",
-      "capExCost": 340, "opExDelta": -40, "tdiDelta": -16, "velocityDelta": 14,
-      "resilienceDelta": 24, "complianceDelta": 12, "trustDelta": {"sh-cfo": 10, "sh-cto": 12},
-      "affectedNodeIds": ["node-4"], "durationRounds": 1, "riskLevel": "HIGH"
+      "id": "init-3", "name": "<Strategic Initiative 3 directly reflecting prompt solution>", "category": "CLOUD_INFRA",
+      "description": "<Detailed description of architectural initiative>",
+      "capExCost": 320, "opExDelta": -40, "tdiDelta": -16, "velocityDelta": 14,
+      "resilienceDelta": 22, "complianceDelta": 14, "trustDelta": {"sh-1": 10, "sh-3": 12},
+      "affectedNodeIds": ["node-4", "node-6"], "durationRounds": 1, "riskLevel": "HIGH"
     },
     {
-      "id": "init-feature-bypass", "name": "Fast-Track Direct Feature Surge", "category": "FEATURE_EXPEDITE",
-      "description": "Bypass architecture standards to deploy urgent revenue-generating features.",
-      "capExCost": 120, "opExDelta": 40, "tdiDelta": 18, "velocityDelta": 24,
-      "resilienceDelta": -15, "complianceDelta": -18, "trustDelta": {"sh-cpo": 20, "sh-cto": -22},
-      "affectedNodeIds": ["node-1", "node-2"], "durationRounds": 1, "riskLevel": "EXTREME"
+      "id": "init-4", "name": "<Strategic Initiative 4 directly reflecting prompt trade-off>", "category": "FEATURE_EXPEDITE",
+      "description": "<Detailed description of architectural initiative>",
+      "capExCost": 110, "opExDelta": 35, "tdiDelta": 16, "velocityDelta": 22,
+      "resilienceDelta": -12, "complianceDelta": -16, "trustDelta": {"sh-2": 18, "sh-3": -20},
+      "affectedNodeIds": ["node-1", "node-4"], "durationRounds": 1, "riskLevel": "EXTREME"
     }
   ]
 }`;
 
-    const userPrompt = `Synthesize a realistic scenario for:
+    const userPrompt = `Synthesize a realistic scenario strictly adhering to this specification:
 Industry: ${prompt.industry}
-Challenge: ${prompt.businessChallenge}
+Challenge & Specification: ${prompt.businessChallenge}
 Difficulty: ${prompt.difficulty || 'INTERMEDIATE'}
-Target Output: Adapt all node names, stakeholder titles, round events, and initiatives to directly reflect ${prompt.businessChallenge}.`;
+Directives: ${prompt.customDirectives || 'Full architectural and executive realism'}
+
+IMPORTANT: Extract or synthesize all titles, names, node architecture, stakeholder personas, round dilemmas, and initiatives directly from the Challenge text. If the Challenge is in French, respond entirely in French!`;
 
     return this.generateJSON<Partial<Scenario>>(
       [{ role: 'user', content: userPrompt }],
-      { systemPrompt, responseFormat: 'json', temperature: 0.6, timeoutMs: 180000 }
+      { systemPrompt, responseFormat: 'json', temperature: 0.6, timeoutMs: 300000 }
     );
   }
 }

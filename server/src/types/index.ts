@@ -252,6 +252,24 @@ export interface SimulationSession {
   updatedAt: string;
 }
 
+export interface BoardResolution {
+  verdict: 'APPROVED' | 'REJECTED' | 'CONDITIONAL_QUORUM';
+  consensusScore: number; // 0 - 100
+  rationale: string;
+  concessionRequired?: string;
+  votes: {
+    accepted: number;
+    conditional: number;
+    rejected: number;
+    total: number;
+  };
+  breakdown: Record<string, {
+    stakeholderName: string;
+    verdict: 'ACCEPTED' | 'REJECTED' | 'CONDITIONAL_ACCEPTANCE';
+    trustDelta: number;
+  }>;
+}
+
 export interface ChatMessage {
   id: string;
   sender: 'PLAYER' | 'STAKEHOLDER' | 'SYSTEM';
@@ -260,6 +278,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   evaluation?: ProposalEvaluation;
+  boardResolution?: BoardResolution;
 }
 
 export interface ProposalEvaluation {

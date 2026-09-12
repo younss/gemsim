@@ -26,6 +26,7 @@ import {
   RefreshCw,
   Zap,
   CheckCircle2,
+  Lock,
 } from 'lucide-react';
 
 interface Props {
@@ -47,6 +48,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
   const [synthesizedScenario, setSynthesizedScenario] = useState<Scenario | null>(null);
   const [validationResult, setValidationResult] = useState<{ valid: boolean; errors?: string[]; message?: string } | null>(null);
   const [activeInspectorTab, setActiveInspectorTab] = useState<'TOPOLOGY' | 'STAKEHOLDERS' | 'TIMELINE' | 'INITIATIVES' | 'JSON'>('TOPOLOGY');
+  const [timelineViewMode, setTimelineViewMode] = useState<'AUTHOR' | 'PLAYER_FOG'>('AUTHOR');
   const [copied, setCopied] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
 
@@ -319,6 +321,12 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                 >
                   🛍️ E-Commerce ERP
                 </button>
+                <button
+                  onClick={() => applyPreset('Grande Entreprise de Services / Assurance et Fintech', 'Titre du Scénario : Mirage Offshore : Arbitrage Coûts, Souveraineté et Dette Technique\nSecteur : Grande Entreprise de Services / Assurance et Fintech\nFormat : 4 Tours (Q1 à Q4)\nRôle des Joueurs : Direction de l\'Architecture d\'Entreprise\nNiveau de Difficulté : Élevé (pression budgétaire agressive du CFO, conflit social interne)\nTopologie spatiale : Onshore vs Offshore avec passerelle transfrontalière')}
+                  className="px-2 py-1 rounded bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-all text-left font-medium"
+                >
+                  🌍 Mirage Offshore & Sourcing
+                </button>
               </div>
             </div>
 
@@ -336,14 +344,20 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
               </div>
 
               <div>
-                <label className="text-slate-400 font-semibold block mb-1">Corporate Scenario & Challenge:</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-slate-400 font-semibold block">Corporate Scenario & Challenge:</label>
+                  <span className="text-[10px] text-slate-500 font-mono">Full prompt briefs supported</span>
+                </div>
                 <textarea
                   value={businessChallenge}
                   onChange={e => setBusinessChallenge(e.target.value)}
-                  rows={4}
-                  className="w-full bg-dark-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-cyan-500 text-xs leading-relaxed"
-                  placeholder="Describe legacy architecture bottlenecks, competing stakeholder agendas, and target outcomes..."
+                  rows={8}
+                  className="w-full bg-dark-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-cyan-500 text-xs leading-relaxed min-h-[140px] resize-y font-mono"
+                  placeholder="Describe legacy architecture bottlenecks, competing stakeholder agendas, and target outcomes... You can paste multi-paragraph or structured briefs (French / English)."
                 />
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Supports plain text or structured prompts with custom 3D topologies (Onshore vs Offshore), personas (CFO, ESN, Lead Tech), Q1-Q4 quarters, and metrics.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
@@ -580,22 +594,83 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
 
               {/* TAB CONTENT: Timeline Crises */}
               {activeInspectorTab === 'TIMELINE' && (
-                <div className="space-y-3 max-h-[480px] overflow-y-auto pr-1">
-                  {synthesizedScenario.roundEvents.map(event => (
-                    <div key={event.roundNumber} className="bg-dark-900 p-4 rounded-xl border border-slate-800 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-mono font-bold text-cyan-400">QUARTER {event.roundNumber} CRISIS</span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30">
-                          {event.severity}
-                        </span>
-                      </div>
-                      <h4 className="font-bold text-slate-100 text-sm">{event.title}</h4>
-                      <p className="text-xs text-slate-300">{event.description}</p>
-                      <div className="text-[11px] text-slate-400 font-mono">
-                        {event.choices.length} Remediation Choices Configured
+                <div className="space-y-4 max-h-[480px] overflow-y-auto pr-1">
+                  {/* Pedagogical Banner on Progressive Surprise & Fog of War */}
+                  <div className="p-3.5 rounded-xl bg-indigo-950/40 border border-indigo-500/30 text-xs space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <span className="font-bold text-indigo-300 flex items-center gap-1.5">
+                        <Lock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                        <span>Mécanique de Surprise & Brouillard de Guerre Stratégique</span>
+                      </span>
+                      <div className="flex items-center gap-1 bg-dark-900/80 p-0.5 rounded-lg border border-slate-700 shrink-0">
+                        <button
+                          onClick={() => setTimelineViewMode('AUTHOR')}
+                          className={`px-2 py-0.5 rounded text-[11px] font-mono transition-all ${
+                            timelineViewMode === 'AUTHOR'
+                              ? 'bg-cyan-500 text-black font-bold'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Vue Master (Auteur)
+                        </button>
+                        <button
+                          onClick={() => setTimelineViewMode('PLAYER_FOG')}
+                          className={`px-2 py-0.5 rounded text-[11px] font-mono transition-all ${
+                            timelineViewMode === 'PLAYER_FOG'
+                              ? 'bg-indigo-500 text-white font-bold'
+                              : 'text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          Vue Joueur (Brouillard T1)
+                        </button>
                       </div>
                     </div>
-                  ))}
+                    <p className="text-[11px] text-slate-300 leading-relaxed">
+                      En tant qu'auteur dans le Studio, vous configurez l'intégralité des 4 trimestres. En cours de simulation dans l'Arène, <strong>les joueurs ne voient que la crise du trimestre en cours</strong>. Les trimestres futurs sont verrouillés sous brouillard de guerre avec de simples signaux faibles, préservant l'effet de surprise.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {synthesizedScenario.roundEvents.map(event => {
+                      const isFogged = timelineViewMode === 'PLAYER_FOG' && event.roundNumber > 1;
+
+                      if (isFogged) {
+                        return (
+                          <div key={event.roundNumber} className="bg-dark-900/60 p-4 rounded-xl border border-indigo-500/30 space-y-2 opacity-80">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-mono font-bold text-indigo-400 flex items-center gap-1.5">
+                                <Lock className="w-3.5 h-3.5" />
+                                <span>TRIMESTRE {event.roundNumber} : BROUILLARD DE GUERRE</span>
+                              </span>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
+                                VERROUILLÉ POUR LE JOUEUR
+                              </span>
+                            </div>
+                            <h4 className="font-bold text-slate-400 text-sm italic">Vecteur de perturbation classifié (inconnu du joueur)</h4>
+                            <p className="text-xs text-slate-500">
+                              Le joueur perçoit uniquement des sondes prédictives (dette technique, signaux faibles) mais découvrira l'impact réel et les choix au début de ce trimestre.
+                            </p>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div key={event.roundNumber} className="bg-dark-900 p-4 rounded-xl border border-slate-800 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-mono font-bold text-cyan-400">QUARTER {event.roundNumber} CRISIS</span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30">
+                              {event.severity}
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-slate-100 text-sm">{event.title}</h4>
+                          <p className="text-xs text-slate-300">{event.description}</p>
+                          <div className="text-[11px] text-slate-400 font-mono">
+                            {event.choices.length} Remediation Choices Configured
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 

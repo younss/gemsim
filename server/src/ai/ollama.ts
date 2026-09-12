@@ -105,7 +105,7 @@ export class OllamaProvider extends BaseAIProvider {
     // Ensure host is discovered
     await this.discoverHostAndModels();
 
-    const timeoutMs = options?.timeoutMs || 90000;
+    const timeoutMs = options?.timeoutMs || 300000;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -124,6 +124,7 @@ export class OllamaProvider extends BaseAIProvider {
         stream: false,
         options: {
           temperature: options?.temperature ?? 0.6,
+          num_ctx: 16384,
         },
       };
 
