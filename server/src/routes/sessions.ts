@@ -211,13 +211,15 @@ sessionsRouter.post('/:id/advance', (req, res) => {
       const { updatedTeam, roundResult } = SimulationResolver.resolveRound(
         scenario,
         team,
-        session.currentRound
+        session.currentRound,
+        session.injectedEvents
       );
       updatedTeams.push(updatedTeam);
       roundResults[team.id] = roundResult;
     }
 
     session.teams = updatedTeams;
+    session.activeCrisis = null;
 
     // Check if simulation completed or advances
     if (session.currentRound >= session.totalRounds) {
@@ -303,13 +305,61 @@ sessionsRouter.post('/:id/inject-event', (req, res) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
+    // Ensure roundNumber matches currentRound
+    const enrichedEvent: RoundEvent = {
+      ...event,
+      roundNumber: session.currentRound,
+      immediateImpact: event.immediateImpact || { budgetFine: 0, tdiSurge: 0, velocityPenalty: 0 },
+      choices: event.choices || [],
+    };
+
+    if (!session.injectedEvents) {
+      session.injectedEvents = [];
+    }
+    // Replace any existing injected event for this round
+    session.injectedEvents = session.injectedEvents.filter(e => e.roundNumber !== session.currentRound);
+    session.injectedEvents.push(enrichedEvent);
+    session.activeCrisis = enrichedEvent;
+
+    // Apply immediate financial, tech debt, and node outage impacts across all teams
+    const { budgetFine = 0, tdiSurge = 0, velocityPenalty = 0, downedNodeIds = [] } = enrichedEvent.immediateImpact;
+    for (const team of session.teams) {
+      team.metrics.budgetRemaining = Math.max(0, team.metrics.budgetRemaining - budgetFine);
+      team.metrics.technicalDebtIndex = Math.min(100, team.metrics.technicalDebtIndex + tdiSurge);
+      team.metrics.deliveryVelocity = Math.max(5, team.metrics.deliveryVelocity - Math.abs(velocityPenalty));
+
+      if (downedNodeIds && downedNodeIds.length > 0) {
+        if (!team.nodeHealthOverrides) {
+          team.nodeHealthOverrides = {};
+        }
+        for (const nodeId of downedNodeIds) {
+          team.nodeHealthOverrides[nodeId] = {
+            health: 15,
+            technicalDebt: 90,
+            status: 'CRITICAL',
+          };
+        }
+      }
+    }
+
+    session.updatedAt = new Date().toISOString();
+    db.saveSession(session);
+
+    // Broadcast crisis injection to all connected clients (players & facilitator)
+    broadcastToSession(session.id, {
+      type: 'CRISIS_INJECTED',
+      sessionId: session.id,
+      event: enrichedEvent,
+      session,
+    });
+
     broadcastToSession(session.id, {
       type: 'ANNOUNCEMENT',
-      message: `🚨 FACILITATOR INJECTION: ${event.title} - ${event.description}`,
+      message: `🚨 BLACK SWAN CRISIS INJECTED: ${enrichedEvent.title} - ${enrichedEvent.description}`,
       timestamp: new Date().toISOString(),
     });
 
-    res.json({ success: true, event });
+    res.json({ success: true, event: enrichedEvent, session });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -420,6 +470,8 @@ sessionsRouter.post('/:id/reset', (req, res) => {
     session.state = 'WAITING';
     session.isTimerRunning = false;
     session.timerSecondsRemaining = session.roundDurationSeconds;
+    session.injectedEvents = [];
+    session.activeCrisis = null;
 
     // 4. Reset each team's score, metrics, decisions, and stakeholder trust back to scenario baseline
     for (const team of session.teams) {

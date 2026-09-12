@@ -157,6 +157,10 @@ export const App: React.FC = () => {
         setCurrentSession(msg.session);
         setLiveAnnouncement('🔄 Simulation reset to Quarter 1. Past run results archived in Debrief.');
         setTimeout(() => setLiveAnnouncement(null), 6000);
+      } else if (msg.type === 'CRISIS_INJECTED') {
+        setCurrentSession(msg.session);
+        setLiveAnnouncement(`🚨 BLACK SWAN CRISIS INJECTED: ${msg.event.title}! Immediate impact applied.`);
+        setTimeout(() => setLiveAnnouncement(null), 8000);
       } else if (msg.type === 'ANNOUNCEMENT') {
         setLiveAnnouncement(msg.message);
         setTimeout(() => setLiveAnnouncement(null), 7000);

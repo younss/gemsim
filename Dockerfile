@@ -27,13 +27,13 @@ COPY --chown=10001:10001 --from=builder /build/server/package.json ./server/pack
 COPY --chown=10001:10001 --from=builder /build/package.json ./package.json
 
 ENV NODE_ENV=production \
-    PORT=4000 \
+    PORT=8089 \
     HOST=0.0.0.0 \
     DATA_DIR=/app/data \
     DB_PATH=/app/data/gemsim.db
 
 USER 10001:10001
-EXPOSE 4000
+EXPOSE 8089
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD curl -f http://127.0.0.1:4000/api/health || exit 1
+  CMD curl -f http://127.0.0.1:8089/api/health || exit 1
 CMD ["node", "server/dist/index.js"]

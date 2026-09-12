@@ -41,6 +41,178 @@ interface Props {
   onSessionUpdated: (updatedSession: SimulationSession) => void;
 }
 
+const CRISIS_TEMPLATES: Array<Omit<RoundEvent, 'roundNumber'> & { cost: string; badge: string }> = [
+  {
+    title: 'Critical Zero-Day Vulnerability Exploit',
+    description: 'A remote code execution zero-day is discovered in edge gateway authentication libraries. Attackers are actively probing the perimeter.',
+    type: 'CRISIS',
+    severity: 'BLACK_SWAN',
+    cost: '$150K Fine + 12% TDI',
+    badge: 'CYBER RESILIENCE',
+    immediateImpact: {
+      budgetFine: 150,
+      tdiSurge: 12,
+      velocityPenalty: 15,
+      downedNodeIds: ['node-api-gw'],
+    },
+    choices: [
+      {
+        id: 'inj-zd-1',
+        text: 'Deploy emergency zero-day patch & hotfix cluster across all API gateways and edge tiers',
+        capExImpact: 140,
+        tdiImpact: -10,
+        velocityImpact: -8,
+        trustImpact: { 'board-chair': 5, 'ciso': 10 },
+        nodeHealthImpacts: { 'node-api-gw': 50 },
+      },
+      {
+        id: 'inj-zd-2',
+        text: 'Sever external ingress traffic and run forensic isolation audit on core services',
+        capExImpact: 80,
+        tdiImpact: 5,
+        velocityImpact: -25,
+        trustImpact: { 'ciso': 8, 'cfo': -5 },
+        nodeHealthImpacts: { 'node-api-gw': 20 },
+      },
+      {
+        id: 'inj-zd-3',
+        text: 'Accept vulnerability exposure risk and purchase emergency cyber insurance indemnity rider',
+        capExImpact: 210,
+        tdiImpact: 15,
+        velocityImpact: 0,
+        trustImpact: { 'cfo': -12, 'board-chair': -10 },
+        nodeHealthImpacts: {},
+      },
+    ],
+  },
+  {
+    title: 'Primary Cloud Provider Regional Blackout',
+    description: 'Major cloud provider region suffers power grid collapse and fiber severance. Unreplicated cloud services go offline immediately.',
+    type: 'CRISIS',
+    severity: 'HIGH',
+    cost: '$200K Fine + 10% TDI',
+    badge: 'INFRASTRUCTURE OUTAGE',
+    immediateImpact: {
+      budgetFine: 200,
+      tdiSurge: 10,
+      velocityPenalty: 20,
+      downedNodeIds: ['node-infra-cloud'],
+    },
+    choices: [
+      {
+        id: 'inj-cb-1',
+        text: 'Initiate automated multi-cloud failover to secondary disaster recovery region',
+        capExImpact: 180,
+        tdiImpact: -8,
+        velocityImpact: -10,
+        trustImpact: { 'vp-eng': 10, 'cfo': -5 },
+        nodeHealthImpacts: { 'node-infra-cloud': 50 },
+      },
+      {
+        id: 'inj-cb-2',
+        text: 'Operate degraded read-only caching layer while awaiting upstream cloud restoration',
+        capExImpact: 60,
+        tdiImpact: 12,
+        velocityImpact: -18,
+        trustImpact: { 'board-chair': -10, 'vp-sales': -15 },
+        nodeHealthImpacts: { 'node-infra-cloud': 20 },
+      },
+      {
+        id: 'inj-cb-3',
+        text: 'Repatriate critical transaction workloads to on-premises enterprise hybrid enclave',
+        capExImpact: 260,
+        tdiImpact: -15,
+        velocityImpact: -15,
+        trustImpact: { 'ciso': 10, 'cfo': -15 },
+        nodeHealthImpacts: { 'node-infra-cloud': 55 },
+      },
+    ],
+  },
+  {
+    title: 'Hostile Acquisition & Strategic Tech Freeze',
+    description: 'An aggressive activist hedge fund demands an immediate freeze on modernization CapEx and maximum short-term cash flow.',
+    type: 'MARKET_SHIFT',
+    severity: 'HIGH',
+    cost: '$120K Fine + 6% TDI',
+    badge: 'CORPORATE GOVERNANCE',
+    immediateImpact: {
+      budgetFine: 120,
+      tdiSurge: 6,
+      velocityPenalty: 12,
+      downedNodeIds: [],
+    },
+    choices: [
+      {
+        id: 'inj-ha-1',
+        text: 'Submit formal architectural ROI dossier proving modernization protects operating margin',
+        capExImpact: 90,
+        tdiImpact: -5,
+        velocityImpact: -5,
+        trustImpact: { 'board-chair': 12, 'cfo': 10 },
+      },
+      {
+        id: 'inj-ha-2',
+        text: 'Halt all non-essential tech debt refactoring to maximize short-term cash reserves',
+        capExImpact: 0,
+        tdiImpact: 18,
+        velocityImpact: -10,
+        trustImpact: { 'cfo': 15, 'vp-eng': -20 },
+      },
+      {
+        id: 'inj-ha-3',
+        text: 'Structure a strategic joint venture carve-out for proprietary software assets',
+        capExImpact: 150,
+        tdiImpact: -10,
+        velocityImpact: 8,
+        trustImpact: { 'board-chair': 8, 'cfo': 5 },
+      },
+    ],
+  },
+  {
+    title: 'Unannounced Federal Regulatory Data Audit',
+    description: 'Enforcement authorities inspect customer data retention, ledger flow logs, and issue an immediate compliance summons.',
+    type: 'AUDIT',
+    severity: 'MEDIUM',
+    cost: '$90K Fine + 8% TDI',
+    badge: 'COMPLIANCE AUDIT',
+    immediateImpact: {
+      budgetFine: 90,
+      tdiSurge: 8,
+      velocityPenalty: 10,
+      downedNodeIds: ['node-db-mainframe'],
+    },
+    choices: [
+      {
+        id: 'inj-ra-1',
+        text: 'Deploy automated data lineage masking and enterprise regulatory compliance telemetry',
+        capExImpact: 110,
+        tdiImpact: -12,
+        velocityImpact: -6,
+        trustImpact: { 'ciso': 15, 'board-chair': 8 },
+        nodeHealthImpacts: { 'node-db-mainframe': 40 },
+      },
+      {
+        id: 'inj-ra-2',
+        text: 'Retain Big-4 forensic audit specialists to negotiate consent decree extension',
+        capExImpact: 140,
+        tdiImpact: 2,
+        velocityImpact: -12,
+        trustImpact: { 'cfo': -8, 'ciso': 5 },
+        nodeHealthImpacts: { 'node-db-mainframe': 20 },
+      },
+      {
+        id: 'inj-ra-3',
+        text: 'Purge unindexed legacy data clusters and accept mitigated statutory settlement',
+        capExImpact: 170,
+        tdiImpact: 10,
+        velocityImpact: 0,
+        trustImpact: { 'ciso': -15, 'cfo': -5 },
+        nodeHealthImpacts: { 'node-db-mainframe': 15 },
+      },
+    ],
+  },
+];
+
 export const FacilitatorCockpit: React.FC<Props> = ({
   session,
   scenario,
@@ -125,22 +297,22 @@ export const FacilitatorCockpit: React.FC<Props> = ({
   };
 
   // Inject Event
-  const handleInjectCrisis = async (title: string, description: string, severity: RoundEvent['severity']) => {
+  const handleInjectCrisis = async (template: typeof CRISIS_TEMPLATES[0]) => {
     const crisisEvent: RoundEvent = {
       roundNumber: session.currentRound,
-      title,
-      description,
-      type: 'CRISIS',
-      severity,
-      immediateImpact: { budgetFine: 150, tdiSurge: 8, velocityPenalty: -12 },
-      choices: [
-        { id: 'inj-c1', text: 'Deploy emergency zero-day patch across all tiers', capExImpact: 140, tdiImpact: -8, velocityImpact: -10, trustImpact: {} },
-        { id: 'inj-c2', text: 'Isolate affected cluster and pay SLA penalty', capExImpact: 80, tdiImpact: 6, velocityImpact: 0, trustImpact: {} },
-      ],
+      title: template.title,
+      description: template.description,
+      type: template.type,
+      severity: template.severity,
+      immediateImpact: template.immediateImpact,
+      choices: template.choices,
     };
 
     try {
-      await api.injectEvent(session.id, crisisEvent);
+      const res = await api.injectEvent(session.id, crisisEvent);
+      if (res.session) {
+        onSessionUpdated(res.session);
+      }
     } catch (err) {
       console.error('Injection error:', err);
     }
@@ -425,67 +597,92 @@ export const FacilitatorCockpit: React.FC<Props> = ({
         <div className="space-y-4">
           <div>
             <h3 className="text-base font-bold text-slate-100">Live Crisis & Black Swan Injector</h3>
-            <p className="text-xs text-slate-400">Trigger unexpected market shifts or infrastructure failures across all active teams.</p>
+            <p className="text-xs text-slate-400">Trigger unexpected market shifts, cyber attacks, or infrastructure outages across all active teams.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              {
-                title: 'Critical Zero-Day Vulnerability Exploit',
-                description: 'A remote code execution zero-day is discovered in open-source logging libraries. All teams must allocate emergency remediation CapEx.',
-                severity: 'BLACK_SWAN' as const,
-                cost: '$150K',
-                badge: 'CYBER RESILIENCE',
-              },
-              {
-                title: 'Primary Cloud Provider Regional Blackout',
-                description: 'Major cloud region suffers power and fiber optic failure. Services without multi-zone failover go offline immediately.',
-                severity: 'HIGH' as const,
-                cost: '$200K',
-                badge: 'INFRASTRUCTURE OUTAGE',
-              },
-              {
-                title: 'Hostile Acquisition & Strategic Tech Freeze',
-                description: 'An aggressive institutional activist investor demands an immediate freeze on all CapEx modernization tranches.',
-                severity: 'HIGH' as const,
-                cost: '$120K',
-                badge: 'CORPORATE GOVERNANCE',
-              },
-              {
-                title: 'Unannounced Federal Regulatory Data Audit',
-                description: 'Enforcement authorities inspect all legacy database retention logs and issue immediate compliance summons.',
-                severity: 'MEDIUM' as const,
-                cost: '$90K',
-                badge: 'COMPLIANCE AUDIT',
-              },
-            ].map(crisis => (
-              <div
-                key={crisis.title}
-                className="bg-dark-850 p-5 rounded-xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30">
-                      {crisis.severity}
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono">{crisis.badge}</span>
-                  </div>
-                  <h4 className="font-bold text-slate-100 text-sm mb-1">{crisis.title}</h4>
-                  <p className="text-xs text-slate-400 mb-4">{crisis.description}</p>
+          {session.activeCrisis && session.activeCrisis.roundNumber === session.currentRound && (
+            <div className="p-4 rounded-xl bg-gradient-to-r from-rose-950/80 via-dark-850 to-dark-800 border border-rose-500/50 shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0">
+                  <Flame className="w-5 h-5 animate-pulse" />
                 </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-                  <span className="text-xs font-mono text-slate-500">Est. Impact: {crisis.cost}</span>
-                  <button
-                    onClick={() => handleInjectCrisis(crisis.title, crisis.description, crisis.severity)}
-                    className="px-3.5 py-1.5 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-bold flex items-center gap-1.5 transition-colors"
-                  >
-                    <Flame className="w-3.5 h-3.5" />
-                    <span>Inject Crisis</span>
-                  </button>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-500 text-black">
+                      ACTIVE IN Q{session.currentRound}
+                    </span>
+                    <span className="text-sm text-slate-100 font-bold">{session.activeCrisis.title}</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Immediate penalties applied across all {session.teams.length} teams (-${session.activeCrisis.immediateImpact?.budgetFine || 0}K, +{session.activeCrisis.immediateImpact?.tdiSurge || 0}% TDI). Teams must submit remediation before round resolution.
+                  </p>
                 </div>
               </div>
-            ))}
+              <span className="text-xs font-mono font-bold text-rose-400 px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 shrink-0 self-start sm:self-auto">
+                {session.activeCrisis.severity} SEVERITY
+              </span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {CRISIS_TEMPLATES.map(crisis => {
+              const isCurrentlyActive = session.activeCrisis?.title === crisis.title && session.activeCrisis?.roundNumber === session.currentRound;
+
+              return (
+                <div
+                  key={crisis.title}
+                  className={`p-5 rounded-xl border transition-all flex flex-col justify-between ${
+                    isCurrentlyActive
+                      ? 'bg-rose-950/20 border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.2)]'
+                      : 'bg-dark-850 border-slate-800 hover:border-slate-700'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30">
+                        {crisis.severity}
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-mono">{crisis.badge}</span>
+                    </div>
+                    <h4 className="font-bold text-slate-100 text-sm mb-1">{crisis.title}</h4>
+                    <p className="text-xs text-slate-400 mb-3">{crisis.description}</p>
+
+                    <div className="text-[11px] font-mono bg-dark-900/60 p-2.5 rounded-lg border border-slate-800/80 mb-4 space-y-1">
+                      <div className="text-slate-400 flex items-center justify-between">
+                        <span>Immediate Fine:</span>
+                        <span className="text-rose-400 font-bold">-${crisis.immediateImpact.budgetFine}K</span>
+                      </div>
+                      <div className="text-slate-400 flex items-center justify-between">
+                        <span>TDI Surge / Velocity Drag:</span>
+                        <span className="text-rose-400 font-bold">+{crisis.immediateImpact.tdiSurge}% TDI / -{crisis.immediateImpact.velocityPenalty} pts</span>
+                      </div>
+                      {crisis.immediateImpact.downedNodeIds && crisis.immediateImpact.downedNodeIds.length > 0 && (
+                        <div className="text-slate-400 flex items-center justify-between">
+                          <span>Outage Target:</span>
+                          <span className="text-amber-400 font-bold">{crisis.immediateImpact.downedNodeIds.join(', ')}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+                    <span className="text-xs font-mono text-slate-500">Est. Impact: {crisis.cost}</span>
+                    <button
+                      onClick={() => handleInjectCrisis(crisis)}
+                      disabled={isCurrentlyActive}
+                      className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors ${
+                        isCurrentlyActive
+                          ? 'bg-rose-500/10 text-rose-500 border border-rose-500/30 cursor-not-allowed opacity-60'
+                          : 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40'
+                      }`}
+                    >
+                      <Flame className="w-3.5 h-3.5" />
+                      <span>{isCurrentlyActive ? 'Crisis Active' : 'Inject Crisis'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

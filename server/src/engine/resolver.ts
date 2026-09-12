@@ -29,7 +29,8 @@ export class SimulationResolver {
   public static resolveRound(
     scenario: Scenario,
     team: Team,
-    roundNumber: number
+    roundNumber: number,
+    injectedEvents?: RoundEvent[]
   ): { updatedTeam: Team; roundResult: RoundResult } {
     const decisions = team.currentRoundDecisions || {
       selectedInitiativeIds: [],
@@ -174,8 +175,9 @@ export class SimulationResolver {
       }
     }
 
-    // 8. Round Event Impact (scheduled crisis / market disruption)
-    const currentRoundEvent = scenario.roundEvents.find(e => e.roundNumber === roundNumber);
+    // 8. Round Event Impact (injected black swan crisis OR scheduled disruption)
+    const currentRoundEvent = (injectedEvents && injectedEvents.find(e => e.roundNumber === roundNumber))
+      || scenario.roundEvents.find(e => e.roundNumber === roundNumber);
     let eventCapEx = 0;
     let eventTdi = 0;
     let eventVelocity = 0;
@@ -189,6 +191,18 @@ export class SimulationResolver {
           eventTdi = choice.tdiImpact;
           eventVelocity = choice.velocityImpact;
           Object.assign(eventTrustImpacts, choice.trustImpact);
+
+          if (choice.nodeHealthImpacts) {
+            for (const [nodeId, delta] of Object.entries(choice.nodeHealthImpacts)) {
+              const node = nodesMap.get(nodeId);
+              if (node) {
+                node.health = Math.max(10, Math.min(100, node.health + delta));
+                if (node.health >= 70 && node.status === 'CRITICAL') {
+                  node.status = 'HEALTHY';
+                }
+              }
+            }
+          }
         }
       } else {
         // Default penalty if team neglected choice

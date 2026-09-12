@@ -78,8 +78,12 @@ export const PlayerArena: React.FC<Props> = ({
     }
   }, [scenario.id, team.id]);
 
-  // Current Round Event (if any)
-  const currentEvent = scenario.roundEvents.find(e => e.roundNumber === session.currentRound);
+  // Current Round Event (Prioritize Facilitator Injected Crisis over baseline scheduled events)
+  const activeInjectedCrisis = session.activeCrisis?.roundNumber === session.currentRound
+    ? session.activeCrisis
+    : session.injectedEvents?.find(e => e.roundNumber === session.currentRound);
+  const currentEvent = activeInjectedCrisis || scenario.roundEvents.find(e => e.roundNumber === session.currentRound);
+  const isInjectedCrisis = !!activeInjectedCrisis;
 
   // Calculate projected CapEx spend
   const selectedInitObjects = scenario.initiativesCatalog.filter(i => selectedInitiatives.includes(i.id));
@@ -237,6 +241,35 @@ export const PlayerArena: React.FC<Props> = ({
         </div>
       </div>
 
+      {/* Emergency Crisis Alert Banner (When Injected by Facilitator) */}
+      {isInjectedCrisis && currentEvent && (
+        <div className="p-4 rounded-xl bg-gradient-to-r from-rose-950 via-rose-900/60 to-dark-850 border border-rose-500/70 shadow-[0_0_25px_rgba(244,63,94,0.3)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-pulse">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/50 flex items-center justify-center text-rose-400 shrink-0">
+              <Flame className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-rose-500 text-black">
+                  BLACK SWAN CRISIS INJECTED
+                </span>
+                <span className="text-sm text-rose-200 font-bold">{currentEvent.title}</span>
+              </div>
+              <p className="text-xs text-slate-300 mt-1">
+                Immediate penalty applied: -${currentEvent.immediateImpact.budgetFine}K Cash, +{currentEvent.immediateImpact.tdiSurge}% TDI, -{Math.abs(currentEvent.immediateImpact.velocityPenalty)} pts Velocity. Remediation required!
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setActiveTab('GOVERNANCE')}
+            className="px-4 py-2 rounded-lg bg-rose-500 hover:bg-rose-400 text-black font-bold font-mono text-xs shrink-0 transition-all shadow-md flex items-center gap-1.5 self-start sm:self-auto"
+          >
+            <span>Remediate Crisis</span>
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* 2. Arena View Navigation Tabs & Action Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-dark-850 p-2.5 rounded-xl border border-slate-800">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -274,13 +307,15 @@ export const PlayerArena: React.FC<Props> = ({
             className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 relative ${
               activeTab === 'GOVERNANCE'
                 ? 'bg-cyan-500 text-black shadow-[0_0_12px_rgba(0,240,255,0.3)]'
+                : isInjectedCrisis
+                ? 'text-rose-400 bg-rose-500/10 border border-rose-500/40 hover:bg-rose-500/20'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
             }`}
           >
             <Shield className="w-4 h-4" />
             <span>Governance & Crisis</span>
             {currentEvent && (
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+              <span className={`w-2 h-2 rounded-full ${isInjectedCrisis ? 'bg-rose-500 animate-ping' : 'bg-amber-400 animate-pulse'}`} />
             )}
           </button>
 
@@ -508,23 +543,64 @@ export const PlayerArena: React.FC<Props> = ({
           <div className="lg:col-span-6 flex flex-col gap-4">
             <div>
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                <Flame className="w-4 h-4 text-rose-400" />
-                <span>Q{session.currentRound} Strategic Disruption</span>
+                <Flame className={`w-4 h-4 ${isInjectedCrisis ? 'text-rose-500 animate-pulse' : 'text-rose-400'}`} />
+                <span>
+                  {isInjectedCrisis
+                    ? `Q${session.currentRound} Black Swan Crisis (Facilitator Injected)`
+                    : `Q${session.currentRound} Strategic Disruption`}
+                </span>
               </h3>
-              <p className="text-xs text-slate-400">Scheduled market challenge requiring executive remediation choice.</p>
+              <p className="text-xs text-slate-400">
+                {isInjectedCrisis
+                  ? 'High-impact enterprise shock requiring immediate executive remediation choice.'
+                  : 'Scheduled market challenge requiring executive remediation choice.'}
+              </p>
             </div>
 
             {currentEvent ? (
-              <div className="bg-dark-850 p-5 rounded-xl border border-rose-500/30 shadow-xl space-y-4">
+              <div className={`p-5 rounded-xl border shadow-xl space-y-4 ${
+                isInjectedCrisis
+                  ? 'bg-dark-850 border-rose-500/50 ring-1 ring-rose-500/20'
+                  : 'bg-dark-850 border-rose-500/30'
+              }`}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40">
-                    {currentEvent.severity} SEVERITY: {currentEvent.type}
+                    {isInjectedCrisis ? '⚡ INJECTED BLACK SWAN' : `${currentEvent.severity} SEVERITY: ${currentEvent.type}`}
                   </span>
                   <span className="text-xs text-slate-500 font-mono">Quarter {currentEvent.roundNumber}</span>
                 </div>
 
                 <h4 className="text-lg font-bold text-slate-100">{currentEvent.title}</h4>
                 <p className="text-sm text-slate-300 leading-relaxed">{currentEvent.description}</p>
+
+                {/* Immediate Damage Telemetry Box */}
+                {currentEvent.immediateImpact && (
+                  <div className="bg-rose-950/20 border border-rose-500/30 rounded-lg p-3 text-xs font-mono space-y-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-400 block mb-1">
+                      Immediate Damage Applied Upon Detection:
+                    </span>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-dark-900/80 p-2 rounded border border-rose-500/20">
+                        <span className="text-[10px] text-slate-400 block">Cash Penalty</span>
+                        <span className="text-rose-400 font-bold">-${currentEvent.immediateImpact.budgetFine}K</span>
+                      </div>
+                      <div className="bg-dark-900/80 p-2 rounded border border-rose-500/20">
+                        <span className="text-[10px] text-slate-400 block">TDI Spike</span>
+                        <span className="text-rose-400 font-bold">+{currentEvent.immediateImpact.tdiSurge}%</span>
+                      </div>
+                      <div className="bg-dark-900/80 p-2 rounded border border-rose-500/20">
+                        <span className="text-[10px] text-slate-400 block">Velocity Drag</span>
+                        <span className="text-rose-400 font-bold">-{Math.abs(currentEvent.immediateImpact.velocityPenalty)} pts</span>
+                      </div>
+                    </div>
+                    {currentEvent.immediateImpact.downedNodeIds && currentEvent.immediateImpact.downedNodeIds.length > 0 && (
+                      <div className="pt-1 text-[11px] text-amber-300 flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+                        <span>Compromised Nodes: {currentEvent.immediateImpact.downedNodeIds.join(', ')}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="space-y-2.5 pt-3 border-t border-slate-800">
                   <span className="text-xs font-mono font-semibold text-slate-400">Select Remediation Strategy:</span>
@@ -534,17 +610,34 @@ export const PlayerArena: React.FC<Props> = ({
                       onClick={() => !team.decisionSubmitted && setSelectedEventChoice(choice.id)}
                       className={`p-3.5 rounded-xl border text-xs transition-all cursor-pointer ${
                         selectedEventChoice === choice.id
-                          ? 'bg-cyan-500/10 border-cyan-500 ring-1 ring-cyan-500'
+                          ? 'bg-cyan-500/10 border-cyan-500 ring-1 ring-cyan-500 shadow-md'
                           : 'bg-dark-900 border-slate-800 hover:border-slate-700'
                       }`}
                     >
-                      <div className="font-semibold text-slate-200 mb-1">{choice.text}</div>
+                      <div className="font-semibold text-slate-200 mb-1.5 flex items-center justify-between gap-2">
+                        <span>{choice.text}</span>
+                        {selectedEventChoice === choice.id && (
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500 text-black font-bold shrink-0">
+                            SELECTED
+                          </span>
+                        )}
+                      </div>
                       <div className="flex flex-wrap items-center gap-3 text-[10px] font-mono text-slate-400">
                         <span>Cost: ${choice.capExImpact}K</span>
                         <span className={choice.tdiImpact <= 0 ? 'text-emerald-400' : 'text-rose-400'}>
                           TDI: {choice.tdiImpact <= 0 ? `${choice.tdiImpact}%` : `+${choice.tdiImpact}%`}
                         </span>
                         <span>Velocity: {choice.velocityImpact >= 0 ? `+${choice.velocityImpact}%` : `${choice.velocityImpact}%`}</span>
+                        {choice.nodeHealthImpacts && Object.keys(choice.nodeHealthImpacts).length > 0 && (
+                          <span className="text-cyan-400 font-semibold">
+                            Recovers: {Object.keys(choice.nodeHealthImpacts).join(', ')}
+                          </span>
+                        )}
+                        {choice.trustImpact && Object.keys(choice.trustImpact).length > 0 && (
+                          <span className="text-indigo-300">
+                            Trust: {Object.entries(choice.trustImpact).map(([k, v]) => `${k} (${v > 0 ? `+${v}` : v}%)`).join(', ')}
+                          </span>
+                        )}
                       </div>
                     </div>
                   ))}

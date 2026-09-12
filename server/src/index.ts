@@ -28,7 +28,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const server = http.createServer(app);
 
-const PORT = parseInt(process.env.PORT || '4000', 10);
+const PORT = parseInt(process.env.PORT || '8089', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 
 // Middlewares

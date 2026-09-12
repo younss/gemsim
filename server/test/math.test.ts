@@ -92,6 +92,72 @@ describe('GemSim Turn Resolver State Machine', () => {
     expect(updatedTeam.metrics.budgetRemaining).toBeLessThan(testTeam.metrics.budgetRemaining);
     expect(updatedTeam.decisionSubmitted).toBe(false); // reset for next round
   });
+
+  it('resolves an injected crisis dynamically overriding scheduled events and recovering nodes', () => {
+    const scenario = SEED_SCENARIOS[0];
+    const initialTrustMap: Record<string, number> = {};
+    for (const sh of scenario.stakeholders) {
+      initialTrustMap[sh.id] = sh.baseTrust ?? 60;
+    }
+
+    const injectedCrisis = {
+      roundNumber: 1,
+      title: 'Injected Zero-Day Crisis',
+      description: 'Zero-day vulnerability in gateway',
+      type: 'CRISIS' as const,
+      severity: 'BLACK_SWAN' as const,
+      immediateImpact: {
+        budgetFine: 150,
+        tdiSurge: 12,
+        velocityPenalty: 15,
+        downedNodeIds: ['node-api-gw'],
+      },
+      choices: [
+        {
+          id: 'inj-choice-patch',
+          text: 'Apply emergency patch',
+          capExImpact: 140,
+          tdiImpact: -10,
+          velocityImpact: -8,
+          trustImpact: { 'sh-ciso': 10 },
+          nodeHealthImpacts: { 'node-api-gw': 50 },
+        },
+      ],
+    };
+
+    const testTeam: Team = {
+      id: 'team-crisis-1',
+      sessionId: 'sess-test',
+      name: 'Crisis Test Team',
+      color: '#ff0055',
+      avatar: '🛡️',
+      metrics: { ...scenario.baselineMetrics },
+      stakeholderTrustMap: initialTrustMap,
+      currentRoundDecisions: {
+        selectedInitiativeIds: [],
+        governancePosture: 'BALANCED_AGILE',
+        eventChoiceId: 'inj-choice-patch',
+        customPacts: [],
+      },
+      decisionSubmitted: true,
+      history: [],
+      activeInitiatives: [],
+      nodeHealthOverrides: {
+        'node-api-gw': { health: 15, technicalDebt: 90, status: 'CRITICAL' },
+      },
+    };
+
+    const { updatedTeam, roundResult } = SimulationResolver.resolveRound(
+      scenario,
+      testTeam,
+      1,
+      [injectedCrisis]
+    );
+
+    expect(roundResult.roundNumber).toBe(1);
+    // Verified choice was resolved
+    expect(updatedTeam.nodeHealthOverrides['node-api-gw'].health).toBeGreaterThan(15);
+  });
 });
 
 describe('Fallback AI Provider', () => {

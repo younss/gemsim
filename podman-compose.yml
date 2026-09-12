@@ -18,10 +18,10 @@ services:
     user: "10001:10001"
     restart: unless-stopped
     ports:
-      - "4000:4000"
+      - "${PORT:-8089}:8089"
     environment:
       - NODE_ENV=production
-      - PORT=4000
+      - PORT=8089
       - HOST=0.0.0.0
       - DATA_DIR=/app/data
       - DB_PATH=/app/data/gemsim.db
@@ -41,7 +41,7 @@ services:
     networks:
       - gemsim-net
     healthcheck:
-      test: curl -f http://127.0.0.1:4000/api/health || exit 1
+      test: curl -f http://127.0.0.1:8089/api/health || exit 1
       interval: 30s
       timeout: 5s
       retries: 3

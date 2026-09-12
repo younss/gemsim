@@ -145,7 +145,7 @@ GemSim is architected for unprivileged, rootless multi-container execution using
 #### Security Model
 - **Non-Root Execution**: Runs under UID \`10001\` (\`gemsim\`).
 - **Read-Only / Isolated Volumes**: State is persisted in \`/app/data\` volume.
-- **Port Mapping**: Container port 4000 mapped to host 4000.
+- **Port Mapping**: Container port 8089 mapped to host 8089.
 
 #### Quick Start with Podman Compose:
 \`\`\`bash

@@ -246,6 +246,8 @@ export interface SimulationSession {
   roundDurationSeconds: number;
   isTimerRunning: boolean;
   teams: Team[];
+  injectedEvents?: RoundEvent[];
+  activeCrisis?: RoundEvent | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -336,6 +338,7 @@ export type WSServerMessage =
   | { type: 'TIMER_TICK'; secondsRemaining: number; isRunning: boolean }
   | { type: 'TEAM_UPDATED'; team: Team }
   | { type: 'ROUND_RESOLVED'; session: SimulationSession; results: Record<string, RoundResult> }
+  | { type: 'CRISIS_INJECTED'; sessionId: string; event: RoundEvent; session: SimulationSession }
   | { type: 'SESSION_RESET'; sessionId: string; session: SimulationSession; archivedRun?: ArchivedSimulationRun }
   | { type: 'STAKEHOLDER_RESPONSE'; teamId: string; message: ChatMessage }
   | { type: 'ANNOUNCEMENT'; message: string; timestamp: string }

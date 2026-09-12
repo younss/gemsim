@@ -149,7 +149,7 @@ GemSim is purpose-built for rootless, unprivileged container execution adhering 
 ### Security Specifications
 - **Unprivileged Non-Root Execution**: Runs under UID `10001` (`gemsim:gemsim`).
 - **SELinux Volume Labels**: Persistent storage mapped with `:Z` flag for rootless Podman.
-- **Port Mapping**: Container port 4000 exposed to host port 4000.
+- **Port Mapping**: Container port 8089 exposed to host port 8089.
 
 ### Quick Start with Podman Compose
 
@@ -167,7 +167,7 @@ podman-compose up -d --build
 podman-compose ps
 
 # 5. Access the SaaS application
-open http://localhost:4000
+open http://localhost:8089
 ```
 
 ### Running with Dedicated Local Gemma Container
