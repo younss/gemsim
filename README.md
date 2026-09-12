@@ -32,7 +32,7 @@ graph TD
     Client -->|"Real-Time Telemetry (ws://)"| WSServer["WebSocket Telemetry Gateway"]
     Client -->|"3D WebGL Canvas"| ThreeEngine["Three.js Spatial Visualizer"]
 
-    subgraph Backend Core
+    subgraph BackendCore["Backend Core"]
         Server --> Engine["Deterministic Simulation Engine"]
         Server --> Studio["Game Studio Synthesizer"]
         Server --> AIRegistry["Pluggable AI Abstraction Gateway"]
@@ -41,7 +41,7 @@ graph TD
         WSServer --> DB
     end
 
-    subgraph AI Gateway ("Bring Your Own AI")
+    subgraph AIGateway["AI Gateway: Bring Your Own AI"]
         AIRegistry --> Ollama["Local Ollama (Gemma / Llama)"]
         AIRegistry --> Gemini["Google Gemini (BYOK)"]
         AIRegistry --> Claude["Anthropic Claude (BYOK)"]
