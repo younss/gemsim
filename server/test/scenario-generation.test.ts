@@ -127,4 +127,51 @@ Métriques de référence :
     expect(enriched.roundEvents.length).toBe(4);
     expect(enriched.initiativesCatalog.length).toBeGreaterThanOrEqual(4);
   });
+
+  it('evaluateStakeholderProposal should understand French operational context and not blindly accept', async () => {
+    const fallback = new FallbackProvider();
+    const cfo = {
+      id: 'sh-cfo',
+      name: 'Jean-Christophe Meyer',
+      role: 'Directeur Financier (CFO)',
+      title: 'CFO',
+      personality: 'Pragmatique et strict',
+      bias: 'Pression sur la marge',
+      hiddenAgenda: 'Toucher son bonus de rentabilité',
+      negotiationTolerance: 40,
+      baseTrust: 50,
+      decisionWeights: { financialAcumen: 0.5, deliverySpeed: 0.2, architecturalRigor: 0.2, regulatoryCompliance: 0.1 },
+      sampleDialogue: { greeting: 'Bonjour', resistance: 'Non', concession: 'Daccord' },
+    };
+
+    // Case 1: Player claims "it's purely operational, nothing to do with architecture"
+    const res1 = await fallback.evaluateStakeholderProposal({
+      stakeholder: cfo,
+      currentTrust: 50,
+      chatHistory: [],
+      playerMessage: "pas du tout c'est purement operationnel ce que j'expose ici, rien avoir avec l'architecture. une facon sur de garantir nos investissements",
+      currentRound: 1,
+      teamMetrics: { tco: 2000, budgetRemaining: 1500, technicalDebtIndex: 45, deliveryVelocity: 50 },
+    });
+
+    // Should push back on operational costs impacting cash burn, NOT blindly award +12
+    expect(res1.evaluation.verdict).toBe('CONDITIONAL_ACCEPTANCE');
+    expect(res1.evaluation.trustDelta).toBeLessThan(0);
+    expect(res1.responseDialogue.toLowerCase()).toContain('opérationnel');
+    expect(res1.responseDialogue.toLowerCase()).toContain('opex');
+
+    // Case 2: Player offers quantifiable OpEx commitment and financial discipline
+    const res2 = await fallback.evaluateStakeholderProposal({
+      stakeholder: cfo,
+      currentTrust: 50,
+      chatHistory: [],
+      playerMessage: "Nous nous engageons sur une baisse d'OpEx de 15% et un plafonnement strict du CapEx pour protéger la marge nette.",
+      currentRound: 1,
+      teamMetrics: { tco: 2000, budgetRemaining: 1500, technicalDebtIndex: 45, deliveryVelocity: 50 },
+    });
+
+    expect(res2.evaluation.verdict).toBe('ACCEPTED');
+    expect(res2.evaluation.trustDelta).toBeGreaterThan(0);
+    expect(res2.responseDialogue.toLowerCase()).toContain('capex');
+  });
 });

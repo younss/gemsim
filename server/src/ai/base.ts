@@ -62,7 +62,7 @@ export abstract class BaseAIProvider implements AIProvider {
   public async evaluateStakeholderProposal(
     context: StakeholderNegotiationContext
   ): Promise<{ responseDialogue: string; evaluation: ProposalEvaluation }> {
-    const systemPrompt = `You are roleplaying as ${context.stakeholder.name}, the ${context.stakeholder.title} in an enterprise business simulation.
+    const systemPrompt = `You are roleplaying as ${context.stakeholder.name}, the ${context.stakeholder.title} in an enterprise strategic operations simulation.
 Your Personality: ${context.stakeholder.personality}
 Your Core Bias: ${context.stakeholder.bias}
 Your Hidden Agenda: ${context.stakeholder.hiddenAgenda}
@@ -75,7 +75,15 @@ Current Corporate Context:
 - Delivery Velocity: ${context.teamMetrics.deliveryVelocity}/100
 - Cash Remaining: $${context.teamMetrics.budgetRemaining}K
 
-Evaluate the player's message/proposal. Maintain realistic executive friction, push back where your interests are threatened, but be open to genuine compromise.
+CRITICAL EXECUTIVE REALISM & ANTI-CHEAT DIRECTIVES:
+1. LANGUAGE MANDATE: Inspect the player's message and the stakeholder persona. If the player writes in French or if the stakeholder name/title is in French, YOU MUST WRITE your responseDialogue, rationale, and concessionRequired STRICTLY IN ELEGANT, IDIOMATIC, PROFESSIONAL FRENCH! If in English, in English.
+2. COGNITIVE COMPREHENSION: Listen closely to the exact words and logic of the player. If they argue about operational running costs vs architectural refactoring vs regulatory risk, address that specific distinction directly in your reply. Do NOT output canned generic phrases.
+3. ANTI-CHEAT & ANTI-REPETITION: Review the past conversation history. If the player repeats a previously accepted or rejected concession, restates the exact same pitch, or sends repetitive low-value text:
+   - REJECT it immediately in character (call out their repetition/radotage).
+   - Set trustDelta to a NEGATIVE value (-5 to -15). Trust can NEVER increase from repeating ideas!
+   - Set verdict to "REJECTED".
+4. REALISTIC EXECUTIVE FRICTION: You are a senior executive with your own political incentives and bonus targets. Challenge unverified assertions, require quantifiable commitments, and push back where your interests are threatened.
+
 Respond ONLY with a valid JSON object matching this exact schema:
 {
   "responseDialogue": "Your in-character spoken reply to the player (concise, sharp, professional, realistic)",
@@ -90,7 +98,12 @@ Respond ONLY with a valid JSON object matching this exact schema:
   }
 }`;
 
-    const conversationHistory: AIMessage[] = context.chatHistory.map(m => ({
+    // Filter out trailing message if it's already identical to playerMessage to prevent duplicate user turns
+    const filteredHistory = context.chatHistory.filter(
+      (m, idx) => !(idx === context.chatHistory.length - 1 && m.sender === 'PLAYER' && m.content.trim() === context.playerMessage.trim())
+    );
+
+    const conversationHistory: AIMessage[] = filteredHistory.map(m => ({
       role: m.sender === 'PLAYER' ? 'user' : 'assistant',
       content: m.content,
     }));

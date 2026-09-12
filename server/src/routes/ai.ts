@@ -6,8 +6,70 @@
 import { Router } from 'express';
 import { AIRegistry } from '../ai/registry.js';
 import { DatabaseRepository } from '../db/index.js';
-import { AIProviderType, ChatMessage } from '../types/index.js';
+import { AIProviderType, ChatMessage, ProposalEvaluation, BoardResolution } from '../types/index.js';
 import { broadcastToSession } from '../socket/handler.js';
+
+/**
+ * Sentinel Anti-Cheat: Checks if player is spamming the exact same message
+ * or near-identical pitch repeatedly to farm trust points.
+ */
+function checkMessageRepetition(
+  newMessage: string,
+  previousPlayerMessages: ChatMessage[]
+): { isRepetition: boolean; repetitionCount: number; maxSimilarity: number } {
+  const clean = (s: string) =>
+    s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const newNorm = clean(newMessage);
+  if (!newNorm) return { isRepetition: false, repetitionCount: 0, maxSimilarity: 0 };
+
+  const newWords = new Set(newNorm.split(' ').filter(w => w.length > 2));
+
+  let repetitionCount = 0;
+  let maxSimilarity = 0;
+
+  // Compare against last 6 player messages (most recent first)
+  const recentPlayerMsgs = previousPlayerMessages.slice(-6).reverse();
+  for (const prev of recentPlayerMsgs) {
+    const prevNorm = clean(prev.content);
+    if (!prevNorm) continue;
+
+    // Exact match
+    if (prevNorm === newNorm) {
+      repetitionCount++;
+      maxSimilarity = 1.0;
+      continue;
+    }
+
+    // Token Jaccard overlap for messages with substance
+    const prevWords = new Set(prevNorm.split(' ').filter(w => w.length > 2));
+    if (newWords.size >= 3 && prevWords.size >= 3) {
+      let intersection = 0;
+      for (const w of newWords) {
+        if (prevWords.has(w)) intersection++;
+      }
+      const union = new Set([...newWords, ...prevWords]).size;
+      const sim = intersection / (union || 1);
+      if (sim > maxSimilarity) maxSimilarity = sim;
+
+      if (sim >= 0.72) {
+        repetitionCount++;
+      }
+    }
+  }
+
+  return {
+    isRepetition: repetitionCount > 0 || maxSimilarity >= 0.72,
+    repetitionCount,
+    maxSimilarity,
+  };
+}
 
 export const aiRouter = Router();
 
@@ -122,6 +184,120 @@ aiRouter.post('/negotiate', async (req, res) => {
 
     // 2. Fetch recent conversation history
     const history = db.getChatMessages(sessionId, teamId, stakeholderId);
+    const previousPlayerMsgs = history.filter(m => m.sender === 'PLAYER' && m.id !== playerChatMsg.id);
+
+    const isFrench = /(?:[éàèùâêîôûëïç]|bonjour|merci|nous|vous|pour|dans|avec|coût|dette|archi|projet|stratégie|budget|marge)/i.test(playerMessage) ||
+                     /(?:[éàèùâêîôûëïç]|directeur|responsable|chef)/i.test(stakeholder.title);
+
+    // 2a. Anti-Spam: Low-effort or meaningless chatter check (< 8 chars or common test words)
+    const trimmedMsg = playerMessage.trim();
+    if (trimmedMsg.length < 8 || /^(asdf|qwerty|test|hello|salut|yo|ok|oui|non|cool|merci)$/i.test(trimmedMsg)) {
+      const penalty = -3;
+      const lowEffortDialogue = isFrench
+        ? `Un échange au niveau exécutif exige une proposition stratégique structurée, pas des messages laconiques ou informels. Veuillez développer vos arguments.`
+        : `Executive negotiations require articulated proposals, not monosyllabic chatter. Formulate a real strategic proposal.`;
+
+      const lowEffortEval: ProposalEvaluation = {
+        empathyScore: 25,
+        financialAcumenScore: 20,
+        strategicAlignmentScore: 25,
+        trustDelta: penalty,
+        verdict: 'REJECTED',
+        rationale: isFrench
+          ? 'Message trop sommaire ou vide de substance stratégique.'
+          : 'Low-effort or empty message lacking executive substance.',
+        concessionRequired: isFrench ? 'Formuler une proposition détaillée et chiffrée.' : 'Formulate a detailed, quantified proposal.',
+      };
+
+      const currentTrust = team.stakeholderTrustMap[stakeholderId] ?? stakeholder.baseTrust ?? 60;
+      const newTrust = Math.max(5, Math.min(100, currentTrust + penalty));
+      team.stakeholderTrustMap[stakeholderId] = newTrust;
+      const trusts = Object.values(team.stakeholderTrustMap);
+      team.metrics.stakeholderTrust = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
+      db.saveSession(session);
+
+      const stakeholderChatMsg: ChatMessage = {
+        id: `msg-${Date.now()}-sh`,
+        sender: 'STAKEHOLDER',
+        stakeholderId,
+        senderName: `${stakeholder.name} (${stakeholder.title})`,
+        content: lowEffortDialogue,
+        timestamp: new Date().toISOString(),
+        evaluation: lowEffortEval,
+      };
+      db.saveChatMessage(sessionId, teamId, stakeholderChatMsg);
+
+      broadcastToSession(sessionId, {
+        type: 'STAKEHOLDER_RESPONSE',
+        teamId,
+        message: stakeholderChatMsg,
+      });
+
+      return res.json({
+        reply: stakeholderChatMsg,
+        evaluation: lowEffortEval,
+        updatedTrust: newTrust,
+        usedProvider: 'anti-cheat-sentinel',
+      });
+    }
+
+    // 2b. Anti-Cheat: Repetition / Radotage Detection (Prevents cheating by spamming same pitch)
+    const repetition = checkMessageRepetition(playerMessage, previousPlayerMsgs);
+    if (repetition.isRepetition) {
+      const penalty = repetition.repetitionCount > 1 ? -12 : -6;
+      const repDialogue = isFrench
+        ? repetition.repetitionCount > 1
+          ? `Vous me répétez exactement la même idée pour la énième fois. Ce radotage stérile fait perdre un temps précieux au comité. Tant que vous n'apportez pas de nouvelles données ou concessions, le sujet est clos.`
+          : `Vous vous répétez mot pour mot. Nous avons déjà abordé et enregistré ce point il y a un instant. Qu'avez-vous de neuf ou de concret à mettre sur la table ?`
+        : repetition.repetitionCount > 1
+          ? `You have repeated the exact same pitch multiple times. This circular badgering is wasting executive time. Unless you bring new data or concessions, this topic is closed.`
+          : `You are repeating yourself verbatim. We already covered this exact proposal. What new value, compromise, or metrics are you offering now?`;
+
+      const repEval: ProposalEvaluation = {
+        empathyScore: 20,
+        financialAcumenScore: 20,
+        strategicAlignmentScore: 20,
+        trustDelta: penalty,
+        verdict: 'REJECTED',
+        rationale: isFrench
+          ? 'Pénalité pour répétition / radotage d\'une même proposition sans valeur ajoutée.'
+          : 'Penalty for repeated identical proposal without new value.',
+        concessionRequired: isFrench
+          ? 'Présenter une alternative différente ou réviser vos engagements.'
+          : 'Present a different alternative or revise your commitments.',
+      };
+
+      const currentTrust = team.stakeholderTrustMap[stakeholderId] ?? stakeholder.baseTrust ?? 60;
+      const newTrust = Math.max(5, Math.min(100, currentTrust + penalty));
+      team.stakeholderTrustMap[stakeholderId] = newTrust;
+      const trusts = Object.values(team.stakeholderTrustMap);
+      team.metrics.stakeholderTrust = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
+      db.saveSession(session);
+
+      const stakeholderChatMsg: ChatMessage = {
+        id: `msg-${Date.now()}-sh`,
+        sender: 'STAKEHOLDER',
+        stakeholderId,
+        senderName: `${stakeholder.name} (${stakeholder.title})`,
+        content: repDialogue,
+        timestamp: new Date().toISOString(),
+        evaluation: repEval,
+      };
+      db.saveChatMessage(sessionId, teamId, stakeholderChatMsg);
+
+      broadcastToSession(sessionId, {
+        type: 'STAKEHOLDER_RESPONSE',
+        teamId,
+        message: stakeholderChatMsg,
+      });
+
+      return res.json({
+        reply: stakeholderChatMsg,
+        evaluation: repEval,
+        updatedTrust: newTrust,
+        usedProvider: 'anti-cheat-sentinel',
+      });
+    }
 
     // 3. Evaluate proposal via AI Gateway
     const currentTrust = team.stakeholderTrustMap[stakeholderId] ?? stakeholder.baseTrust ?? 60;
@@ -230,6 +406,96 @@ aiRouter.post('/boardroom', async (req, res) => {
 
     // 2. Fetch Boardroom History
     const history = db.getChatMessages(sessionId, teamId, 'BOARDROOM');
+    const previousPlayerMsgs = history.filter(m => m.sender === 'PLAYER' && m.id !== playerChatMsg.id);
+
+    const isFrench = /(?:[éàèùâêîôûëïç]|bonjour|merci|nous|vous|pour|dans|avec|coût|dette|archi|projet|stratégie|budget|marge)/i.test(playerMessage);
+
+    // 2a. Anti-Cheat: Boardroom Repetition / Radotage Check
+    const repetition = checkMessageRepetition(playerMessage, previousPlayerMsgs);
+    if (repetition.isRepetition) {
+      const penalty = repetition.repetitionCount > 1 ? -10 : -5;
+      const boardReplies: ChatMessage[] = stakeholders.map(sh => ({
+        id: `msg-${Date.now()}-board-${sh.id}`,
+        sender: 'STAKEHOLDER',
+        stakeholderId: 'BOARDROOM',
+        senderName: `${sh.name} (${sh.title})`,
+        content: isFrench
+          ? `Cette présentation devant le Conseil est une copie de ce que vous avez déjà exposé. Le Conseil exige de nouvelles options stratégiques, pas la répétition des mêmes éléments.`
+          : `This boardroom pitch is a duplicate of a previous statement. The Board demands fresh strategic options, not repetition.`,
+        timestamp: new Date().toISOString(),
+        evaluation: {
+          empathyScore: 20,
+          financialAcumenScore: 20,
+          strategicAlignmentScore: 20,
+          trustDelta: penalty,
+          verdict: 'REJECTED',
+          rationale: isFrench ? 'Répétition stérile devant le Conseil.' : 'Repetitive pitch before the Board.',
+        },
+      }));
+
+      for (const r of boardReplies) {
+        db.saveChatMessage(sessionId, teamId, r);
+      }
+
+      // Apply trust penalty to all stakeholders
+      for (const sh of stakeholders) {
+        const cur = team.stakeholderTrustMap[sh.id] ?? sh.baseTrust ?? 60;
+        team.stakeholderTrustMap[sh.id] = Math.max(5, Math.min(100, cur + penalty));
+      }
+      const trusts = Object.values(team.stakeholderTrustMap);
+      const avgTrust = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
+      team.metrics.stakeholderTrust = avgTrust;
+      db.saveSession(session);
+
+      const rejectedBreakdown: Record<string, {
+        stakeholderName: string;
+        verdict: 'ACCEPTED' | 'REJECTED' | 'CONDITIONAL_ACCEPTANCE';
+        trustDelta: number;
+      }> = {};
+
+      for (const sh of stakeholders) {
+        rejectedBreakdown[sh.id] = {
+          stakeholderName: sh.name,
+          verdict: 'REJECTED',
+          trustDelta: penalty,
+        };
+      }
+
+      const boardResolution: BoardResolution = {
+        verdict: 'REJECTED',
+        consensusScore: 10,
+        rationale: isFrench
+          ? 'Motion rejetée à l\'unanimité par le Conseil en raison de la redondance et du manque d\'arbitrages nouveaux.'
+          : 'Motion unanimously rejected by the Board due to redundancy and lack of new strategic trade-offs.',
+        votes: { accepted: 0, conditional: 0, rejected: stakeholders.length, total: stakeholders.length },
+        breakdown: rejectedBreakdown,
+      };
+
+      const resolutionMsg: ChatMessage = {
+        id: `msg-${Date.now()}-board-resolution`,
+        sender: 'STAKEHOLDER',
+        stakeholderId: 'BOARDROOM',
+        senderName: 'Conseil d\'Administration (Résolution Officielle)',
+        content: `RÉSOLUTION DU CONSEIL : ${boardResolution.verdict} (Consensus : ${boardResolution.consensusScore}%) - ${boardResolution.rationale}`,
+        timestamp: new Date().toISOString(),
+        boardResolution,
+      };
+      db.saveChatMessage(sessionId, teamId, resolutionMsg);
+
+      broadcastToSession(sessionId, {
+        type: 'STAKEHOLDER_RESPONSE',
+        teamId,
+        message: resolutionMsg,
+      });
+
+      return res.json({
+        replies: boardReplies,
+        boardResolution,
+        updatedTrustMap: team.stakeholderTrustMap,
+        averageTrust: avgTrust,
+        usedProvider: 'anti-cheat-sentinel',
+      });
+    }
 
     // 3. Deliberation: Evaluate proposal across all stakeholders
     const registry = AIRegistry.getInstance();

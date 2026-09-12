@@ -84,6 +84,10 @@ export class AIRegistry {
       this.activeProviderType = requestedDefault;
     } else if (process.env.GEMINI_API_KEY) {
       this.activeProviderType = 'gemini';
+    } else if (process.env.OPENAI_API_KEY) {
+      this.activeProviderType = 'openai';
+    } else if (process.env.OLLAMA_BASE_URL) {
+      this.activeProviderType = 'ollama';
     } else {
       this.activeProviderType = 'fallback';
     }
@@ -212,11 +216,24 @@ export class AIRegistry {
   public async executeWithFallback<T>(
     operation: (provider: AIProvider) => Promise<T>
   ): Promise<{ result: T; usedProvider: AIProviderType }> {
-    const candidates: AIProviderType[] = [
-      this.activeProviderType,
-      ...this.fallbackChain.filter(t => t !== this.activeProviderType),
-      'fallback',
-    ];
+    const candidates: AIProviderType[] = [];
+
+    // 1. Primary candidate: activeProviderType (if not fallback)
+    if (this.activeProviderType !== 'fallback') {
+      candidates.push(this.activeProviderType);
+    }
+
+    // 2. Chain candidates: real LLM providers in preferred order
+    for (const t of this.fallbackChain) {
+      if (t !== 'fallback' && !candidates.includes(t)) {
+        if (this.configs[t]?.enabled) {
+          candidates.push(t);
+        }
+      }
+    }
+
+    // 3. Fallback heuristic: absolute last resort
+    candidates.push('fallback');
 
     let lastError: any = null;
 

@@ -66,6 +66,9 @@ export class FallbackProvider extends BaseAIProvider {
     const msg = context.playerMessage.toLowerCase();
     const s = context.stakeholder;
 
+    const isFrench = /(?:[éàèùâêîôûëïç]|bonjour|merci|nous|vous|pour|dans|avec|coût|dette|archi|projet|stratégie|budget|marge|prestataire|opération)/i.test(context.playerMessage) ||
+                     /(?:[éàèùâêîôûëïç]|directeur|responsable|chef|président)/i.test(s.title);
+
     let empathyScore = 50;
     let financialAcumenScore = 50;
     let strategicAlignmentScore = 50;
@@ -75,69 +78,141 @@ export class FallbackProvider extends BaseAIProvider {
     let responseDialogue = '';
     let concessionRequired: string | undefined = undefined;
 
-    // Detect tone & content keywords
-    const hasFinancialCare = /budget|cost|roi|capex|opex|spend|savings|efficient/i.test(msg);
-    const hasSpeedCare = /deliver|deadline|timeline|fast|expedite|mvp|speed|q[1-4]/i.test(msg);
-    const hasArchCare = /refactor|debt|resilien|scale|modern|security|standards|clean/i.test(msg);
-    const hasCollaboration = /understand|partner|compromise|collaborate|agree|protect|listen/i.test(msg);
+    // Detect tone & content keywords (French + English)
+    const hasFinancialCare = /budget|co[uû]t|cost|roi|capex|opex|d[eé]pense|marge|rentabilit[eé]|financ|tr[eé]sorerie|spend|savings|efficient|investiss/i.test(msg);
+    const hasSpeedCare = /deliver|livr|d[eé]lai|deadline|timeline|fast|rapide|expedite|mvp|speed|time-to-market|fonctionnalit[eé]|feature|urgence|q[1-4]/i.test(msg);
+    const hasArchCare = /refactor|dette|debt|resilien|r[eé]sili|scale|scalab|modern|s[eé]curit[eé]|security|standards|norme|clean|cloud|souverain|legacy/i.test(msg);
+    const hasOpsCare = /op[eé]ration|infra|serveur|process|incident|panne|astringence|disponibilit[eé]|sla|run/i.test(msg);
+    const hasSourcingCare = /prestataire|esn|offshore|onshore|sourcing|fournisseur|contrat|externe/i.test(msg);
+    const hasSecurityCare = /s[eé]curit[eé]|security|audit|conformit[eé]|compliance|rgpd|zero-trust|chiffr|tls/i.test(msg);
+    const hasCollaboration = /understand|comprend|partner|parten|compromise|compromis|collabor|agree|accord|protect|prot[eé]g|listen|[eé]cout/i.test(msg);
 
     if (hasCollaboration) empathyScore += 25;
     if (hasFinancialCare) financialAcumenScore += 30;
-    if (hasArchCare) strategicAlignmentScore += 25;
+    if (hasArchCare || hasSecurityCare) strategicAlignmentScore += 25;
 
-    // Evaluate based on role
-    if (s.role.toLowerCase().includes('finance') || s.title.includes('CFO')) {
-      if (hasFinancialCare) {
-        trustDelta = +12;
+    const hasConcreteFinancialMetrics = /capex|opex|roi|marge|\d+%|baisse|r[eé]duction|plafond|cut|savings|burn/i.test(msg);
+
+    // Evaluate based on role & persona context
+    const roleLower = (s.role + ' ' + s.title).toLowerCase();
+
+    if (roleLower.includes('finance') || roleLower.includes('cfo') || roleLower.includes('financier')) {
+      if (hasOpsCare && !hasConcreteFinancialMetrics) {
+        // Player tried to argue "purely operational, nothing to do with architecture" without concrete OpEx/CapEx cut
+        trustDelta = -5;
+        verdict = 'CONDITIONAL_ACCEPTANCE';
+        rationale = isFrench ? 'Le volet opérationnel pèse lourdement sur le cash burn sans garantie de ROI.' : 'Operational expenses impact cash burn without clear ROI proof.';
+        responseDialogue = isFrench
+          ? `Vous tentez d'isoler l'opérationnel de l'architecture. Mais pour la direction financière, le 'run' et la maintenance représentent 70% de nos dépenses ! Si vous voulez garantir nos investissements, montrez-moi où se trouve la baisse concrète d'OpEx ou le ROI net.`
+          : `You are trying to separate operations from architecture, but operating maintenance represents 70% of our expenditure! If you want to safeguard investments, show me the concrete OpEx reduction or bottom-line ROI.`;
+        concessionRequired = isFrench ? 'Chiffrer une trajectoire d\'économies d\'OpEx d\'au moins 15%.' : 'Commit to at least 15% reduction in ongoing OpEx.';
+      } else if (hasConcreteFinancialMetrics || hasFinancialCare) {
+        trustDelta = +10;
         verdict = 'ACCEPTED';
-        rationale = 'Appreciates budget discipline and fiscal accountability.';
-        responseDialogue = `I appreciate that you are keeping cash burn front and center. If we can keep CapEx capped this quarter, you have my backing on the modernization tranche.`;
+        rationale = isFrench ? 'Apprécie la discipline budgétaire et la responsabilité financière.' : 'Appreciates budget discipline and fiscal accountability.';
+        responseDialogue = isFrench
+          ? `J'apprécie votre souci de rigueur financière et de maîtrise du cash burn. Si nous plafonnons le CapEx ce trimestre et sanctuarisons notre marge, vous avez mon accord pour engager cette tranche.`
+          : `I appreciate that you are keeping cash burn front and center. If we can keep CapEx capped this quarter, you have my backing on the modernization tranche.`;
       } else {
         trustDelta = -8;
         verdict = 'CONDITIONAL_ACCEPTANCE';
-        rationale = 'Skeptical of unquantified expenditure.';
-        responseDialogue = `You are asking for significant architectural investment without showing the bottom-line ROI. Where is the OpEx reduction down the line? I need numbers before I sign off.`;
-        concessionRequired = 'Commit to a 15% reduction in ongoing legacy maintenance OpEx.';
+        rationale = isFrench ? 'Sceptique face à des dépenses ou intentions non quantifiées.' : 'Skeptical of unquantified expenditure or intentions.';
+        responseDialogue = isFrench
+          ? `Vous me demandez des moyens et du budget sans démontrer le ROI net pour l'entreprise. Où sont les économies concrètes ? J'ai besoin de chiffres vérifiables avant d'engager les finances du groupe.`
+          : `You are asking for capital and organizational bandwidth without showing the bottom-line ROI. Where is the OpEx reduction down the line? I need numbers before I sign off.`;
+        concessionRequired = isFrench ? 'S\'engager sur une baisse de 15% des coûts de maintenance legacy.' : 'Commit to a 15% reduction in ongoing legacy maintenance OpEx.';
       }
-    } else if (s.role.toLowerCase().includes('product') || s.title.includes('VP')) {
+    } else if (roleLower.includes('product') || roleLower.includes('vp') || roleLower.includes('métier') || roleLower.includes('business')) {
       if (hasSpeedCare) {
-        trustDelta = +14;
+        trustDelta = +12;
         verdict = 'ACCEPTED';
-        rationale = 'Supports roadmap velocity and market competitiveness.';
-        responseDialogue = `Now we're talking. If this enables us to ship the customer onboarding flows without waiting 6 weeks for architecture review boards, you have my full support.`;
+        rationale = isFrench ? 'Soutient la vélocité de la roadmap et la compétitivité marché.' : 'Supports roadmap velocity and market competitiveness.';
+        responseDialogue = isFrench
+          ? `Voilà qui est constructif. Si cette approche nous permet de livrer les fonctionnalités client sans attendre des semaines de revues de comités d'architecture, vous avez mon plein soutien.`
+          : `Now we're talking. If this enables us to ship user features without waiting 6 weeks for architecture review boards, you have my full support.`;
+      } else {
+        trustDelta = -7;
+        verdict = 'REJECTED';
+        rationale = isFrench ? 'Perçoit la démarche comme un ralentissement bureaucratique des livraisons.' : 'Perceives proposal as bureaucratic delay to business features.';
+        responseDialogue = isFrench
+          ? `Nos concurrents déploient en continu pendant que nous débattons de schémas techniques. Je refuse tout gel des livraisons si les dates de mise en production ne sont pas fermement garanties.`
+          : `Our competitors are releasing weekly while we debate database schemas. I can't support another freeze unless delivery dates are guaranteed.`;
+        concessionRequired = isFrench ? 'Accélérer en parallèle les fonctionnalités utilisateur prioritaires.' : 'Fast-track high-priority user feature releases concurrently.';
+      }
+    } else if (roleLower.includes('architect') || roleLower.includes('cto') || roleLower.includes('tech') || roleLower.includes('développeur')) {
+      if (hasArchCare) {
+        trustDelta = +12;
+        verdict = 'ACCEPTED';
+        rationale = isFrench ? 'Adhésion forte aux bonnes pratiques et à la résorption de la dette technique.' : 'Strong endorsement of sound engineering and technical debt remediation.';
+        responseDialogue = isFrench
+          ? `Tout à fait d'accord. Contourner les standards d'ingénierie et empiler la dette a dégradé nos plateformes. Assainir les goulets d'étranglement maintenant va restaurer notre résilience et assainir durablement le socle.`
+          : `Spot on. Bypassing standards has cost us dearly in uptime. Tackling the core bottlenecks now will stabilize the telemetry and unlock real agility.`;
+      } else if (hasOpsCare) {
+        trustDelta = -5;
+        verdict = 'CONDITIONAL_ACCEPTANCE';
+        rationale = isFrench ? 'Alerte sur le risque de bricoler l\'opérationnel au détriment du socle structurel.' : 'Warns against patching operations while neglecting foundational architecture.';
+        responseDialogue = isFrench
+          ? `Séparer l'opérationnel du socle structurel est un leurre qui nous a menés à la crise actuelle. Nous devons concevoir des composants découplés et robustes si nous voulons que le run tienne le choc.`
+          : `Isolating operational firefighting from structural architecture is what got us into this mess. We must build decoupled, resilient patterns so operations stop bleeding.`;
+        concessionRequired = isFrench ? 'Intégrer des barrières d\'architecture automatisées dans le CI/CD.' : 'Mandate automated architectural gate checks on pull requests.';
+      } else {
+        trustDelta = -9;
+        verdict = 'REJECTED';
+        rationale = isFrench ? 'Alerte sur le risque d\'accumulation de dette technique critique.' : 'Warns of catastrophic technical debt accumulation.';
+        responseDialogue = isFrench
+          ? `Prendre des raccourcis techniques ici va faire exploser la dette et effondrer nos services au prochain pic de charge. Je refuse de transiger sur l'isolation et la robustesse de l'architecture.`
+          : `Taking shortcuts here will brick our core services under load. We cannot compromise on decouple-and-isolate patterns.`;
+        concessionRequired = isFrench ? 'Imposer des revues d\'architecture strictes sur chaque brique critique.' : 'Mandate automated architectural gate checks on pull requests.';
+      }
+    } else if (roleLower.includes('sourcing') || roleLower.includes('esn') || roleLower.includes('prestataire') || roleLower.includes('offshore')) {
+      if (hasSourcingCare || hasCollaboration) {
+        trustDelta = +10;
+        verdict = 'ACCEPTED';
+        rationale = isFrench ? 'Clarté contractuelle et respect des engagements partenariaux.' : 'Contractual clarity and partnership commitment.';
+        responseDialogue = isFrench
+          ? `Nous avons besoin de clarté contractuelle et de visibilité sur les charges des équipes distantes. Si votre plan préserve les volumes convenus et le cadre de collaboration, nous vous accompagnons.`
+          : `We need contractual clarity and predictability for our delivery teams. If your plan preserves the volume commitments and collaborative frame, we are aligned.`;
       } else {
         trustDelta = -6;
-        verdict = 'REJECTED';
-        rationale = 'Perceives proposal as bureaucratic delay to business features.';
-        responseDialogue = `Our competitors are releasing weekly while we debate database schemas. I can't support another multi-round freeze unless delivery dates are guaranteed.`;
-        concessionRequired = 'Fast-track high-priority user feature releases concurrently.';
+        verdict = 'CONDITIONAL_ACCEPTANCE';
+        rationale = isFrench ? 'Inquiétude sur les pénalités contractuelles et la démobilisation des équipes.' : 'Concerned about delivery penalties and team turnover.';
+        responseDialogue = isFrench
+          ? `Modifier l'organisation sans concertation contractuelle risque de provoquer des pénalités et une démobilisation des ressources clés. Donnez-nous de la visibilité sur vos exigences.`
+          : `Restructuring delivery teams without contractual visibility creates turnover and delivery penalties. Provide clear roadmap commitments.`;
+        concessionRequired = isFrench ? 'Garantir le maintien du volume contractuel sur les prochains trimestres.' : 'Guarantee maintenance contract volume over the next quarters.';
       }
-    } else if (s.role.toLowerCase().includes('architect') || s.title.includes('CTO')) {
-      if (hasArchCare) {
-        trustDelta = +15;
+    } else if (roleLower.includes('ciso') || roleLower.includes('sécurité') || roleLower.includes('security') || roleLower.includes('conformité')) {
+      if (hasSecurityCare) {
+        trustDelta = +12;
         verdict = 'ACCEPTED';
-        rationale = 'Strong endorsement of sound engineering and technical debt remediation.';
-        responseDialogue = `Spot on. Bypassing standards has cost us dearly in uptime. Tackling the core bottlenecks now will stabilize the telemetry and unlock real agility.`;
+        rationale = isFrench ? 'Conformité réglementaire et contrôle des accès validés.' : 'Regulatory compliance and access control validated.';
+        responseDialogue = isFrench
+          ? `La protection des données et la conformité aux exigences réglementaires ne sont pas négociables. Votre approche répond à nos standards de sécurité et d'audit, vous avez mon feu vert.`
+          : `Data protection and regulatory compliance are non-negotiable. Your proposal addresses our security controls, you have my sign-off.`;
       } else {
-        trustDelta = -10;
+        trustDelta = -8;
         verdict = 'REJECTED';
-        rationale = 'Warns of catastrophic technical debt accumulation.';
-        responseDialogue = `Taking shortcuts here will brick our core services under load. We cannot compromise on decouple-and-isolate patterns.`;
-        concessionRequired = 'Mandate automated architectural gate checks on pull requests.';
+        rationale = isFrench ? 'Risque inacceptable d\'exposition réglementaire ou de fuite de données.' : 'Unacceptable risk of regulatory breach or data exposure.';
+        responseDialogue = isFrench
+          ? `Toute évolution sans contrôle d'accès strict ni journalisation d'audit expose l'entreprise à des sanctions réglementaires sévères. Je pose un véto tant que la sécurité n'est pas garantie.`
+          : `Any change without strict access controls and audit logging exposes the firm to severe regulatory sanctions. I will block this until security controls are verified.`;
+        concessionRequired = isFrench ? 'Mettre en place un audit de conformité et un chiffrement de bout en bout.' : 'Implement zero-trust logging and end-to-end encryption.';
       }
     } else {
-      trustDelta = hasCollaboration ? +8 : -4;
+      trustDelta = hasCollaboration ? +7 : -4;
       verdict = hasCollaboration ? 'ACCEPTED' : 'CONDITIONAL_ACCEPTANCE';
-      rationale = 'General executive consensus review.';
-      responseDialogue = `I see where you are heading with this strategy. As long as our operational integrity remains uncompromised, we can move forward.`;
+      rationale = isFrench ? 'Revue générale d\'alignement exécutif.' : 'General executive consensus review.';
+      responseDialogue = isFrench
+        ? `Je perçois votre volonté de compromis et de gouvernance collégiale. Tant que notre intégrité opérationnelle est préservée, nous pouvons avancer ensemble.`
+        : `I see where you are heading with this strategy. As long as our operational integrity remains uncompromised, we can move forward.`;
     }
 
     return {
       responseDialogue,
       evaluation: {
-        empathyScore: Math.min(100, empathyScore),
-        financialAcumenScore: Math.min(100, financialAcumenScore),
-        strategicAlignmentScore: Math.min(100, strategicAlignmentScore),
+        empathyScore: Math.min(100, Math.max(10, empathyScore)),
+        financialAcumenScore: Math.min(100, Math.max(10, financialAcumenScore)),
+        strategicAlignmentScore: Math.min(100, Math.max(10, strategicAlignmentScore)),
         trustDelta,
         verdict,
         rationale,

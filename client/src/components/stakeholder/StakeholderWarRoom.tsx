@@ -494,48 +494,151 @@ export const StakeholderWarRoom: React.FC<Props> = ({
           </span>
           {isBoardroom ? (
             <>
-              <button
-                onClick={() => handleQuickProposal(`Mesdames et messieurs du Conseil, nous proposons une architecture en sablier avec des Quality Gates automatiques : nous réduisons la dette technique tout en garantissant les délais de mise sur le marché.`)}
-                className="px-2.5 py-1 rounded bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-500/40 text-[11px] whitespace-nowrap"
-              >
-                ⚖️ Compromis Sablier & Paved Path
-              </button>
-              <button
-                onClick={() => handleQuickProposal(`Nous sanctuarisons le coeur souverain avec des données synthétiques et un contrôle strict des prestataires, garantissant la conformité réglementaire et la sécurité.`)}
-                className="px-2.5 py-1 rounded bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-500/40 text-[11px] whitespace-nowrap"
-              >
-                🛡️ Souveraineté & Données Synthétiques
-              </button>
-              <button
-                onClick={() => handleQuickProposal(`Nous nous engageons sur une baisse d'OpEx de 15% dès le prochain trimestre en échange du déblocage d'un budget d'outillage et d'automatisation CI/CD.`)}
-                className="px-2.5 py-1 rounded bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-500/40 text-[11px] whitespace-nowrap"
-              >
-                💰 Engagement ROI & Baisse d'OpEx
-              </button>
+              {[
+                {
+                  id: 'paved-path',
+                  label: '⚖️ Compromis Sablier & Paved Path',
+                  text: `Mesdames et messieurs du Conseil, nous proposons une architecture en sablier avec des Quality Gates automatiques : nous réduisons la dette technique tout en garantissant les délais de mise sur le marché.`,
+                },
+                {
+                  id: 'sovereignty',
+                  label: '🛡️ Souveraineté & Données Synthétiques',
+                  text: `Nous sanctuarisons le coeur souverain avec des données synthétiques et un contrôle strict des prestataires, garantissant la conformité réglementaire et la sécurité.`,
+                },
+                {
+                  id: 'opex-cut',
+                  label: '💰 Engagement ROI & Baisse d\'OpEx',
+                  text: `Nous nous engageons sur une baisse d'OpEx de 15% dès le prochain trimestre en échange du déblocage d'un budget d'outillage et d'automatisation CI/CD.`,
+                },
+              ].map(chip => {
+                const used = messages.some(
+                  m => m.sender === 'PLAYER' &&
+                  m.stakeholderId === 'BOARDROOM' &&
+                  m.content.trim().toLowerCase() === chip.text.trim().toLowerCase()
+                );
+                return (
+                  <button
+                    key={chip.id}
+                    disabled={used}
+                    onClick={() => handleQuickProposal(chip.text)}
+                    className={`px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                      used
+                        ? 'bg-slate-900 text-slate-500 border border-slate-800 line-through opacity-60 cursor-not-allowed'
+                        : 'bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-500/40'
+                    }`}
+                  >
+                    <span>{chip.label}</span>
+                    {used && <span className="text-[9px] font-mono text-amber-400 no-underline">(Déjà engagé)</span>}
+                  </button>
+                );
+              })}
+            </>
+          ) : /(?:[éàèùâêîôûëïç]|directeur|responsable|chef|président|mirage|assurance)/i.test((activeStakeholder?.title || '') + (activeStakeholder?.name || '')) ? (
+            <>
+              {[
+                {
+                  id: 'fr-opex',
+                  label: '💰 Engagement Réduction OpEx (-15%)',
+                  text: `Nous nous engageons sur une baisse d'OpEx de 15% d'ici deux trimestres en échange de votre arbitrage budgétaire favorable.`,
+                },
+                {
+                  id: 'fr-fasttrack',
+                  label: '🚀 Fast-track Fonctionnalités Métier',
+                  text: `Nous accélérons en parallèle les fonctionnalités métier prioritaires via des couches anti-corruption, sans violer les normes d'architecture.`,
+                },
+                {
+                  id: 'fr-security',
+                  label: '🛡️ Garantie Sécurité & Zero-Trust',
+                  text: `Nous sanctuarisons les flux avec journalisation d'audit automatique et zero-trust pour éliminer toute exposition réglementaire.`,
+                },
+                {
+                  id: 'fr-pavedpath',
+                  label: '⚖️ Paved Path & Sas d\'Intégration',
+                  text: `Nous déployons un sas d'intégration et un paved path standardisé pour fluidifier le delivery sans désorganiser les équipes.`,
+                },
+              ].map(chip => {
+                const used = messages.some(
+                  m => m.sender === 'PLAYER' &&
+                  m.stakeholderId === activeStakeholder?.id &&
+                  m.content.trim().toLowerCase() === chip.text.trim().toLowerCase()
+                );
+                return (
+                  <button
+                    key={chip.id}
+                    disabled={used}
+                    onClick={() => handleQuickProposal(chip.text)}
+                    className={`px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                      used
+                        ? 'bg-slate-900 text-slate-500 border border-slate-800 line-through opacity-60 cursor-not-allowed'
+                        : 'bg-dark-800 hover:bg-dark-750 text-cyan-300 border border-cyan-500/30'
+                    }`}
+                  >
+                    <span>{chip.label}</span>
+                    {used && <span className="text-[9px] font-mono text-amber-400 no-underline">(Déjà engagé)</span>}
+                  </button>
+                );
+              })}
             </>
           ) : (
             <>
-              <button
-                onClick={() => handleQuickProposal(`I commit to reducing ongoing legacy maintenance OpEx by 15% within two quarters in exchange for your capital sign-off.`)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] whitespace-nowrap"
-              >
-                💰 OpEx Cut Commitment
-              </button>
-              <button
-                onClick={() => handleQuickProposal(`We will fast-track high-priority user features concurrently using anti-corruption layers without violating architecture standards.`)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] whitespace-nowrap"
-              >
-                🚀 Parallel Feature Fast-Track
-              </button>
-              <button
-                onClick={() => handleQuickProposal(`We are implementing automated compliance audit logging and zero-trust mTLS to eliminate all regulatory exposure.`)}
-                className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[11px] whitespace-nowrap"
-              >
-                ⚖️ Zero-Trust Compliance Guarantee
-              </button>
+              {[
+                {
+                  id: 'en-opex',
+                  label: '💰 OpEx Cut Commitment',
+                  text: `I commit to reducing ongoing legacy maintenance OpEx by 15% within two quarters in exchange for your capital sign-off.`,
+                },
+                {
+                  id: 'en-fasttrack',
+                  label: '🚀 Parallel Feature Fast-Track',
+                  text: `We will fast-track high-priority user features concurrently using anti-corruption layers without violating architecture standards.`,
+                },
+                {
+                  id: 'en-zerotrust',
+                  label: '⚖️ Zero-Trust Compliance Guarantee',
+                  text: `We are implementing automated compliance audit logging and zero-trust mTLS to eliminate all regulatory exposure.`,
+                },
+              ].map(chip => {
+                const used = messages.some(
+                  m => m.sender === 'PLAYER' &&
+                  m.stakeholderId === activeStakeholder?.id &&
+                  m.content.trim().toLowerCase() === chip.text.trim().toLowerCase()
+                );
+                return (
+                  <button
+                    key={chip.id}
+                    disabled={used}
+                    onClick={() => handleQuickProposal(chip.text)}
+                    className={`px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                      used
+                        ? 'bg-slate-900 text-slate-500 border border-slate-800 line-through opacity-60 cursor-not-allowed'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                    }`}
+                  >
+                    <span>{chip.label}</span>
+                    {used && <span className="text-[9px] font-mono text-amber-400 no-underline">(Already pledged)</span>}
+                  </button>
+                );
+              })}
             </>
           )}
         </div>
+
+        {/* Anti-Cheat / Repetition Warning Banner */}
+        {messages.some(
+          m => m.sender === 'PLAYER' &&
+          m.stakeholderId === (isBoardroom ? 'BOARDROOM' : activeStakeholder?.id) &&
+          m.content.trim().toLowerCase() === inputText.trim().toLowerCase() &&
+          inputText.trim().length >= 8
+        ) && (
+          <div className="px-4 py-2 bg-rose-500/10 border-t border-rose-500/30 text-rose-300 text-xs font-mono flex items-center gap-2 animate-fadeIn">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>
+              {/(?:[éàèùâêîôûëïç]|directeur|responsable|chef|président|mirage|assurance)/i.test((activeStakeholder?.title || '') + (activeStakeholder?.name || ''))
+                ? '⚠️ Répétition détectée : Répéter exactement la même proposition sans nouvel élément sera rejeté et pénalisera la confiance (-6 à -12 pts).'
+                : '⚠️ Duplicate proposal detected: Repeating identical pitches without new substance will be rejected and penalize executive trust (-6 to -12 pts).'}
+            </span>
+          </div>
+        )}
 
         {/* Message Input Box */}
         <div className="p-4 bg-dark-900 border-t border-slate-800 flex items-center gap-3">
