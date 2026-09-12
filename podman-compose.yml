@@ -40,7 +40,7 @@ services:
     networks:
       - gemsim-net
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:4000/api/health || exit 1"]
+      test: curl -f http://127.0.0.1:4000/api/health || exit 1
       interval: 30s
       timeout: 5s
       retries: 3
@@ -48,10 +48,13 @@ services:
 
   # --------------------------------------------------------------------------
   # Dedicated Local Ollama AI Container (Local Gemma Execution)
+  # Activated with: podman-compose --profile local-ai up -d
   # --------------------------------------------------------------------------
   gemsim-ollama:
     container_name: gemsim-ollama
     image: docker.io/ollama/ollama:latest
+    profiles:
+      - local-ai
     restart: unless-stopped
     ports:
       - "11434:11434"
@@ -60,7 +63,7 @@ services:
     networks:
       - gemsim-net
     healthcheck:
-      test: ["CMD-SHELL", "ollama list || exit 1"]
+      test: ollama list || exit 1
       interval: 30s
       timeout: 10s
       retries: 3
