@@ -1,12 +1,13 @@
 import assert from 'node:assert';
-import test from 'node:test';
+import { describe, it, expect } from 'vitest';
 import { CircuitBreaker, CircuitBreakerOpenError } from './circuit-breaker.js';
 import { getAITimeout, withTimeout, AITimeoutError } from './timeout.js';
 import { sanitizeAndParseJSON, executeWithRepairLoop, JSONRepairError } from './repair-loop.js';
 import { QueueManager } from '../queue/index.js';
 import { PrismaRepository } from '../db/prisma.js';
 
-test('CircuitBreaker trips to OPEN after 3 consecutive failures with 60s cooldown', async () => {
+describe('Production AI Enhancements Suite', () => {
+  it('CircuitBreaker trips to OPEN after 3 consecutive failures with 60s cooldown', async () => {
   const breaker = new CircuitBreaker({
     name: 'Test-LLM',
     failureThreshold: 3,
@@ -55,7 +56,7 @@ test('CircuitBreaker trips to OPEN after 3 consecutive failures with 60s cooldow
   assert.strictEqual(result, 'recovered');
 });
 
-test('Timeout Manager enforces configurable deadlines and throws explicit AITimeoutError', async () => {
+it('Timeout Manager enforces configurable deadlines and throws explicit AITimeoutError', async () => {
   // Test default deadlines
   const chatTimeout = getAITimeout('CHAT');
   const studioTimeout = getAITimeout('STUDIO');
@@ -90,7 +91,7 @@ test('Timeout Manager enforces configurable deadlines and throws explicit AITime
   );
 });
 
-test('Self-Healing JSON Repair Loop heals malformed outputs without silent defaulting', async () => {
+it('Self-Healing JSON Repair Loop heals malformed outputs without silent defaulting', async () => {
   // Test 1: Sanitize markdown and trailing commas
   const dirtyMarkdown = '```json\n{\n  "status": "ok",\n  "count": 42,\n}\n```';
   const parsed = sanitizeAndParseJSON<{ status: string; count: number }>(dirtyMarkdown);
@@ -132,7 +133,7 @@ test('Self-Healing JSON Repair Loop heals malformed outputs without silent defau
   );
 });
 
-test('BullMQ and Prisma Subsystems initialize with graceful fallback', () => {
+it('BullMQ and Prisma Subsystems initialize with graceful fallback', () => {
   const queueManager = QueueManager.getInstance();
   assert(queueManager);
   const health = queueManager.getHealth();
@@ -141,4 +142,5 @@ test('BullMQ and Prisma Subsystems initialize with graceful fallback', () => {
   const prismaRepo = PrismaRepository.getInstance();
   assert(prismaRepo);
   assert.strictEqual(typeof prismaRepo.isAvailable(), 'boolean');
+});
 });
