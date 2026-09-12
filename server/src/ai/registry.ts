@@ -3,19 +3,21 @@
 // Dynamic Runtime Switching, Key Management, and Fallback Cascading
 // ============================================================================
 
-import { AIProvider } from './types.js';
+import { AIProvider, StakeholderNegotiationContext } from './types.js';
 import { OllamaProvider } from './ollama.js';
 import { GeminiProvider } from './gemini.js';
 import { ClaudeProvider } from './claude.js';
 import { OpenAIProvider } from './openai.js';
 import { FallbackProvider } from './fallback.js';
-import { AIProviderType, AISettingsState, AIProviderConfig } from '../types/index.js';
+import { CircuitBreaker, CircuitBreakerOpenError } from './circuit-breaker.js';
+import { AIProviderType, AISettingsState, AIProviderConfig, ProposalEvaluation } from '../types/index.js';
 
 export class AIRegistry {
   private static instance: AIRegistry;
 
   private activeProviderType: AIProviderType = 'fallback';
   private providers: Map<AIProviderType, AIProvider> = new Map();
+  private circuitBreakers: Map<AIProviderType, CircuitBreaker> = new Map();
   private configs: Record<AIProviderType, AIProviderConfig>;
   private fallbackChain: AIProviderType[] = ['gemini', 'ollama', 'fallback'];
   private cachedOllamaModels: string[] = [];
@@ -45,6 +47,19 @@ export class AIRegistry {
     this.providers.set('claude', claude);
     this.providers.set('openai', openai);
     this.providers.set('fallback', fallback);
+
+    // Initialize Circuit Breakers (3 failures -> 60s cooldown)
+    const providerTypes: AIProviderType[] = ['ollama', 'gemini', 'claude', 'openai', 'fallback'];
+    for (const t of providerTypes) {
+      this.circuitBreakers.set(
+        t,
+        new CircuitBreaker({
+          name: t,
+          failureThreshold: 3,
+          cooldownMs: 60000,
+        })
+      );
+    }
 
     this.configs = {
       ollama: {
@@ -164,7 +179,16 @@ export class AIRegistry {
       providers: maskedConfigs,
       fallbackChain: [...this.fallbackChain],
       availableOllamaModels: this.cachedOllamaModels,
-    };
+      circuitBreakers: this.getCircuitBreakers(),
+    } as any;
+  }
+
+  public getCircuitBreakers(): Record<AIProviderType, any> {
+    const status: any = {};
+    for (const [key, breaker] of this.circuitBreakers.entries()) {
+      status[key] = breaker.getStatus();
+    }
+    return status;
   }
 
   public updateProviderConfig(
@@ -239,21 +263,88 @@ export class AIRegistry {
 
     for (const candidateType of candidates) {
       const provider = this.providers.get(candidateType);
+      const breaker = this.circuitBreakers.get(candidateType);
       if (!provider) continue;
+
+      if (breaker && breaker.getState() === 'OPEN') {
+        const remaining = breaker.getRemainingCooldownSeconds();
+        console.warn(
+          `[AIRegistry] Skipping '${candidateType}': Circuit breaker is OPEN (${remaining}s remaining before retry).`
+        );
+        continue;
+      }
 
       try {
         console.log(`[AIRegistry] Attempting scenario execution with provider: '${candidateType}'...`);
-        const result = await operation(provider);
+        const result = await (breaker ? breaker.execute(() => operation(provider)) : operation(provider));
         console.log(`[AIRegistry] Execution successful with provider: '${candidateType}'`);
         return { result, usedProvider: candidateType };
       } catch (err: any) {
         lastError = err;
-        console.warn(`[AIRegistry] Provider '${candidateType}' failed: ${err.message}. Falling back to next provider.`);
+        console.warn(`[AIRegistry] Provider '${candidateType}' failed: ${err.message}. Falling back to next candidate.`);
       }
     }
 
     const fallbackProvider = this.providers.get('fallback')!;
-    const result = await operation(fallbackProvider);
+    const fallbackBreaker = this.circuitBreakers.get('fallback');
+    const result = await (fallbackBreaker ? fallbackBreaker.execute(() => operation(fallbackProvider)) : operation(fallbackProvider));
     return { result, usedProvider: 'fallback' };
+  }
+
+  /**
+   * Executes stakeholder negotiation with live token streaming and fallback
+   */
+  public async executeStreamWithFallback(
+    context: StakeholderNegotiationContext,
+    onDialogueChunk: (chunk: string) => void
+  ): Promise<{ result: { responseDialogue: string; evaluation: ProposalEvaluation }; usedProvider: AIProviderType }> {
+    const candidates: AIProviderType[] = [];
+
+    if (this.activeProviderType !== 'fallback') {
+      candidates.push(this.activeProviderType);
+    }
+    for (const t of this.fallbackChain) {
+      if (t !== 'fallback' && !candidates.includes(t)) {
+        if (this.configs[t]?.enabled) {
+          candidates.push(t);
+        }
+      }
+    }
+    candidates.push('fallback');
+
+    for (const candidateType of candidates) {
+      const provider = this.providers.get(candidateType);
+      const breaker = this.circuitBreakers.get(candidateType);
+      if (!provider) continue;
+
+      if (breaker && breaker.getState() === 'OPEN') {
+        const remaining = breaker.getRemainingCooldownSeconds();
+        console.warn(
+          `[AIRegistry] Stream skipping '${candidateType}': Circuit breaker is OPEN (${remaining}s remaining).`
+        );
+        continue;
+      }
+
+      try {
+        console.log(`[AIRegistry] Streaming negotiation with provider: '${candidateType}'...`);
+        const result = await (breaker
+          ? breaker.execute(async () => {
+              if (provider.evaluateStakeholderProposalStream) {
+                return provider.evaluateStakeholderProposalStream(context, onDialogueChunk);
+              }
+              return provider.evaluateStakeholderProposal(context);
+            })
+          : provider.evaluateStakeholderProposal(context));
+
+        return { result, usedProvider: candidateType };
+      } catch (err: any) {
+        console.warn(`[AIRegistry] Provider '${candidateType}' streaming failed: ${err.message}. Cascading fallback...`);
+      }
+    }
+
+    const fallbackProvider = this.providers.get('fallback')!;
+    const res = await fallbackProvider.evaluateStakeholderProposal(context);
+    onDialogueChunk(res.responseDialogue);
+    return { result: res, usedProvider: 'fallback' };
   }
 }

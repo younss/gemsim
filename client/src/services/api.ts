@@ -235,6 +235,70 @@ export const api = {
     return res.json();
   },
 
+  async negotiateStakeholderStream(
+    payload: {
+      sessionId: string;
+      teamId: string;
+      stakeholderId: string;
+      playerMessage: string;
+    },
+    onChunk: (chunk: string) => void
+  ): Promise<{ reply: ChatMessage; evaluation: ProposalEvaluation; updatedTrust: number; usedProvider: string }> {
+    const res = await fetch(`${API_BASE}/ai/negotiate/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok || !res.body) {
+      throw new Error(`Stream request failed with status ${res.status}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let finalResult: { reply: ChatMessage; evaluation: ProposalEvaluation; updatedTrust: number; usedProvider: string } | null = null;
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.substring(6));
+            if (data.type === 'chunk' && data.text) {
+              onChunk(data.text);
+            } else if (data.type === 'done') {
+              finalResult = {
+                reply: data.reply,
+                evaluation: data.evaluation,
+                updatedTrust: data.updatedTrust,
+                usedProvider: data.usedProvider,
+              };
+            } else if (data.type === 'error') {
+              throw new Error(data.error || 'Streaming error');
+            }
+          } catch (e: any) {
+            if (e.message && e.message !== 'Unexpected end of JSON input') {
+              throw e;
+            }
+          }
+        }
+      }
+    }
+
+    if (!finalResult) {
+      throw new Error('Stream terminated before receiving done payload');
+    }
+
+    return finalResult;
+  },
+
   async callBoardroomMeeting(payload: {
     sessionId: string;
     teamId: string;

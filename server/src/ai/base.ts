@@ -11,6 +11,8 @@ import {
   ScenarioGenerationPrompt,
 } from './types.js';
 import { AIProviderType, ProposalEvaluation, Scenario } from '../types/index.js';
+import { executeWithRepairLoop, sanitizeAndParseJSON } from './repair-loop.js';
+import { getAITimeout } from './timeout.js';
 
 export abstract class BaseAIProvider implements AIProvider {
   abstract readonly providerType: AIProviderType;
@@ -29,40 +31,30 @@ export abstract class BaseAIProvider implements AIProvider {
    * Helper to parse JSON from AI response, safely stripping markdown code blocks
    */
   protected parseJSON<T>(rawText: string): T {
-    try {
-      return JSON.parse(rawText) as T;
-    } catch {
-      const cleaned = rawText
-        .replace(/```json\s*/gi, '')
-        .replace(/```\s*$/gi, '')
-        .trim();
-      
-      try {
-        return JSON.parse(cleaned) as T;
-      } catch {
-        const firstBracket = cleaned.search(/[\{\[]/);
-        const lastBracket = Math.max(cleaned.lastIndexOf('}'), cleaned.lastIndexOf(']'));
-        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
-          const substring = cleaned.substring(firstBracket, lastBracket + 1);
-          return JSON.parse(substring) as T;
-        }
-        throw new Error(`Failed to parse structured JSON from model response: ${rawText.substring(0, 200)}...`);
-      }
-    }
+    return sanitizeAndParseJSON<T>(rawText);
   }
 
   public async generateJSON<T>(messages: AIMessage[], options?: AIGenerateOptions): Promise<T> {
-    const text = await this.generateText(messages, {
-      ...options,
-      responseFormat: 'json',
-    });
-    return this.parseJSON<T>(text);
+    const timeoutMs = getAITimeout(options?.responseFormat === 'json' ? 'DEFAULT' : 'CHAT', options?.timeoutMs);
+    return executeWithRepairLoop<T>(
+      async (msgs, sysPrompt) => {
+        return this.generateText(msgs, {
+          ...options,
+          systemPrompt: sysPrompt ?? options?.systemPrompt,
+          responseFormat: 'json',
+          timeoutMs,
+        });
+      },
+      messages,
+      options?.systemPrompt || '',
+      {
+        maxRepairs: 2,
+      }
+    );
   }
 
-  public async evaluateStakeholderProposal(
-    context: StakeholderNegotiationContext
-  ): Promise<{ responseDialogue: string; evaluation: ProposalEvaluation }> {
-    const systemPrompt = `You are roleplaying as ${context.stakeholder.name}, the ${context.stakeholder.title} in an enterprise strategic operations simulation.
+  protected getStakeholderSystemPrompt(context: StakeholderNegotiationContext): string {
+    return `You are roleplaying as ${context.stakeholder.name}, the ${context.stakeholder.title} in an enterprise strategic operations simulation.
 Your Personality: ${context.stakeholder.personality}
 Your Core Bias: ${context.stakeholder.bias}
 Your Hidden Agenda: ${context.stakeholder.hiddenAgenda}
@@ -97,6 +89,13 @@ Respond ONLY with a valid JSON object matching this exact schema:
     "concessionRequired": "Optional concession you demand in exchange for support, or null"
   }
 }`;
+  }
+
+  public async evaluateStakeholderProposal(
+    context: StakeholderNegotiationContext,
+    options?: AIGenerateOptions
+  ): Promise<{ responseDialogue: string; evaluation: ProposalEvaluation }> {
+    const systemPrompt = this.getStakeholderSystemPrompt(context);
 
     // Filter out trailing message if it's already identical to playerMessage to prevent duplicate user turns
     const filteredHistory = context.chatHistory.filter(
@@ -113,9 +112,120 @@ Respond ONLY with a valid JSON object matching this exact schema:
       content: context.playerMessage,
     });
 
+    const timeoutMs = getAITimeout('CHAT', options?.timeoutMs);
+
     return this.generateJSON<{ responseDialogue: string; evaluation: ProposalEvaluation }>(
       conversationHistory,
-      { systemPrompt, responseFormat: 'json', temperature: 0.6, timeoutMs: 60000 }
+      { systemPrompt, responseFormat: 'json', temperature: 0.6, timeoutMs }
+    );
+  }
+
+  public async evaluateStakeholderProposalStream(
+    context: StakeholderNegotiationContext,
+    onDialogueChunk: (chunk: string) => void,
+    options?: AIGenerateOptions
+  ): Promise<{ responseDialogue: string; evaluation: ProposalEvaluation }> {
+    const systemPrompt = this.getStakeholderSystemPrompt(context);
+
+    const filteredHistory = context.chatHistory.filter(
+      (m, idx) => !(idx === context.chatHistory.length - 1 && m.sender === 'PLAYER' && m.content.trim() === context.playerMessage.trim())
+    );
+
+    const conversationHistory: AIMessage[] = filteredHistory.map(m => ({
+      role: m.sender === 'PLAYER' ? 'user' : 'assistant',
+      content: m.content,
+    }));
+
+    conversationHistory.push({
+      role: 'user',
+      content: context.playerMessage,
+    });
+
+    const timeoutMs = getAITimeout('CHAT', options?.timeoutMs);
+
+    let rawAccumulated = '';
+    let insideDialogue = false;
+    let escaped = false;
+
+    try {
+      await this.generateStream(
+        conversationHistory,
+        (chunk: string) => {
+          rawAccumulated += chunk;
+
+          if (!insideDialogue) {
+            const match = rawAccumulated.match(/"responseDialogue"\s*:\s*"/);
+            if (match && match.index !== undefined) {
+              insideDialogue = true;
+              const startIdx = match.index + match[0].length;
+              const remaining = rawAccumulated.substring(startIdx);
+              for (let i = 0; i < remaining.length; i++) {
+                const ch = remaining[i];
+                if (escaped) {
+                  const unescapedChar = ch === 'n' ? '\n' : ch === 't' ? '\t' : ch;
+                  onDialogueChunk(unescapedChar);
+                  escaped = false;
+                } else if (ch === '\\') {
+                  escaped = true;
+                } else if (ch === '"') {
+                  insideDialogue = false;
+                  break;
+                } else {
+                  onDialogueChunk(ch);
+                }
+              }
+            } else if (rawAccumulated.length > 80 && !rawAccumulated.includes('{')) {
+              onDialogueChunk(chunk);
+            }
+          } else {
+            for (let i = 0; i < chunk.length; i++) {
+              const ch = chunk[i];
+              if (escaped) {
+                const unescapedChar = ch === 'n' ? '\n' : ch === 't' ? '\t' : ch;
+                onDialogueChunk(unescapedChar);
+                escaped = false;
+              } else if (ch === '\\') {
+                escaped = true;
+              } else if (ch === '"') {
+                insideDialogue = false;
+                break;
+              } else {
+                onDialogueChunk(ch);
+              }
+            }
+          }
+        },
+        {
+          ...options,
+          systemPrompt,
+          temperature: 0.6,
+          timeoutMs,
+        }
+      );
+
+      const parsed = sanitizeAndParseJSON<{ responseDialogue: string; evaluation: ProposalEvaluation }>(rawAccumulated);
+      if (parsed.responseDialogue && parsed.evaluation) {
+        return parsed;
+      }
+    } catch {
+      console.warn('[evaluateStakeholderProposalStream] Stream parsing encountered error, entering self-healing repair loop...');
+    }
+
+    return executeWithRepairLoop<{ responseDialogue: string; evaluation: ProposalEvaluation }>(
+      async (msgs, sysPrompt) => {
+        return this.generateText(msgs, {
+          systemPrompt: sysPrompt,
+          responseFormat: 'json',
+          temperature: 0.6,
+          timeoutMs,
+        });
+      },
+      [
+        ...conversationHistory,
+        { role: 'assistant', content: rawAccumulated },
+      ],
+      systemPrompt,
+      { maxRepairs: 2 }
     );
   }
 
@@ -312,7 +422,7 @@ IMPORTANT: Extract or synthesize all titles, names, node architecture, stakehold
 
     return this.generateJSON<Partial<Scenario>>(
       [{ role: 'user', content: userPrompt }],
-      { systemPrompt, responseFormat: 'json', temperature: 0.6, timeoutMs: 300000 }
+      { systemPrompt, responseFormat: 'json', temperature: 0.6, timeoutMs: getAITimeout('STUDIO') }
     );
   }
 }

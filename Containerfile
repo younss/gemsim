@@ -25,13 +25,11 @@ RUN cd client && npm install
 
 # Copy source trees
 COPY server/tsconfig.json server/
+COPY server/prisma/ server/prisma/
 COPY server/src/ server/src/
 COPY client/ client/
-
-# Build client SPA (emits into server/public)
+RUN cd server && npx prisma generate
 RUN cd client && npm run build
-
-# Build server TypeScript (emits into server/dist)
 RUN cd server && npm run build
 
 # Prune devDependencies in server

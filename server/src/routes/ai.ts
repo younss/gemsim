@@ -359,6 +359,244 @@ aiRouter.post('/negotiate', async (req, res) => {
   }
 });
 
+// POST /api/ai/negotiate/stream (Real-Time Token Streaming Stakeholder Dialogue via SSE)
+aiRouter.post('/negotiate/stream', async (req, res) => {
+  const { sessionId, teamId, stakeholderId, playerMessage } = req.body as {
+    sessionId: string;
+    teamId: string;
+    stakeholderId: string;
+    playerMessage: string;
+  };
+
+  if (!sessionId || !teamId || !stakeholderId || !playerMessage) {
+    return res.status(400).json({ error: 'Missing required negotiation fields' });
+  }
+
+  const db = DatabaseRepository.getInstance();
+  const session = db.getSession(sessionId);
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+
+  const scenario = db.getScenario(session.scenarioId);
+  if (!scenario) {
+    return res.status(404).json({ error: 'Scenario not found' });
+  }
+
+  const team = session.teams.find(t => t.id === teamId);
+  if (!team) {
+    return res.status(404).json({ error: 'Team not found' });
+  }
+
+  const stakeholder = scenario.stakeholders.find(s => s.id === stakeholderId);
+  if (!stakeholder) {
+    return res.status(404).json({ error: 'Stakeholder persona not found' });
+  }
+
+  // 1. Save player message
+  const playerChatMsg: ChatMessage = {
+    id: `msg-${Date.now()}-player`,
+    sender: 'PLAYER',
+    stakeholderId,
+    senderName: team.name,
+    content: playerMessage,
+    timestamp: new Date().toISOString(),
+  };
+  db.saveChatMessage(sessionId, teamId, playerChatMsg);
+
+  // Set SSE Headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  const history = db.getChatMessages(sessionId, teamId, stakeholderId);
+  const previousPlayerMsgs = history.filter(m => m.sender === 'PLAYER' && m.id !== playerChatMsg.id);
+
+  const isFrench = /(?:[éàèùâêîôûëïç]|bonjour|merci|nous|vous|pour|dans|avec|coût|dette|archi|projet|stratégie|budget|marge)/i.test(playerMessage) ||
+                   /(?:[éàèùâêîôûëïç]|directeur|responsable|chef)/i.test(stakeholder.title);
+
+  // 2a. Anti-Spam Check
+  const trimmedMsg = playerMessage.trim();
+  if (trimmedMsg.length < 8 || /^(asdf|qwerty|test|hello|salut|yo|ok|oui|non|cool|merci)$/i.test(trimmedMsg)) {
+    const penalty = -3;
+    const lowEffortDialogue = isFrench
+      ? `Un échange au niveau exécutif exige une proposition stratégique structurée, pas des messages laconiques ou informels. Veuillez développer vos arguments.`
+      : `Executive negotiations require articulated proposals, not monosyllabic chatter. Formulate a real strategic proposal.`;
+
+    const lowEffortEval: ProposalEvaluation = {
+      empathyScore: 25,
+      financialAcumenScore: 20,
+      strategicAlignmentScore: 25,
+      trustDelta: penalty,
+      verdict: 'REJECTED',
+      rationale: isFrench ? 'Message trop sommaire ou vide de substance stratégique.' : 'Low-effort or empty message lacking executive substance.',
+      concessionRequired: isFrench ? 'Formuler une proposition détaillée et chiffrée.' : 'Formulate a detailed, quantified proposal.',
+    };
+
+    const currentTrust = team.stakeholderTrustMap[stakeholderId] ?? stakeholder.baseTrust ?? 60;
+    const newTrust = Math.max(5, Math.min(100, currentTrust + penalty));
+    team.stakeholderTrustMap[stakeholderId] = newTrust;
+    const trusts = Object.values(team.stakeholderTrustMap);
+    team.metrics.stakeholderTrust = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
+    db.saveSession(session);
+
+    const stakeholderChatMsg: ChatMessage = {
+      id: `msg-${Date.now()}-sh`,
+      sender: 'STAKEHOLDER',
+      stakeholderId,
+      senderName: `${stakeholder.name} (${stakeholder.title})`,
+      content: lowEffortDialogue,
+      timestamp: new Date().toISOString(),
+      evaluation: lowEffortEval,
+    };
+    db.saveChatMessage(sessionId, teamId, stakeholderChatMsg);
+
+    const words = lowEffortDialogue.split(' ');
+    for (const w of words) {
+      res.write(`data: ${JSON.stringify({ type: 'chunk', text: w + ' ' })}\n\n`);
+      await new Promise(r => setTimeout(r, 15));
+    }
+
+    res.write(`data: ${JSON.stringify({
+      type: 'done',
+      reply: stakeholderChatMsg,
+      evaluation: lowEffortEval,
+      updatedTrust: newTrust,
+      usedProvider: 'anti-cheat-sentinel',
+    })}\n\n`);
+    return res.end();
+  }
+
+  // 2b. Anti-Cheat: Repetition / Radotage Check
+  const repetition = checkMessageRepetition(playerMessage, previousPlayerMsgs);
+  if (repetition.isRepetition) {
+    const penalty = repetition.repetitionCount > 1 ? -12 : -6;
+    const repDialogue = isFrench
+      ? repetition.repetitionCount > 1
+        ? `Vous me répétez exactement la même idée pour la énième fois. Ce radotage stérile fait perdre un temps précieux au comité. Tant que vous n'apportez pas de nouvelles données ou concessions, le sujet est clos.`
+        : `Vous vous répétez mot pour mot. Nous avons déjà abordé et enregistré ce point il y a un instant. Qu'avez-vous de neuf ou de concret à mettre sur la table ?`
+      : repetition.repetitionCount > 1
+        ? `You have repeated the exact same pitch multiple times. This circular badgering is wasting executive time. Unless you bring new data or concessions, this topic is closed.`
+        : `You are repeating yourself verbatim. We already covered this exact proposal. What new value, compromise, or metrics are you offering now?`;
+
+    const repEval: ProposalEvaluation = {
+      empathyScore: 20,
+      financialAcumenScore: 20,
+      strategicAlignmentScore: 20,
+      trustDelta: penalty,
+      verdict: 'REJECTED',
+      rationale: isFrench
+        ? 'Pénalité pour répétition / radotage d\'une même proposition sans valeur ajoutée.'
+        : 'Penalty for repeated identical proposal without new value.',
+      concessionRequired: isFrench ? 'Présenter une alternative différente ou réviser vos engagements.' : 'Present a different alternative or revise your commitments.',
+    };
+
+    const currentTrust = team.stakeholderTrustMap[stakeholderId] ?? stakeholder.baseTrust ?? 60;
+    const newTrust = Math.max(5, Math.min(100, currentTrust + penalty));
+    team.stakeholderTrustMap[stakeholderId] = newTrust;
+    const trusts = Object.values(team.stakeholderTrustMap);
+    team.metrics.stakeholderTrust = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
+    db.saveSession(session);
+
+    const stakeholderChatMsg: ChatMessage = {
+      id: `msg-${Date.now()}-sh`,
+      sender: 'STAKEHOLDER',
+      stakeholderId,
+      senderName: `${stakeholder.name} (${stakeholder.title})`,
+      content: repDialogue,
+      timestamp: new Date().toISOString(),
+      evaluation: repEval,
+    };
+    db.saveChatMessage(sessionId, teamId, stakeholderChatMsg);
+
+    const words = repDialogue.split(' ');
+    for (const w of words) {
+      res.write(`data: ${JSON.stringify({ type: 'chunk', text: w + ' ' })}\n\n`);
+      await new Promise(r => setTimeout(r, 15));
+    }
+
+    res.write(`data: ${JSON.stringify({
+      type: 'done',
+      reply: stakeholderChatMsg,
+      evaluation: repEval,
+      updatedTrust: newTrust,
+      usedProvider: 'anti-cheat-sentinel',
+    })}\n\n`);
+    return res.end();
+  }
+
+  // 3. Live Token Streaming Execution via AI Gateway
+  try {
+    const currentTrust = team.stakeholderTrustMap[stakeholderId] ?? stakeholder.baseTrust ?? 60;
+    const registry = AIRegistry.getInstance();
+
+    const { result, usedProvider } = await registry.executeStreamWithFallback(
+      {
+        stakeholder,
+        currentTrust,
+        chatHistory: history.slice(-6),
+        playerMessage,
+        currentRound: session.currentRound,
+        teamMetrics: {
+          tco: team.metrics.tco,
+          budgetRemaining: team.metrics.budgetRemaining,
+          technicalDebtIndex: team.metrics.technicalDebtIndex,
+          deliveryVelocity: team.metrics.deliveryVelocity,
+        },
+      },
+      (chunk: string) => {
+        res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
+        broadcastToSession(sessionId, {
+          type: 'STAKEHOLDER_CHUNK',
+          teamId,
+          stakeholderId,
+          chunk,
+        });
+      }
+    );
+
+    // 4. Update team trust map
+    const newTrust = Math.max(5, Math.min(100, currentTrust + (result.evaluation.trustDelta || 0)));
+    team.stakeholderTrustMap[stakeholderId] = newTrust;
+    const trusts = Object.values(team.stakeholderTrustMap);
+    team.metrics.stakeholderTrust = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
+    db.saveSession(session);
+
+    // 5. Save AI stakeholder response
+    const stakeholderChatMsg: ChatMessage = {
+      id: `msg-${Date.now()}-sh`,
+      sender: 'STAKEHOLDER',
+      stakeholderId,
+      senderName: `${stakeholder.name} (${stakeholder.title})`,
+      content: result.responseDialogue,
+      timestamp: new Date().toISOString(),
+      evaluation: result.evaluation,
+    };
+    db.saveChatMessage(sessionId, teamId, stakeholderChatMsg);
+
+    // 6. Broadcast completed message to session
+    broadcastToSession(sessionId, {
+      type: 'STAKEHOLDER_RESPONSE',
+      teamId,
+      message: stakeholderChatMsg,
+    });
+
+    res.write(`data: ${JSON.stringify({
+      type: 'done',
+      reply: stakeholderChatMsg,
+      evaluation: result.evaluation,
+      updatedTrust: newTrust,
+      usedProvider,
+    })}\n\n`);
+    res.end();
+  } catch (err: any) {
+    console.error('[AINegotiateStream] Error in streaming negotiation:', err);
+    res.write(`data: ${JSON.stringify({ type: 'error', error: err.message || 'Stream failed' })}\n\n`);
+    res.end();
+  }
+});
+
 // POST /api/ai/boardroom (Executive Board Meeting / Plenary ComEx Deliberation)
 aiRouter.post('/boardroom', async (req, res) => {
   try {

@@ -8,8 +8,10 @@ COPY server/package.json server/
 COPY client/package.json client/
 RUN npm install && cd server && npm install && cd ../client && npm install
 COPY server/tsconfig.json server/
+COPY server/prisma/ server/prisma/
 COPY server/src/ server/src/
 COPY client/ client/
+RUN cd server && npx prisma generate
 RUN cd client && npm run build
 RUN cd server && npm run build
 RUN cd server && npm prune --omit=dev

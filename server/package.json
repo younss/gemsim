@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "test": "node --test dist/ai/production-enhancements.test.js",
     "start": "node dist/index.js"
   },
   "dependencies": {
@@ -14,9 +15,13 @@
     "express": "^4.21.2",
     "ws": "^8.18.0",
     "zod": "^3.24.2",
-    "better-sqlite3": "^11.8.1"
+    "better-sqlite3": "^11.8.1",
+    "@prisma/client": "^6.4.1",
+    "bullmq": "^5.41.6",
+    "ioredis": "^5.6.0"
   },
   "devDependencies": {
+    "prisma": "^6.4.1",
     "@types/better-sqlite3": "^7.6.12",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",

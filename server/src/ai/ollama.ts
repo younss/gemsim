@@ -6,6 +6,7 @@
 import { BaseAIProvider } from './base.js';
 import { AIMessage, AIGenerateOptions } from './types.js';
 import { AIProviderType } from '../types/index.js';
+import { getAITimeout } from './timeout.js';
 
 export class OllamaProvider extends BaseAIProvider {
   public readonly providerType: AIProviderType = 'ollama';
@@ -105,7 +106,7 @@ export class OllamaProvider extends BaseAIProvider {
     // Ensure host is discovered
     await this.discoverHostAndModels();
 
-    const timeoutMs = options?.timeoutMs || 300000;
+    const timeoutMs = getAITimeout('DEFAULT', options?.timeoutMs);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -158,54 +159,63 @@ export class OllamaProvider extends BaseAIProvider {
   ): Promise<string> {
     await this.discoverHostAndModels();
 
-    const formattedMessages: Array<{ role: string; content: string }> = [];
-    if (options?.systemPrompt) {
-      formattedMessages.push({ role: 'system', content: options.systemPrompt });
-    }
-    for (const m of messages) {
-      formattedMessages.push({ role: m.role, content: m.content });
-    }
+    const timeoutMs = getAITimeout('CHAT', options?.timeoutMs);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    const response = await fetch(`${this.baseUrl}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: this.model,
-        messages: formattedMessages,
-        stream: true,
-        options: {
-          temperature: options?.temperature ?? 0.6,
-        },
-      }),
-    });
+    try {
+      const formattedMessages: Array<{ role: string; content: string }> = [];
+      if (options?.systemPrompt) {
+        formattedMessages.push({ role: 'system', content: options.systemPrompt });
+      }
+      for (const m of messages) {
+        formattedMessages.push({ role: m.role, content: m.content });
+      }
 
-    if (!response.ok || !response.body) {
-      throw new Error(`Ollama stream error: ${response.statusText}`);
-    }
+      const response = await fetch(`${this.baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.model,
+          messages: formattedMessages,
+          stream: true,
+          options: {
+            temperature: options?.temperature ?? 0.6,
+          },
+        }),
+        signal: controller.signal,
+      });
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let accumulated = '';
+      if (!response.ok || !response.body) {
+        throw new Error(`Ollama stream error: ${response.statusText}`);
+      }
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const text = decoder.decode(value, { stream: true });
-      const lines = text.split('\n').filter(l => l.trim().length > 0);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = '';
 
-      for (const line of lines) {
-        try {
-          const parsed = JSON.parse(line) as { message?: { content: string }; done?: boolean };
-          if (parsed.message?.content) {
-            accumulated += parsed.message.content;
-            onChunk(parsed.message.content);
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const text = decoder.decode(value, { stream: true });
+        const lines = text.split('\n').filter(l => l.trim().length > 0);
+
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line) as { message?: { content: string }; done?: boolean };
+            if (parsed.message?.content) {
+              accumulated += parsed.message.content;
+              onChunk(parsed.message.content);
+            }
+          } catch {
+            // Ignore partial chunk
           }
-        } catch {
-          // Ignore partial chunk
         }
       }
-    }
 
-    return accumulated;
+      return accumulated;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }

@@ -359,6 +359,7 @@ export type WSServerMessage =
   | { type: 'ROUND_RESOLVED'; session: SimulationSession; results: Record<string, RoundResult> }
   | { type: 'CRISIS_INJECTED'; sessionId: string; event: RoundEvent; session: SimulationSession }
   | { type: 'SESSION_RESET'; sessionId: string; session: SimulationSession; archivedRun?: ArchivedSimulationRun }
+  | { type: 'STAKEHOLDER_CHUNK'; teamId: string; stakeholderId: string; chunk: string }
   | { type: 'STAKEHOLDER_RESPONSE'; teamId: string; message: ChatMessage }
   | { type: 'ANNOUNCEMENT'; message: string; timestamp: string }
   | { type: 'TELEMETRY_PULSE'; activeTeams: number; round: number; avgTdi: number; avgTrust: number };

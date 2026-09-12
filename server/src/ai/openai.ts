@@ -6,6 +6,7 @@
 import { BaseAIProvider } from './base.js';
 import { AIMessage, AIGenerateOptions } from './types.js';
 import { AIProviderType } from '../types/index.js';
+import { getAITimeout } from './timeout.js';
 
 export class OpenAIProvider extends BaseAIProvider {
   public readonly providerType: AIProviderType = 'openai';
@@ -77,6 +78,7 @@ export class OpenAIProvider extends BaseAIProvider {
       body.response_format = { type: 'json_object' };
     }
 
+    const timeoutMs = getAITimeout('DEFAULT', options?.timeoutMs);
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -84,7 +86,7 @@ export class OpenAIProvider extends BaseAIProvider {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(options?.timeoutMs || 60000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
     if (!response.ok) {
@@ -113,6 +115,7 @@ export class OpenAIProvider extends BaseAIProvider {
       formattedMessages.push({ role: m.role, content: m.content });
     }
 
+    const streamTimeoutMs = getAITimeout('CHAT', options?.timeoutMs);
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -125,6 +128,7 @@ export class OpenAIProvider extends BaseAIProvider {
         temperature: options?.temperature ?? 0.7,
         stream: true,
       }),
+      signal: AbortSignal.timeout(streamTimeoutMs),
     });
 
     if (!response.ok || !response.body) {

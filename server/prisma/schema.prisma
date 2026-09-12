@@ -1,0 +1,97 @@
+// ============================================================================
+// GEMSIM: ENTERPRISE POSTGRESQL PRISMA SCHEMA
+// High-throughput ACID relational store for distributed simulation clustering
+// ============================================================================
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Scenario {
+  id          String    @id
+  title       String
+  industry    String
+  isDefault   Boolean   @default(false)
+  data        Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  sessions    Session[]
+
+  @@map("scenarios")
+}
+
+model Session {
+  id           String          @id
+  name         String
+  scenarioId   String
+  state        String          @default("WAITING")
+  currentRound Int             @default(1)
+  data         Json
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  scenario     Scenario        @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  runs         SimulationRun[]
+  messages     ChatMessage[]
+
+  @@index([scenarioId])
+  @@map("sessions")
+}
+
+model SimulationRun {
+  id             String   @id
+  sessionId      String
+  scenarioId     String
+  runNumber      Int
+  title          String
+  winnerTeamName String?
+  totalRounds    Int
+  data           Json
+  createdAt      DateTime @default(now())
+  session        Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("simulation_runs")
+}
+
+model ChatMessage {
+  id            String   @id
+  sessionId     String
+  teamId        String
+  stakeholderId String?
+  sender        String
+  data          Json
+  createdAt     DateTime @default(now())
+  session       Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, teamId])
+  @@map("chat_messages")
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+model JobLog {
+  id        String   @id @default(cuid())
+  queueName String
+  jobId     String
+  name      String
+  status    String   // PENDING, PROCESSING, COMPLETED, FAILED
+  payload   Json?
+  result    Json?
+  error     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([queueName, status])
+  @@map("job_logs")
+}

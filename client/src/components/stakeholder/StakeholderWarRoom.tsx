@@ -143,34 +143,107 @@ export const StakeholderWarRoom: React.FC<Props> = ({
           onTrustUpdated(updatedTeam);
         }
       } else {
-        // 1-ON-1 NEGOTIATION
+        // 1-ON-1 NEGOTIATION WITH REAL-TIME STREAMING
         if (!activeStakeholder) return;
 
-        const res = await api.negotiateStakeholder({
-          sessionId: session.id,
-          teamId: team.id,
-          stakeholderId: activeStakeholder.id,
-          playerMessage: userText,
-        });
+        const streamingMsgId = `stream-${Date.now()}`;
+        let accumulatedText = '';
+        let hasAddedStreamingMsg = false;
 
-        setMessages(prev => [...prev, res.reply]);
-        setLastEvaluation(res.evaluation);
-        setAiProviderBadge(res.usedProvider);
+        try {
+          const res = await api.negotiateStakeholderStream(
+            {
+              sessionId: session.id,
+              teamId: team.id,
+              stakeholderId: activeStakeholder.id,
+              playerMessage: userText,
+            },
+            (chunk: string) => {
+              accumulatedText += chunk;
+              setMessages(prev => {
+                if (!hasAddedStreamingMsg) {
+                  hasAddedStreamingMsg = true;
+                  return [
+                    ...prev,
+                    {
+                      id: streamingMsgId,
+                      sender: 'STAKEHOLDER',
+                      stakeholderId: activeStakeholder.id,
+                      senderName: `${activeStakeholder.name} (${activeStakeholder.title})`,
+                      content: accumulatedText,
+                      timestamp: new Date().toISOString(),
+                    },
+                  ];
+                } else {
+                  return prev.map(m =>
+                    m.id === streamingMsgId ? { ...m, content: accumulatedText } : m
+                  );
+                }
+              });
+            }
+          );
 
-        if (onTrustUpdated) {
-          const updatedTrustMap = { ...team.stakeholderTrustMap, [activeStakeholder.id]: res.updatedTrust };
-          const trusts = Object.values(updatedTrustMap);
-          const avg = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
-          const updatedTeam: Team = {
-            ...team,
-            stakeholderTrustMap: updatedTrustMap,
-            metrics: { ...team.metrics, stakeholderTrust: avg },
-          };
-          onTrustUpdated(updatedTeam);
+          // Replace streaming bubble with finalized reply containing full evaluation badges
+          setMessages(prev => {
+            const filtered = prev.filter(m => m.id !== streamingMsgId);
+            return [...filtered, res.reply];
+          });
+          setLastEvaluation(res.evaluation);
+          setAiProviderBadge(res.usedProvider);
+
+          if (onTrustUpdated) {
+            const updatedTrustMap = { ...team.stakeholderTrustMap, [activeStakeholder.id]: res.updatedTrust };
+            const trusts = Object.values(updatedTrustMap);
+            const avg = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
+            const updatedTeam: Team = {
+              ...team,
+              stakeholderTrustMap: updatedTrustMap,
+              metrics: { ...team.metrics, stakeholderTrust: avg },
+            };
+            onTrustUpdated(updatedTeam);
+          }
+        } catch (streamErr: any) {
+          console.warn('Streaming error, falling back to standard negotiate:', streamErr);
+          // Remove streaming placeholder if any
+          setMessages(prev => prev.filter(m => m.id !== streamingMsgId));
+
+          // Try standard non-streaming negotiation fallback
+          const fallbackRes = await api.negotiateStakeholder({
+            sessionId: session.id,
+            teamId: team.id,
+            stakeholderId: activeStakeholder.id,
+            playerMessage: userText,
+          });
+
+          setMessages(prev => [...prev, fallbackRes.reply]);
+          setLastEvaluation(fallbackRes.evaluation);
+          setAiProviderBadge(fallbackRes.usedProvider);
+
+          if (onTrustUpdated) {
+            const updatedTrustMap = { ...team.stakeholderTrustMap, [activeStakeholder.id]: fallbackRes.updatedTrust };
+            const trusts = Object.values(updatedTrustMap);
+            const avg = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
+            const updatedTeam: Team = {
+              ...team,
+              stakeholderTrustMap: updatedTrustMap,
+              metrics: { ...team.metrics, stakeholderTrust: avg },
+            };
+            onTrustUpdated(updatedTeam);
+          }
         }
       }
     } catch (err: any) {
       console.error('Negotiation / Boardroom error:', err);
+      // Display error message in the chat so player sees circuit breaker or timeout message
+      const errorMsg: ChatMessage = {
+        id: `err-${Date.now()}`,
+        sender: 'SYSTEM',
+        stakeholderId: isBoardroom ? 'BOARDROOM' : activeStakeholder?.id,
+        senderName: 'Système // Incident IA',
+        content: `⚠️ ${err.message || 'La négociation a échoué. Veuillez réessayer.'}`,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsEvaluating(false);
     }

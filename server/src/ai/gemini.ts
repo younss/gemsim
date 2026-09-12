@@ -6,6 +6,7 @@
 import { BaseAIProvider } from './base.js';
 import { AIMessage, AIGenerateOptions } from './types.js';
 import { AIProviderType } from '../types/index.js';
+import { getAITimeout } from './timeout.js';
 
 export class GeminiProvider extends BaseAIProvider {
   public readonly providerType: AIProviderType = 'gemini';
@@ -82,11 +83,12 @@ export class GeminiProvider extends BaseAIProvider {
       body.generationConfig.responseMimeType = 'application/json';
     }
 
+    const timeoutMs = getAITimeout('DEFAULT', options?.timeoutMs);
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(options?.timeoutMs || 60000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
     if (!response.ok) {
@@ -132,10 +134,12 @@ export class GeminiProvider extends BaseAIProvider {
       body.system_instruction = { parts: [{ text: options.systemPrompt }] };
     }
 
+    const streamTimeoutMs = getAITimeout('CHAT', options?.timeoutMs);
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(streamTimeoutMs),
     });
 
     if (!response.ok || !response.body) {

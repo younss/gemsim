@@ -6,6 +6,7 @@
 import { BaseAIProvider } from './base.js';
 import { AIMessage, AIGenerateOptions } from './types.js';
 import { AIProviderType } from '../types/index.js';
+import { getAITimeout } from './timeout.js';
 
 export class ClaudeProvider extends BaseAIProvider {
   public readonly providerType: AIProviderType = 'claude';
@@ -87,6 +88,7 @@ export class ClaudeProvider extends BaseAIProvider {
       body.system = options.systemPrompt;
     }
 
+    const timeoutMs = getAITimeout('DEFAULT', options?.timeoutMs);
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -95,7 +97,7 @@ export class ClaudeProvider extends BaseAIProvider {
         'content-type': 'application/json',
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(options?.timeoutMs || 60000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
     if (!response.ok) {
@@ -136,6 +138,7 @@ export class ClaudeProvider extends BaseAIProvider {
       body.system = options.systemPrompt;
     }
 
+    const streamTimeoutMs = getAITimeout('CHAT', options?.timeoutMs);
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -144,6 +147,7 @@ export class ClaudeProvider extends BaseAIProvider {
         'content-type': 'application/json',
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(streamTimeoutMs),
     });
 
     if (!response.ok || !response.body) {

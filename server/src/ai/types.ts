@@ -81,6 +81,15 @@ export interface AIProvider {
   ): Promise<{ responseDialogue: string; evaluation: ProposalEvaluation }>;
 
   /**
+   * Evaluates a player proposal with real-time dialogue token streaming
+   */
+  evaluateStakeholderProposalStream?(
+    context: StakeholderNegotiationContext,
+    onDialogueChunk: (chunk: string) => void,
+    options?: AIGenerateOptions
+  ): Promise<{ responseDialogue: string; evaluation: ProposalEvaluation }>;
+
+  /**
    * Generates a fully playable scenario schema from a user prompt
    */
   generateScenario(

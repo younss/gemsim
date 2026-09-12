@@ -9,6 +9,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { Scenario, SimulationSession, ChatMessage, ArchivedSimulationRun } from '../types/index.js';
 import { SEED_SCENARIOS } from './seeds.js';
+import { PrismaRepository } from './prisma.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -151,6 +152,9 @@ export class DatabaseRepository {
       scenario.createdAt || now,
       now
     );
+
+    // Asynchronous write-through to PostgreSQL via Prisma
+    PrismaRepository.getInstance().saveScenario(scenario).catch(() => {});
   }
 
   public deleteScenario(id: string): boolean {
@@ -193,6 +197,9 @@ export class DatabaseRepository {
       session.createdAt || now,
       now
     );
+
+    // Asynchronous write-through to PostgreSQL via Prisma
+    PrismaRepository.getInstance().saveSession(session).catch(() => {});
   }
 
   public deleteSession(id: string): boolean {
@@ -231,6 +238,9 @@ export class DatabaseRepository {
       JSON.stringify(message),
       now
     );
+
+    // Asynchronous write-through to PostgreSQL via Prisma
+    PrismaRepository.getInstance().saveChatMessage(sessionId, teamId, message).catch(() => {});
   }
 
   public deleteChatMessagesForSession(sessionId: string): void {
@@ -262,6 +272,9 @@ export class DatabaseRepository {
       JSON.stringify(run),
       run.completedAt || new Date().toISOString()
     );
+
+    // Asynchronous write-through to PostgreSQL via Prisma
+    PrismaRepository.getInstance().saveSimulationRun(run).catch(() => {});
   }
 
   public getSimulationRuns(sessionId?: string): ArchivedSimulationRun[] {
