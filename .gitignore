@@ -12,5 +12,7 @@ server/data/*.db*
 *.log
 
 # Local environment overrides
-.env.local
+.env
+.env.*
+!.env.example
 .DS_Store
