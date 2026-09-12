@@ -25,9 +25,9 @@ services:
       - HOST=0.0.0.0
       - DATA_DIR=/app/data
       - DB_PATH=/app/data/gemsim.db
-      - DEFAULT_AI_PROVIDER=${DEFAULT_AI_PROVIDER:-fallback}
-      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://gemsim-ollama:11434}
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-gemma:2b}
+      - DEFAULT_AI_PROVIDER=${DEFAULT_AI_PROVIDER:-ollama}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.containers.internal:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-gemma4:12b}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-1.5-flash}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}

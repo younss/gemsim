@@ -286,6 +286,7 @@ export interface AISettingsState {
   activeProvider: AIProviderType;
   providers: Record<AIProviderType, AIProviderConfig>;
   fallbackChain: AIProviderType[];
+  availableOllamaModels?: string[];
 }
 
 // WebSocket Telemetry Protocol Messages

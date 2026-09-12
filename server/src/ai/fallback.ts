@@ -147,20 +147,51 @@ export class FallbackProvider extends BaseAIProvider {
   }
 
   public async generateScenario(prompt: ScenarioGenerationPrompt): Promise<Partial<Scenario>> {
-    const industryKey = (prompt.industry || 'FinTech').toLowerCase();
-    const isHealthcare = industryKey.includes('health') || industryKey.includes('med');
-    const isRetail = industryKey.includes('retail') || industryKey.includes('commerce');
-    const isLogistics = industryKey.includes('supply') || industryKey.includes('logistics');
+    return FallbackProvider.createDynamicScenario(prompt);
+  }
 
-    const prefix = isHealthcare ? 'HealthNova' : isRetail ? 'OmniMart' : isLogistics ? 'FleetPulse' : 'NeoTitan';
-    const sectorName = isHealthcare ? 'Healthcare & Clinical Data' : isRetail ? 'E-Commerce & Omnichannel' : isLogistics ? 'Supply Chain & IoT' : 'Banking & Payments';
+  public static createDynamicScenario(prompt: ScenarioGenerationPrompt): Scenario {
+    const rawIndustry = (prompt.industry || 'Enterprise').trim();
+    const rawChallenge = (prompt.businessChallenge || 'Core transformation under technical debt').trim();
+
+    // Dynamically derive domain entity name and theme
+    const words = (rawIndustry + ' ' + rawChallenge).split(/\s+/).filter(w => w.length > 3 && !/^(with|from|that|this|under|facing|into|over|about)$/i.test(w));
+    const domainKeyword = words[0] || 'Enterprise';
+    const subDomain = words[1] || 'Services';
+    const entityName = `${domainKeyword} ${subDomain}`;
+    const scenarioTitle = `${entityName}: Strategic Architecture Modernization`;
+
+    const isBanking = /bank|fintech|pay|clearing|settlement|treasury/i.test(rawIndustry + ' ' + rawChallenge);
+    const isHealthcare = /health|med|clinic|patient|hospital|ehr|hipaa/i.test(rawIndustry + ' ' + rawChallenge);
+    const isRetail = /retail|commerce|store|inventory|order|pos/i.test(rawIndustry + ' ' + rawChallenge);
+    const isTelecom = /telecom|5g|network|slice|packet|fiber/i.test(rawIndustry + ' ' + rawChallenge);
+
+    const clientTouchpointName = isBanking
+      ? `${domainKeyword} Corporate Banking Portal`
+      : isHealthcare
+      ? `${domainKeyword} Clinical Care Portal`
+      : isRetail
+      ? `${domainKeyword} Omnichannel Commerce Hub`
+      : isTelecom
+      ? `${domainKeyword} Subscriber Self-Service Portal`
+      : `${entityName} Customer Portal`;
+
+    const coreMonolithName = isBanking
+      ? `${domainKeyword} Mainframe Core Settlement Monolith`
+      : isHealthcare
+      ? `${domainKeyword} Legacy EHR Core Monolith`
+      : isRetail
+      ? `${domainKeyword} Monolithic ERP & Order Engine`
+      : isTelecom
+      ? `${domainKeyword} Legacy Billing & Mediation Core`
+      : `${entityName} Core Processing Monolith`;
 
     const nodes: TopologyNode[] = [
       {
         id: 'node-biz-1',
-        name: isHealthcare ? 'Patient Telehealth Portal' : isRetail ? 'Digital Storefront & App' : isLogistics ? 'Fleet Telematics Portal' : 'Mobile Banking Experience',
+        name: clientTouchpointName,
         layer: 'BUSINESS',
-        description: 'Customer touchpoint for real-time transactions and service delivery.',
+        description: `Customer and partner digital interface for ${entityName}.`,
         health: 75,
         technicalDebt: 35,
         criticalPath: true,
@@ -172,9 +203,9 @@ export class FallbackProvider extends BaseAIProvider {
       },
       {
         id: 'node-biz-2',
-        name: isHealthcare ? 'Clinical Claims Adjudication' : isRetail ? 'Inventory & Fulfillment Hub' : isLogistics ? 'Route Optimization Engine' : 'Payment Clearing & Settlement',
+        name: `${entityName} Operations & Settlement Hub`,
         layer: 'BUSINESS',
-        description: 'High-volume business operations capability driving core corporate revenue.',
+        description: `Core operational business capabilities driving revenue.`,
         health: 55,
         technicalDebt: 65,
         criticalPath: true,
@@ -186,7 +217,7 @@ export class FallbackProvider extends BaseAIProvider {
       },
       {
         id: 'node-app-1',
-        name: 'Omnichannel API Gateway',
+        name: `${domainKeyword} Omnichannel API Gateway`,
         layer: 'APPLICATION',
         description: 'Edge security, rate limiting, and identity token orchestration.',
         health: 80,
@@ -200,9 +231,9 @@ export class FallbackProvider extends BaseAIProvider {
       },
       {
         id: 'node-app-2',
-        name: isHealthcare ? 'EHR Core Monolith' : isRetail ? 'Legacy ERP & Order Monolith' : isLogistics ? 'Legacy WMS System' : 'Core Banking Mainframe Service',
+        name: coreMonolithName,
         layer: 'APPLICATION',
-        description: 'Mission-critical 20-year-old monolith. Tightly coupled, fragile, and difficult to change.',
+        description: `Mission-critical legacy monolith for ${entityName}. Tightly coupled, fragile bottleneck.`,
         health: 42,
         technicalDebt: 78,
         criticalPath: true,
@@ -214,7 +245,7 @@ export class FallbackProvider extends BaseAIProvider {
       },
       {
         id: 'node-app-3',
-        name: 'Microservices Mesh (Modern)',
+        name: `${domainKeyword} Modern Microservices Mesh`,
         layer: 'APPLICATION',
         description: 'Containerized event-driven services handling user notifications, fraud, and telemetry.',
         health: 88,
@@ -610,11 +641,11 @@ export class FallbackProvider extends BaseAIProvider {
 
     const scenario: Scenario = {
       id: `scen-${Date.now().toString(36)}`,
-      title: `${prefix}: Enterprise Core Modernization & Strategy Simulation`,
-      industry: sectorName,
+      title: scenarioTitle,
+      industry: rawIndustry,
       difficulty: prompt.difficulty || 'INTERMEDIATE',
-      description: `Executive simulation placing teams at the helm of ${prefix}, a leading enterprise in ${sectorName} undergoing a critical transformation. Balance rapid customer delivery with architectural technical debt reduction, regulatory compliance, and fiscal discipline across 4 discrete quarters.`,
-      businessContext: prompt.businessChallenge || `The enterprise is struggling with a monolithic legacy system, rising maintenance OpEx, and growing friction between Product velocity and Architectural rigor.`,
+      description: `Executive simulation placing teams at the helm of ${entityName} in ${rawIndustry}. Core Mission: ${rawChallenge}. Balance rapid customer delivery with architectural technical debt reduction, regulatory compliance, and fiscal discipline across 4 discrete quarters.`,
+      businessContext: rawChallenge,
       baselineMetrics: {
         tco: 1850,
         budgetRemaining: 1200,

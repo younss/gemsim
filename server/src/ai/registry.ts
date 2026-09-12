@@ -18,12 +18,13 @@ export class AIRegistry {
   private providers: Map<AIProviderType, AIProvider> = new Map();
   private configs: Record<AIProviderType, AIProviderConfig>;
   private fallbackChain: AIProviderType[] = ['gemini', 'ollama', 'fallback'];
+  private cachedOllamaModels: string[] = [];
 
   private constructor() {
     // 1. Instantiate concrete providers
     const ollama = new OllamaProvider(
       process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-      process.env.OLLAMA_MODEL || 'gemma:2b'
+      process.env.OLLAMA_MODEL || 'gemma4:12b'
     );
     const gemini = new GeminiProvider(
       process.env.GEMINI_API_KEY || '',
@@ -48,7 +49,7 @@ export class AIRegistry {
     this.configs = {
       ollama: {
         type: 'ollama',
-        model: process.env.OLLAMA_MODEL || 'gemma:2b',
+        model: process.env.OLLAMA_MODEL || 'gemma4:12b',
         baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
         enabled: true,
       },
@@ -83,10 +84,34 @@ export class AIRegistry {
       this.activeProviderType = requestedDefault;
     } else if (process.env.GEMINI_API_KEY) {
       this.activeProviderType = 'gemini';
-    } else if (process.env.OLLAMA_BASE_URL) {
-      this.activeProviderType = 'ollama';
     } else {
       this.activeProviderType = 'fallback';
+    }
+
+    // Auto-detect Ollama in the background
+    this.autoDetectOllama();
+  }
+
+  public async autoDetectOllama(): Promise<void> {
+    const ollama = this.providers.get('ollama');
+    if (ollama instanceof OllamaProvider) {
+      try {
+        const health = await ollama.checkHealth();
+        if (health.ok) {
+          this.configs.ollama.baseUrl = ollama.getBaseUrl();
+          this.configs.ollama.model = ollama.getModel();
+          this.configs.ollama.enabled = true;
+          this.cachedOllamaModels = health.models || [];
+
+          // If no cloud API key was configured, switch to Ollama as the active local engine!
+          if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
+            this.activeProviderType = 'ollama';
+            console.log(`[AIRegistry] Auto-activated local Ollama with model '${this.configs.ollama.model}' at ${this.configs.ollama.baseUrl}`);
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[AIRegistry] Background Ollama detection skipped: ${err.message}`);
+      }
     }
   }
 
@@ -109,6 +134,7 @@ export class AIRegistry {
   public setActiveProvider(type: AIProviderType) {
     if (this.providers.has(type)) {
       this.activeProviderType = type;
+      console.log(`[AIRegistry] Active AI provider set to: ${type}`);
     }
   }
 
@@ -123,10 +149,17 @@ export class AIRegistry {
       };
     }
 
+    const ollama = this.providers.get('ollama');
+    if (ollama instanceof OllamaProvider) {
+      maskedConfigs.ollama.baseUrl = ollama.getBaseUrl();
+      maskedConfigs.ollama.model = ollama.getModel();
+    }
+
     return {
       activeProvider: this.activeProviderType,
       providers: maskedConfigs,
       fallbackChain: [...this.fallbackChain],
+      availableOllamaModels: this.cachedOllamaModels,
     };
   }
 
@@ -138,7 +171,6 @@ export class AIRegistry {
 
     const current = this.configs[type];
     if (updates.apiKey !== undefined && updates.apiKey !== '') {
-      // Don't overwrite with masked string
       if (!updates.apiKey.includes('...')) {
         current.apiKey = updates.apiKey;
       }
@@ -147,7 +179,6 @@ export class AIRegistry {
     if (updates.model) current.model = updates.model;
     if (updates.enabled !== undefined) current.enabled = updates.enabled;
 
-    // Apply to instance
     const provider = this.providers.get(type);
     if (type === 'ollama' && provider instanceof OllamaProvider) {
       provider.setConfig(current.baseUrl, current.model);
@@ -165,7 +196,14 @@ export class AIRegistry {
     if (!provider) {
       return { ok: false, message: `Unknown provider: ${type}`, latencyMs: 0 };
     }
-    return provider.checkHealth();
+    const res = await provider.checkHealth();
+    if (type === 'ollama' && res.ok) {
+      this.cachedOllamaModels = (res as any).models || [];
+      if ((res as any).model) {
+        this.configs.ollama.model = (res as any).model;
+      }
+    }
+    return res;
   }
 
   /**
@@ -187,7 +225,9 @@ export class AIRegistry {
       if (!provider) continue;
 
       try {
+        console.log(`[AIRegistry] Attempting scenario execution with provider: '${candidateType}'...`);
         const result = await operation(provider);
+        console.log(`[AIRegistry] Execution successful with provider: '${candidateType}'`);
         return { result, usedProvider: candidateType };
       } catch (err: any) {
         lastError = err;
@@ -195,7 +235,6 @@ export class AIRegistry {
       }
     }
 
-    // Ultimate fallback
     const fallbackProvider = this.providers.get('fallback')!;
     const result = await operation(fallbackProvider);
     return { result, usedProvider: 'fallback' };
