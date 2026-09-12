@@ -39,3 +39,77 @@
 .cyber-glow-rose {
   box-shadow: 0 0 15px rgba(244, 63, 94, 0.35);
 }
+
+/* Compiled Markdown Styling */
+.gemsim-markdown h1 {
+  @apply text-xl font-bold text-slate-100 mt-6 mb-3;
+}
+
+.gemsim-markdown h2 {
+  @apply text-lg font-bold text-slate-100 mt-5 mb-2.5 pb-1 border-b border-slate-800;
+}
+
+.gemsim-markdown h3 {
+  @apply text-base font-bold text-cyan-300 mt-5 mb-2 pb-1.5 border-b border-slate-800/80 flex items-center gap-2;
+}
+
+.gemsim-markdown h4 {
+  @apply text-sm font-bold text-slate-200 mt-4 mb-2;
+}
+
+.gemsim-markdown p {
+  @apply text-xs text-slate-300 leading-relaxed mb-3;
+}
+
+.gemsim-markdown ul {
+  @apply list-disc list-outside ml-4 space-y-1.5 text-xs text-slate-300 mb-3;
+}
+
+.gemsim-markdown ol {
+  @apply list-decimal list-outside ml-4 space-y-1.5 text-xs text-slate-300 mb-3;
+}
+
+.gemsim-markdown li {
+  @apply text-xs text-slate-300 leading-relaxed;
+}
+
+.gemsim-markdown strong {
+  @apply font-bold text-slate-100;
+}
+
+.gemsim-markdown em {
+  @apply italic text-cyan-200;
+}
+
+.gemsim-markdown pre {
+  @apply bg-[#040711] p-4 rounded-xl border border-slate-800/90 font-mono text-cyan-300 text-xs my-3.5 overflow-x-auto shadow-inner;
+}
+
+.gemsim-markdown code {
+  @apply font-mono text-cyan-300 bg-dark-900 border border-slate-700/80 px-1.5 py-0.5 rounded text-[11px];
+}
+
+.gemsim-markdown pre code {
+  @apply bg-transparent border-0 p-0 text-cyan-300 text-xs;
+}
+
+.gemsim-markdown blockquote {
+  @apply border-l-2 border-cyan-500 bg-dark-900/60 pl-3 py-1 text-slate-300 italic my-2.5 rounded-r;
+}
+
+.gemsim-markdown hr {
+  @apply border-slate-800 my-4;
+}
+
+.gemsim-markdown table {
+  @apply w-full text-xs border-collapse border border-slate-800 my-3;
+}
+
+.gemsim-markdown th {
+  @apply border border-slate-800 bg-dark-900 p-2 text-left font-mono font-bold text-slate-200;
+}
+
+.gemsim-markdown td {
+  @apply border border-slate-800 p-2 text-slate-300;
+}
+

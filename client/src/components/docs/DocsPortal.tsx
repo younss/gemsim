@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+import { MarkdownViewer } from '../common/MarkdownViewer';
 import {
   BookOpen,
   Calculator,
@@ -96,8 +97,8 @@ export const DocsPortal: React.FC = () => {
               <p className="text-xs text-slate-400 mt-1">{activeDoc.summary}</p>
             </div>
 
-            <div className="prose prose-invert max-w-none text-xs leading-relaxed space-y-3 font-sans text-slate-300">
-              <div className="whitespace-pre-wrap font-sans">{activeDoc.content}</div>
+            <div className="pt-2">
+              <MarkdownViewer content={activeDoc.content} />
             </div>
           </div>
         )}
