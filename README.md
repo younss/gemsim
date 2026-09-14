@@ -35,15 +35,17 @@ The platform features:
 </p>
 
 ### 1. 🌌 3D Spatial Enterprise Architecture & Real-Time Telemetry
-GemSim visualizes complex multi-tier enterprise systems in real-time WebGL space across 4 synchronized architecture planes: **Business Processes**, **Applications**, **Data Pipelines**, and **Infrastructure**.
+GemSim visualizes complex multi-tier enterprise systems in real-time WebGL space using advanced architectural metaphors: **multi-story glass slabs**, **fluted wireframe database barrels**, **translucent plinths**, and **floating 3D text billboards**.
 
-| 3D Dynamic Orbit & Particle Telemetry | Spatial Multi-Layer Topology HUD |
+| 🏛️ 3D Spatial Enterprise Architecture | 🛰️ 3D Canvas & Node HUD |
 | :---: | :---: |
-| <img src="docs/screenshots/healthnova-3d-topology.gif" alt="HealthNova 3D Topology Orbit" width="100%" /> | <img src="docs/screenshots/healthnova-topology-3d.png" alt="HealthNova 3D Topology HUD" width="100%" /> |
-| *Live 3D WebGL canvas: glowing nodes, edge data flow pulses, and raycast inspection* | *Full telemetry HUD tracking Velocity Drag (39.5%), TDI (68), and node health* |
+| <img src="docs/screenshots/healthnova-3d-topology.gif" alt="HealthNova 3D Orbit" width="100%" /> | <img src="docs/screenshots/healthnova-topology-3d.png" alt="HealthNova 3D Canvas" width="100%" /> |
+| *Continuous 3D orbit around enterprise topology with architectural stacks and data cylinders* | *Interactive 3D canvas featuring node status indicators, ground pedestals, and Live Enterprise Model HUD* |
 
-- **Real-Time Node Telemetry**: Inspect the critical health of the `Epic/Cerner Monolith`, `FHIR API Gateway`, `HL7 Integration Engine`, and `Cloud Kubernetes Cluster`.
-- **Latency & Failure Heatmaps**: Color-coded risk indicators pinpoint cascading outages before they hit production.
+- **Architectural Stack Metaphor**: Systems are rendered as multi-story glass buildings and fluted wireframe data cylinders representing databases and core microservices.
+- **Floating 3D Text Billboards**: High-contrast, always-facing text labels hovering directly above every building for effortless architectural readability without hovering.
+- **Ground Pedestals & Halo Rings**: Glass plinths anchor each component onto the perspective grid, with luminous halo rings delineating critical data repositories.
+- **Curved Particle Telemetry**: Bezier-curved conduits channel dynamic data flow particles with color-graded latency and bottleneck indicators.
 
 ---
 
@@ -329,5 +331,11 @@ Test Results:
 
 ---
 
-## 📜 License
-Apache-2.0. Developed for Enterprise Strategic Architecture & Operations Simulations.
+## 📜 License & Copyright
+
+Distribué sous licence **MIT**. Libre d'utilisation, d'étude, de modification, de reproduction et d'exploitation commerciale (vente), sous réserve de conserver la mention de copyright et la notice de licence originale attribuée à l'auteur :
+
+```text
+Copyright (c) 2026 Younss - Tous droits réservés sous licence MIT.
+```
+Consultez le fichier [LICENSE](LICENSE) pour le texte intégral.
