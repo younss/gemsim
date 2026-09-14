@@ -1,165 +1,212 @@
-# MASTER PROMPT : GÉNÉRATEUR COMPLET DE LA PLATEFORME "GEMSIM" (SIMULATEUR STRATÉGIQUE D'ARCHITECTURE D'ENTREPRISE & CRISE DE GOUVERNANCE IT)
+# MASTER PROMPT: REGENERATE THE "GEMSIM" ENTERPRISE ARCHITECTURE & CRISIS SIMULATOR PLATFORM
 
-Tu es un Principal Full-Stack Software Engineer, un expert Three.js / WebGL et un Architecte Logiciel d'Entreprise chevronné.
-Ta mission est de concevoir, implémenter et déployer de zéro l'application complète **GemSim** : une plateforme web interactive et immersive de simulation de gouvernance technologique, d'arbitrage budgétaire et de gestion de crise d'architecture d'entreprise.
-
----
-
-## 1. VISION DU PRODUIT & GAMEPLAY LOOP
-
-GemSim est un simulateur de vol stratégique (Serious Game) destiné aux DSI, CTO, Lead Enterprise Architects et CFO.
-- **Cycle de jeu** : Simulation séquentielle sur 4 trimestres (Q1 à Q4).
-- **Objectif du joueur** : Naviguer entre arbitrages budgétaires (CAPEX/OPEX), conformité réglementaire (DORA, RGPD, NIS2), souveraineté technologique, vélocité de livraison et dette technique, tout en conservant la confiance du comité de direction (Stakeholders C-Suite).
-- **Dynamique de décision** : À chaque trimestre, le joueur sélectionne des initiatives architecturales, subit des crises de gouvernance imprévues, négocie en tête-à-tête avec des stakeholders autonomes pilotés par LLM, et participe à un grand comité exécutif interactif ("Executive Boardroom Meeting").
+You are a Principal Full-Stack Software Engineer, a WebGL/Three.js 3D Graphics Specialist, and an Enterprise Systems Architect.
+Your task is to build and deploy from scratch the complete, production-grade **GemSim** platform: an interactive, real-time web flight simulator and serious game for enterprise IT governance, technical debt compounding, and architectural crisis management.
 
 ---
 
-## 2. STACK TECHNIQUE & ARCHITECTURE SYSTÈME
+## 1. PRODUCT VISION & CORE GAMEPLAY LOOP
 
-### Frontend
-- **Framework** : React 18+ / Vite / TypeScript en mode strict.
-- **Styling** : Tailwind CSS, Lucide Icons, composants Glassmorphism sombres (thème cyber-corporate cyberpunk/slate foncé).
-- **Moteur 3D** : Three.js (r160+ ou r186) avec `@types/three` sans dépendance externe lourde (Canvas natif managé dans un composant React avec `OrbitControls`).
-- **State Management** : Zustand ou React Context pour l'état de session réactif.
-
-### Backend & Données
-- **Runtime** : Node.js (Express ou Fastify) en TypeScript avec validation de schémas (Zod).
-- **Base de données & ORM** : Prisma ORM avec schéma PostgreSQL (support d'un driver SQLite / `better-sqlite3` pour l'embarqué local sans configuration).
-- **Gestion des Tâches Asynchrones** : BullMQ + Redis pour les calculs de simulation asynchrones et l'orchestration des événements.
-- **Temps Réel & Streaming** : Server-Sent Events (SSE) ou WebSockets pour le streaming de dialogues LLM et la télémétrie de simulation.
+GemSim is a flight simulator for CTOs, CIOs, Lead Architects, and C-suite leaders to test high-stakes technical decisions without risking real millions.
+- **Round Cycle**: 4 sequential quarterly rounds (Q1 to Q4).
+- **Core Dilemma**: Balance technical debt reduction, delivery velocity, OpEx run-rates, regulatory compliance (DORA, NIS2, HIPAA/GDPR), and sovereign architectural control while maintaining C-suite stakeholder trust.
+- **Decision Loop**: Each quarter, players inspect the 3D digital twin, negotiate 1-on-1 with autonomous AI executives, pitch strategy in an all-hands Boardroom Meeting, select architectural initiatives, and weather unexpected governance crises and black swans.
 
 ---
 
-## 3. MOTEUR DE SIMULATION & MODÈLE MATHÉMATIQUE
+## 2. SYSTEM ARCHITECTURE & TECH STACK
 
-Le moteur doit calculer l'état de l'entreprise via une matrice d'impact déterministe et prédictive :
+### Frontend (`client/`)
+- **Framework**: React 18+ / Vite / TypeScript (strict mode).
+- **Styling**: Tailwind CSS, Lucide Icons, glassmorphism dark theme (`slate-900` / `zinc-900` palette with neon cyan, emerald, purple, and amber accents).
+- **3D Graphics**: Three.js (`r160`+ or `r186`) with `@types/three` managed natively in a responsive React canvas component with `OrbitControls`.
+- **State Management**: Reactive session stores (Zustand or React Context) managing real-time telemetry.
 
-```typescript
-export interface EnterpriseState {
-  quarter: number; // 1 à 4
-  metrics: {
-    budgetRemaining: number;       // Budget disponible en k€
-    runOpexMonthly: number;        // Coût récurrent d'exploitation
-    capexAllocated: number;        // Investissements de transformation
-    technicalDebtIndex: number;    // 0 à 100 (au-delà de 70 = instabilité critique)
-    architectureCompliance: number;// 0 à 100%
-    sovereignControlScore: number; // 0 à 100% (souveraineté données & code)
-    incidentMTTRMinutes: number;   // Temps moyen de réparation en production
-    teamAttritionRisk: number;     // 0 à 100% (risque de démission des seniors)
-  };
-  topologyNodes: TopologyNode[];   // État de santé des 8 à 12 composants du SI
-  stakeholderTrust: Record<string, number>; // Score de confiance 0-100 par NPC
-}
+### Backend (`server/`)
+- **Runtime**: Node.js (Express or Fastify) in TypeScript with schema validation (Zod).
+- **Persistence & ORM**: Prisma ORM targeting PostgreSQL for production, with zero-setup SQLite (`better-sqlite3`) for local/offline developer mode.
+- **Job Orchestration**: BullMQ + Redis for asynchronous background simulation processing and event queuing.
+- **Real-Time Streaming**: Server-Sent Events (SSE) or WebSockets for token-by-token LLM dialogues and live multi-team facilitator telemetry.
+
+### Project Layout
+```
+gemsim/
+├── client/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── 3d/EnterpriseCanvas.tsx       # Three.js 3D Spatial Digital Twin
+│   │   │   ├── warroom/StakeholderWarRoom.tsx # 1-on-1 & Boardroom AI Negotiations
+│   │   │   ├── cockpit/FacilitatorCockpit.tsx # Multi-squad telemetry & crisis injector
+│   │   │   └── studio/ScenarioStudio.tsx      # Prompt-to-Scenario authoring UI
+│   │   ├── stores/useSimulationStore.ts       # Global client state
+│   │   └── types/index.ts
+├── server/
+│   ├── src/
+│   │   ├── ai/
+│   │   │   ├── gateway.ts                    # Pluggable AI provider gateway
+│   │   │   ├── circuit-breaker.ts            # 3-strike / 60s cooldown resilience
+│   │   │   ├── json-repair-loop.ts           # Self-healing LLM schema repair
+│   │   │   └── providers/                    # Ollama, Gemini, Claude, OpenAI, Heuristic
+│   │   ├── simulation/
+│   │   │   ├── engine.ts                     # Deterministic quarterly state machine
+│   │   │   └── math.ts                       # Formulas (TDI, drag, OpEx, failure risk)
+│   │   ├── db/
+│   │   │   ├── schema.prisma                 # Postgres schema definition
+│   │   │   └── seeds.ts                      # Reference scenario seeds
+│   │   └── index.ts
+├── shared/types.ts                           # Shared Zod schemas & TypeScript types
+└── Dockerfile & podman-compose.yml
 ```
 
-- **Propagation des impacts** : Chaque initiative choisie modifie le vecteur de métriques. Les crises non traitées entraînent des pénalités cumulatives (cascade failures) aux tours suivants.
-- **Calcul de fin de partie (Post-Mortem)** : Calcul d'un score de maturité finale (A+ à F) basé sur la résilience globale, la solvabilité et le score de dette technique.
+---
+
+## 3. MATHEMATICAL SIMULATION ENGINE
+
+The state of the enterprise SI is governed by a deterministic, non-linear mathematical model:
+
+### 1. Technical Debt Index Compounding ($TDI_t$)
+Technical debt compounds like financial debt with variable interest determined by team governance:
+$$\Delta TDI_{\text{compound}} = TDI_{t-1} \times r_{\text{compound}}$$
+- **Bypass Architecture**: $r = 18.0\%$ (Fast-track features, catastrophic debt accumulation)
+- **Balanced Agile**: $r = 8.0\%$ (Standard delivery, moderate hygiene)
+- **Accelerated Modernization**: $r = 4.0\%$ (35% capacity reserved for refactoring)
+- **Strict Architecture Review**: $r = 2.5\%$ (Mandatory review board gates)
+
+$$TDI_t = \text{clamp}\Big(TDI_{t-1} + \Delta TDI_{\text{compound}} + \sum \Delta TDI_{\text{initiatives}} + \Delta TDI_{\text{event}}, 5, 100\Big)$$
+
+### 2. Delivery Velocity Drag Curve ($V_t$)
+High technical debt imposes exponential drag on development teams:
+$$\text{Drag Percentage} = 70\% \times \left(\frac{TDI_t}{100}\right)^{1.4}$$
+$$V_{\text{effective}} = \text{clamp}\Big(V_{\text{base}} \times (1 - \text{Drag\\%}) + \sum V_{\text{bonuses}}, 8, 100\Big)$$
+
+### 3. Operating Expenditure (OpEx) Run-Rate
+Maintenance overhead escalates non-linearly with technical debt:
+$$\text{OpEx}_t = \sum_{n \in \text{Nodes}} \text{Cost}(n) \times \left(1 + 0.45 \times \frac{TDI_t}{100}\right) + \Delta \text{OpEx}_{\text{initiatives}}$$
+
+### 4. Node Failure Probability & Production Outages
+$$P(\text{Fail}) = \left(\frac{\text{Node TDI}}{100}\right)^{2.2} \times (\text{isCritical} ? 1.6 : 0.9) \times \left(1 - \frac{\text{ResilienceIndex}}{160}\right)$$
+When $P(\text{Fail}) > 0.45$, production outages trigger emergency recovery expenses, velocity penalties, and SLA violations.
+
+### 5. Stakeholder Trust Function
+$$\Delta \text{Trust}_i = \text{clamp}\Big(15 \times \sum (w_{i, k} \times \Delta_k), -25, +25\Big)$$
 
 ---
 
-## 4. TOPOLOGIE SPATIALE 3D ("TOPOLOGY STAGE" THREE.JS HAUTE FIDÉLITÉ)
+## 4. 3D SPATIAL DIGITAL TWIN (THREE.JS `EnterpriseCanvas.tsx`)
 
-Implémente un composant `EnterpriseCanvas.tsx` reproduisant l'élégance architecturale des digital twins d'entreprise (façon OpenAI Codex Topology) :
+Render an interactive, high-end 3D architectural digital twin matching modern enterprise design systems:
 
-1. **Structure HTML & Ergonomie** :
+1. **HTML Canvas Container**:
    ```html
    <div class="topology-stage">
-     <canvas data-engine="three.js r186" aria-label="Interactive 3D enterprise topology. Use node buttons for keyboard access."></canvas>
+     <canvas data-engine="three.js r186" aria-label="Interactive 3D enterprise topology. Use node buttons below for keyboard access."></canvas>
    </div>
    ```
-2. **Archétypes Visuels 3D des Bâtiments** :
-   - **TOWERS (Piles d'étages en verre)** : Pour les pipelines CI/CD, usines offshore et passerelles d'architecture (`MeshPhysicalMaterial`, transmission 0.65, roughness 0.15, avec arêtes néon biseautées via `LineSegments(EdgesGeometry)`).
-   - **FLUTED CYLINDERS (Cylindres cannelés)** : Pour les bases de données, coffres-forts de données et reporting réglementaire (fûts verticaux avec nervures de wireframe et anneau lumineux pulsant au sol "halo ring").
-   - **SOLID SLABS (Blocs de verre monolithiques)** : Pour les microservices métier et modules onshore.
-   - **GROUND PEDESTALS (Socles d'ancrage)** : Chaque structure repose sur une plinthe sombre en verre fumé ancrée dans la grille isométrique du sol.
-3. **Floating 3D Text Billboards** :
-   - Badges de texte générés via Canvas 2D haute résolution (1024x256), convertis en `CanvasTexture` sur un `Sprite`.
-   - Propriétés : `depthTest: false`, `depthWrite: false` pour garantir une netteté totale et zéro occlusion par la géométrie en verre.
-   - Toujours orientés face à la caméra (`sprite.quaternion.copy(camera.quaternion)`).
-4. **Télémétrie Lumineuse (Data Conduits)** :
-   - Flux de dépendances Onshore <-> Offshore modélisés par des courbes de Bézier quadratiques (`QuadraticBezierCurve3`).
-   - Particules luminescentes (photons de données) se déplaçant le long des courbes en continu.
-5. **Contrôles Cockpit** :
-   - Badge `LIVE ENTERPRISE MODEL`, bouton Reset Caméra avec animation fluide (Slerp / Tween), mode Plein Écran, bouton Auto-Orbit, et sélection/focus de nœud au clic.
+2. **Architectural Building Archetypes**:
+   - **Stacked Glass Slabs (`TOWER`)**: Multi-story glass structures representing gateways, CI/CD pipelines, and delivery hubs (`MeshPhysicalMaterial` with transmission 0.65, roughness 0.15, and neon beveled edge outlines via `LineSegments(EdgesGeometry)`).
+   - **Fluted Wireframe Cylinders (`DATABASE`)**: Vertical glass barrels with vertical wireframe fluting ribs and pulsating ground halo rings for databases, vaults, and compliance stores.
+   - **Solid Glass Slabs (`SLAB`)**: Clean translucent blocks for business logic and core microservices.
+   - **Ground Pedestals (Plinths)**: Dark translucent podiums anchoring each building to the isometric ground grid.
+3. **Floating 3D Text Billboards**:
+   - Crisp 2D canvas texture (1024x256) rendered onto a Three.js `Sprite` hovering above each building.
+   - Configure with `depthTest: false` and `depthWrite: false` so labels are 100% sharp and never clipped by surrounding glass geometry.
+   - Billboards constantly face the camera (`sprite.quaternion.copy(camera.quaternion)`).
+4. **Dynamic Data Conduits & Telemetry**:
+   - Dependency links rendered as smooth `QuadraticBezierCurve3` conduits.
+   - Animated glowing photon particles traveling along curves to visualize real-time data flow and latency bottlenecks.
+5. **Interactive Controls**:
+   - `LIVE ENTERPRISE MODEL` badge, smooth camera reset with kinetic tweening, fullscreen toggle, continuous auto-orbit, and raycast node inspection.
 
 ---
 
-## 5. AGENTS AUTONOMES C-SUITE & SYSTÈME ANTI-TRICHE PSYCHOLOGIQUE
+## 5. AUTONOMOUS C-SUITE STAKEHOLDERS & ANTI-CHEAT SENTINEL
 
-### Profils Psychologiques des Parties Prenantes
-- **Julien Marchand (CFO)** : Obsédé par le ROI court terme, la réduction des coûts OPEX et la maîtrise du budget. Méfiant envers les refactorings "invisibles".
-- **Claire Vasseur (Directrice de l'Architecture & CISO)** : Protectrice de la souveraineté technologique, rigide sur la dette technique, conformité DORA et isolation des données sensibles.
-- **Rajesh Sharma (Directeur Delivery ESN Offshore)** : Focalisé sur le débit de livraison, les marges contractuelles et le respect des engagements de vélocité.
+### Executive Personas
+- **Chief Financial Officer (CFO)**: Fixated on OPEX reduction, cash runway, and immediate ROI. Skeptical of "invisible refactoring".
+- **Chief Information Security Officer / Head of Architecture**: Protective of sovereignty, strict on DORA/NIS2/HIPAA compliance, relentlessly pushing back on technical shortcuts.
+- **VP of Product / Delivery Director**: Demands high release cadence, SLA adherence, and rapid user-facing feature delivery.
 
-### Dialogue LLM Intelligent & Mécanique Anti-Triche
-- **Anti-Cheat / Sémantique Critique** : L'agent LLM ne doit **JAMAIS** augmenter arbitrairement sa jauge de confiance si le joueur répète les mêmes arguments ou flatte l'interlocuteur. L'agent évalue la cohérence de l'argument par rapport à ses propres objectifs d'affaires et détecte les contradictions.
-- **Jauges de Patience & Scepticisme** : Chaque partie prenante a un niveau de patience qui diminue si le joueur formule des promesses vagues sans allocation budgétaire claire.
-
----
-
-## 6. COMITÉ EXÉCUTIF COLLECTIF ("EXECUTIVE BOARDROOM MEETING")
-
-En plus des négociations 1-to-1, implémente une salle de réunion plénière :
-- Le joueur convoque l'ensemble des Stakeholders autour d'une table ronde virtuelle.
-- Le joueur soumet sa stratégie globale pour le trimestre.
-- **Débat croisé entre PNJ** : Les agents PNJ se répondent entre eux (ex: la Directrice de l'Architecture interpelle directement le CFO lorsque celui-ci demande une coupe budgétaire sur les tests automatisés).
-- Vote de gouvernance avec jauge d'alignement collectif en temps réel avant validation finale du tour.
+### Anti-Cheat Semantic Scoring & Psychological Resistance
+- The LLM stakeholder **never** blindly awards trust.
+- Detects copy-paste spam, hollow promises, and lack of budget allocation.
+- Tracks patience and skepticism meters: repeated vague arguments decrease patience and trigger active negotiation resistance.
 
 ---
 
-## 7. GESTION PROGRESSIVE DES CRISES & BLACK SWANS
+## 6. ALL-HANDS EXECUTIVE BOARDROOM MEETING
 
-- **Pas d'exposition prématurée** : Les crises ne doivent pas toutes être affichées au Round 1.
-- **Émergence conditionnelle** :
-  - **Q1** : Tension budgétaire initiale et friction de gouvernance.
-  - **Q2** : Crise de vélocité / turnover de l'équipe offshore.
-  - **Q3 (Black Swan)** : Audit inopiné de conformité DORA/RGPD ou faille zero-day dans le pipeline de déploiement.
-  - **Q4** : Crise systémique de résilience opérationnelle ou succès de la bascule architecturale.
-- Les Black Swans peuvent être injectés dynamiquement selon l'indice de dette technique ou déclenchés manuellement par un Facilitateur.
+In addition to 1-on-1 negotiations, players can convene an All-Hands Executive Committee:
+- Player presents their quarterly strategic package to all stakeholders simultaneously.
+- **Cross-NPC Debates**: Executives argue among themselves (e.g. CISO challenges CFO’s cuts to automated testing; Delivery Director defends release schedule).
+- Real-time collective consensus meter and formal alignment vote before finalizing the quarter.
 
 ---
 
-## 8. RÉSILIENCE IA DE PRODUCTION & QUALITÉ SYSTÈME
+## 7. PROGRESSIVE CRISIS EMERGENCE & BLACK SWANS
 
-1. **Streaming LLM (`stream: true`)** : Tous les dialogues avec les stakeholders et le studio doivent streamer leur réponse token par token vers l'UI avec gestion fluide de l'autoscroll.
-2. **Timeouts Explicites Configurables** : Chaque appel IA doit disposer d'un `AbortController` avec timeout configurable (ex: 20s en dialogue, 45s en génération de scénario complexe) plutôt qu'un blocage silencieux de 300s.
-3. **Circuit Breaker Pattern** :
-   - 3 échecs consécutifs d'API LLM -> Passage de l'état en `OPEN` pendant 60 secondes.
-   - Message explicite à l'utilisateur : *"Fournisseur IA momentanément indisponible. Réessai automatique dans 60s."*
-4. **Self-Healing JSON Repair Loop** :
-   - En cas de sortie JSON invalide émise par un modèle, ne pas faire de fallback silencieux trompeur.
-   - Exécuter une boucle de correction automatique (jusqu'à 3 itérations) renvoyant l'erreur de parsing exacte au modèle pour qu'il répare sa syntaxe.
-
----
-
-## 9. AI SCENARIO STUDIO & SCÉNARIO PRÉ-CONFIGURÉ
-
-### Module Studio
-Un éditeur permettant à un administrateur ou formateur de taper un prompt en langage naturel (ex: *"Crée une crise de migration Cloud dans le secteur bancaire"*). L'IA génère le JSON complet validé par Zod :
-- Métadonnées et contexte narratif.
-- Coordonnées 3D spatiales (X, Y, Z, layer, type).
-- Personas psychologiques des Stakeholders.
-- Arbre de décisions et crises sur 4 trimestres.
-
-### Scénario Référence Inclus : "Mirage Offshore : Arbitrage Coûts, Souveraineté et Dette Technique"
-- **Topologie 8 nœuds** : `Offshore Delivery Center`, `Regulatory Reporting`, `Dev Pipeline`, `Architecture Guardrail`, `Knowledge Base`, `Onshore Engineering`, `Core Business Logic`, `Sensitive Data Vault`.
-- **Enjeux** : Arbitrage entre coûts de développement délocalisés et souveraineté / fuite de données critiques sous réglementation européenne.
+- **No Early Spoilers**: Crises are not dumped all at once in Q1.
+- **Quarterly Cadence**:
+  - **Q1**: Initial governance friction and budget constraints.
+  - **Q2**: Delivery velocity bottlenecks or vendor turnover.
+  - **Q3 (Black Swan)**: Surprise regulatory audit (DORA/HIPAA) or supply-chain pipeline vulnerability.
+  - **Q4**: Cascading systemic failure or successful modernization milestone.
+- Facilitators can trigger manual black swan overrides during live multiplayer sessions.
 
 ---
 
-## 10. FACILITATOR ROOM (MODE WORKSHOP MULTI-JOUEURS)
+## 8. PRODUCTION-GRADE AI RESILIENCE LAYER
 
-- Espace animateur permettant de visualiser plusieurs équipes ou joueurs en parallèle.
-- Tableau de bord en temps réel des métriques de chaque équipe.
-- Bouton "Injecter un Black Swan instantané" pour tester la réactivité des participants en cours d'atelier.
-- Rapport comparatif et debriefing automatisé en fin de session.
+1. **Token Streaming (`stream: true`)**:
+   All dialogue and studio generation endpoints stream tokens via Server-Sent Events (SSE) for zero-latency UI responsiveness.
+2. **Explicit Configurable Timeouts**:
+   Every AI request wraps an `AbortController` with clear timeouts (e.g. 20s for dialogue, 45s for scenario synthesis), avoiding 300s hanging connections.
+3. **Circuit Breaker Pattern**:
+   - 3 consecutive provider failures $\rightarrow$ Circuit trips `OPEN` for a 60-second cooldown.
+   - User receives an immediate friendly message: *"AI provider temporarily pausing for 60s cooldown. Automatic retry enabled."*
+4. **Self-Healing JSON Repair Loop**:
+   - When a model outputs malformed JSON, avoid silent fallbacks.
+   - Execute an automated repair loop (up to 3 attempts) passing the exact syntax/schema error back to the model to correct its JSON.
+5. **Pluggable Providers**:
+   Adapter pattern supporting Local Ollama (Gemma 2/4), Google Gemini (BYOK), Anthropic Claude (BYOK), OpenAI (BYOK), and a built-in deterministic heuristic fallback.
 
 ---
 
-## ATTENTES D'EXÉCUTION
-Génère le code source de manière modulaire, propre et directement exécutable avec :
-1. Les schémas Zod et types TypeScript (`shared/types.ts`).
-2. Le moteur mathématique et de simulation (`server/src/simulation/`).
-3. Le composant 3D Three.js complet avec shaders, biseaux et billboards (`client/src/components/3d/EnterpriseCanvas.tsx`).
-4. Les modules de résilience IA (Streaming, Circuit Breaker, JSON Repair Loop).
-5. L'interface de dialogue stakeholder et le boardroom meeting.
+## 9. FLAGSHIP SCENARIO: "HEALTHNOVA: CLINICAL EHR & TELEHEALTH OVERHAUL"
+
+Pre-seed the database with the flagship enterprise scenario:
+- **Context**: 15 regional hospitals facing legacy EHR monolith lock-in, 68% Technical Debt Index, and critical video consultation latency during peak telehealth hours.
+- **8 Spatial Topology Nodes**:
+  1. `Legacy EHR Core` (Data layer, monolithic database cylinder)
+  2. `Clinical Data Ingestion` (Service slab, HL7/FHIR pipeline)
+  3. `Telehealth Video Gateway` (Tower slab, WebRTC media gateway)
+  4. `Patient Mobile Portal` (Service slab, API layer)
+  5. `Analytics & Reporting Engine` (Fluted cylinder, warehouse)
+  6. `Identity & Zero-Trust Auth` (Tower slab, security guardrail)
+  7. `Third-Party Pharmacy Integration` (Service slab, partner gateway)
+  8. `Disaster Recovery Vault` (Fluted cylinder, secure data vault)
+- **Stakeholder Roster**:
+  - Dr. Sarah Lin (Chief Medical Officer) - Clinical stability & zero physician burnout
+  - David Thornton (Chief Information Officer) - Mainframe modernization & uptime
+  - Victoria Sterling (Chief Financial Officer) - Budget runway & OpEx containment
+- **4 Quarters of Balanced Initiatives**: Strangler Fig EHR migration, FHIR API abstraction, Kafka clinical streaming, Zero-Trust compliance.
+
+---
+
+## 10. FACILITATOR COCKPIT (MULTI-TEAM WAR ROOM)
+
+- Multi-squad live synchronization dashboard (1 to 5 squads competing side-by-side).
+- Round timer pause/resume, broadcast announcements, and manual black swan injection.
+- Executive Post-Mortem Report: Generates comparative radar charts, resilience rankings (A+ to F), and exportable JSON/Markdown audit logs.
+
+---
+
+## 11. DEPLOYMENT & CONTAINERIZATION
+
+- **Podman / Docker Compose**: Rootless, unprivileged container execution (UID `10001`).
+- **SELinux Support**: Persistent volume storage flags (`:Z`).
+- **License**: 100% Open-Source under the **MIT License** with author attribution.
+
+---
+
+## EXECUTION INSTRUCTIONS
+Generate clean, modular, and fully tested TypeScript code. Ensure all Three.js materials, mathematical state transitions, AI streaming handlers, and UI dashboards compile without errors (`npm run build` client & server with 0 errors, `npm test` passing 100%).
