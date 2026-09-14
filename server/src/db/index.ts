@@ -100,24 +100,20 @@ export class DatabaseRepository {
   }
 
   private seedDefaults() {
-    const countRow = this.db.prepare('SELECT COUNT(*) as count FROM scenarios').get() as { count: number };
-    if (countRow.count === 0) {
-      console.log(`[DatabaseRepository] Seeding ${SEED_SCENARIOS.length} initial enterprise scenarios...`);
-      const insert = this.db.prepare(`
-        INSERT INTO scenarios (id, title, industry, is_default, data, created_at, updated_at)
-        VALUES (?, ?, ?, 1, ?, ?, ?)
-      `);
+    const insert = this.db.prepare(`
+      INSERT OR REPLACE INTO scenarios (id, title, industry, is_default, data, created_at, updated_at)
+      VALUES (?, ?, ?, 1, ?, ?, ?)
+    `);
 
-      const tx = this.db.transaction((scenarios: Scenario[]) => {
-        for (const s of scenarios) {
-          const now = new Date().toISOString();
-          insert.run(s.id, s.title, s.industry, JSON.stringify(s), now, now);
-        }
-      });
+    const tx = this.db.transaction((scenarios: Scenario[]) => {
+      for (const s of scenarios) {
+        const now = new Date().toISOString();
+        insert.run(s.id, s.title, s.industry, JSON.stringify(s), now, now);
+      }
+    });
 
-      tx(SEED_SCENARIOS);
-      console.log(`[DatabaseRepository] Pre-seeded scenarios ready.`);
-    }
+    tx(SEED_SCENARIOS);
+    console.log(`[DatabaseRepository] Pre-seeded ${SEED_SCENARIOS.length} scenarios ready.`);
   }
 
   // --- Scenarios ---
