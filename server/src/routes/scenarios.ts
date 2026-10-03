@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import { DatabaseRepository } from '../db/index.js';
 import { Scenario } from '../types/index.js';
+import { requireFacilitator } from '../auth.js';
 
 export const scenariosRouter = Router();
 
@@ -34,7 +35,7 @@ scenariosRouter.get('/:id', (req, res) => {
 });
 
 // POST /api/scenarios
-scenariosRouter.post('/', (req, res) => {
+scenariosRouter.post('/', requireFacilitator, (req, res) => {
   try {
     const scenario = req.body as Scenario;
     if (!scenario || !scenario.title || !scenario.topology) {
@@ -55,7 +56,7 @@ scenariosRouter.post('/', (req, res) => {
 });
 
 // DELETE /api/scenarios/:id
-scenariosRouter.delete('/:id', (req, res) => {
+scenariosRouter.delete('/:id', requireFacilitator, (req, res) => {
   try {
     const db = DatabaseRepository.getInstance();
     const deleted = db.deleteScenario(req.params.id);

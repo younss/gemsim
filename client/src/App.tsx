@@ -10,7 +10,7 @@ import {
   Team,
   WSServerMessage,
 } from './types/index';
-import { api, wsService } from './services/api';
+import { api, wsService, onFacilitatorPinRequired } from './services/api';
 import { useSimulationStore } from './stores/useSimulationStore';
 import { Navbar } from './components/navbar/Navbar';
 import { PlayerArena } from './components/arena/PlayerArena';
@@ -54,6 +54,15 @@ export const App: React.FC = () => {
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
   const [unlockPasscode, setUnlockPasscode] = useState('');
   const [unlockError, setUnlockError] = useState<string | null>(null);
+
+  // Facilitator actions rejected by the server (missing or wrong PIN) open the unlock dialog
+  useEffect(() => {
+    onFacilitatorPinRequired(() => {
+      setUnlockError('This action requires the Facilitator PIN.');
+      setIsUnlockModalOpen(true);
+    });
+    return () => onFacilitatorPinRequired(null);
+  }, []);
 
   // 1. Initial Load: Scenarios, Sessions, and URL Role Isolation
   useEffect(() => {

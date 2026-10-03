@@ -244,9 +244,39 @@ Respond ONLY with a valid JSON object matching this exact schema:
     );
   }
 
-  public async generateScenario(
-    prompt: ScenarioGenerationPrompt
+  public async generateScenario(prompt: ScenarioGenerationPrompt): Promise<Partial<Scenario>> {
+    const { systemPrompt, userPrompt } = this.buildScenarioPrompts(prompt);
+    return this.generateJSON<Partial<Scenario>>(
+      [{ role: 'user', content: userPrompt }],
+      { systemPrompt, responseFormat: 'json', temperature: 0.6, timeoutMs: getAITimeout('STUDIO') }
+    );
+  }
+
+  /**
+   * Streams the scenario JSON token by token, then parses it. Falls back to the
+   * repair-loop generation when the streamed output is not valid JSON.
+   */
+  public async generateScenarioStream(
+    prompt: ScenarioGenerationPrompt,
+    onChunk: (chunk: string) => void
   ): Promise<Partial<Scenario>> {
+    const { systemPrompt, userPrompt } = this.buildScenarioPrompts(prompt);
+    try {
+      const raw = await this.generateStream([{ role: 'user', content: userPrompt }], onChunk, {
+        systemPrompt,
+        responseFormat: 'json',
+        temperature: 0.6,
+        timeoutMs: getAITimeout('STUDIO'),
+      });
+      const parsed = sanitizeAndParseJSON<Partial<Scenario>>(raw);
+      if (parsed && (parsed.topology || parsed.stakeholders || parsed.initiativesCatalog)) return parsed;
+    } catch {
+      console.warn('[generateScenarioStream] Streamed scenario was not valid JSON, entering repair loop...');
+    }
+    return this.generateScenario(prompt);
+  }
+
+  protected buildScenarioPrompts(prompt: ScenarioGenerationPrompt): { systemPrompt: string; userPrompt: string } {
     const systemPrompt = `You are an elite Enterprise Architect and Executive Simulation Game Designer.
 Your task is to transform the user's scenario specification into a complete, operational, playable enterprise simulation scenario in strict JSON format.
 
@@ -435,9 +465,6 @@ Directives: ${prompt.customDirectives || 'Full architectural and executive reali
 
 IMPORTANT: Extract or synthesize all titles, names, node architecture, stakeholder personas, round dilemmas, and initiatives directly from the Challenge text. If the Challenge is in French, respond entirely in French!`;
 
-    return this.generateJSON<Partial<Scenario>>(
-      [{ role: 'user', content: userPrompt }],
-      { systemPrompt, responseFormat: 'json', temperature: 0.6, timeoutMs: getAITimeout('STUDIO') }
-    );
+    return { systemPrompt, userPrompt };
   }
 }

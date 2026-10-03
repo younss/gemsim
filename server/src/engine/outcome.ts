@@ -41,7 +41,15 @@ export function evaluateOutcome(scenario: Pick<Scenario, 'winLossConditions' | '
   });
 
   const objectivesMet = objectives.filter(o => o.met).length;
-  const score = Math.round((objectives.reduce((sum, o) => sum + o.attainment, 0) / objectives.length) * 100);
+  // 90 points for reaching the targets (partial credit by distance), 10 for the headroom beyond them
+  const reach = objectives.reduce((sum, o) => sum + o.attainment, 0) / objectives.length;
+  const headroom =
+    objectives.reduce((sum, o, i) => {
+      if (!o.met) return sum;
+      const margin = o.comparator === '<=' ? o.target - o.actual : o.actual - o.target;
+      return sum + Math.min(1, margin / (defs[i].span / 2));
+    }, 0) / objectives.length;
+  const score = Math.round(reach * 90 + headroom * 10);
   const solvent = metrics.budgetRemaining >= 0;
 
   // Insolvency caps the result whatever the other metrics say
@@ -51,11 +59,11 @@ export function evaluateOutcome(scenario: Pick<Scenario, 'winLossConditions' | '
   else verdict = 'DEFEAT';
 
   let grade: SimulationOutcome['grade'];
-  if (verdict === 'VICTORY' && score >= 98) grade = 'A+';
+  if (verdict === 'VICTORY' && score >= 97) grade = 'A+';
   else if (verdict === 'VICTORY') grade = 'A';
-  else if (verdict === 'PARTIAL' && score >= 85) grade = 'B';
+  else if (verdict === 'PARTIAL' && score >= 80) grade = 'B';
   else if (verdict === 'PARTIAL') grade = 'C';
-  else if (solvent && score >= 60) grade = 'D';
+  else if (solvent && score >= 55) grade = 'D';
   else grade = 'F';
 
   return { verdict, grade, score, objectivesMet, objectives };

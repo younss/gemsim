@@ -98,6 +98,14 @@ export interface AIProvider {
   /**
    * Generates a fully playable scenario schema from a user prompt
    */
+  /**
+   * Streams scenario generation tokens, then returns the parsed scenario
+   */
+  generateScenarioStream?(
+    prompt: ScenarioGenerationPrompt,
+    onChunk: (chunk: string) => void
+  ): Promise<Partial<Scenario>>;
+
   generateScenario(
     prompt: ScenarioGenerationPrompt
   ): Promise<Partial<Scenario>>;

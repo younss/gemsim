@@ -101,3 +101,8 @@ export function validateBody(schema: ZodTypeAny): RequestHandler<any, any, any, 
     next();
   };
 }
+
+export const timerSchema = z.object({
+  isRunning: z.boolean().optional(),
+  secondsRemaining: z.number().int().min(0).max(7200).optional(),
+});

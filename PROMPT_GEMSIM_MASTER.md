@@ -32,32 +32,49 @@ GemSim is a flight simulator for CTOs, CIOs, Lead Architects, and C-suite leader
 ```
 gemsim/
 ├── client/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── 3d/EnterpriseCanvas.tsx       # Three.js 3D Spatial Digital Twin
-│   │   │   ├── warroom/StakeholderWarRoom.tsx # 1-on-1 & Boardroom AI Negotiations
-│   │   │   ├── cockpit/FacilitatorCockpit.tsx # Multi-squad telemetry & crisis injector
-│   │   │   └── studio/ScenarioStudio.tsx      # Prompt-to-Scenario authoring UI
-│   │   ├── stores/useSimulationStore.ts       # Global client state
-│   │   └── types/index.ts
+│   └── src/
+│       ├── components/
+│       │   ├── 3d/EnterpriseCanvas.tsx            # Three.js 3D Spatial Digital Twin
+│       │   ├── arena/PlayerArena.tsx              # Quarter decisions, objectives tracker, final verdict
+│       │   ├── arena/OutcomePanels.tsx            # Win-condition tracker & end-of-game screen
+│       │   ├── stakeholder/StakeholderWarRoom.tsx # 1-on-1 & Boardroom AI negotiations, patience, pacts
+│       │   ├── warroom/FacilitatorCockpit.tsx     # Multi-squad telemetry, crisis injector, debrief
+│       │   ├── warroom/TeamRadarChart.tsx         # Comparative radar
+│       │   └── studio/GameStudio.tsx              # Prompt-to-Scenario authoring UI (streamed)
+│       ├── stores/useSimulationStore.ts           # Zustand global store fed by WebSocket messages
+│       ├── engine.ts                              # Re-exports the server's pure rule functions
+│       ├── services/api.ts                        # REST/SSE client (facilitator PIN header) + WebSocket
+│       └── types/index.ts                         # Re-exports server/src/types (shared types)
 ├── server/
+│   ├── prisma/schema.prisma                       # PostgreSQL schema
 │   ├── src/
 │   │   ├── ai/
-│   │   │   ├── gateway.ts                    # Pluggable AI provider gateway
-│   │   │   ├── circuit-breaker.ts            # 3-strike / 60s cooldown resilience
-│   │   │   ├── json-repair-loop.ts           # Self-healing LLM schema repair
-│   │   │   ├── systemone.ts                  # System 1 client (Clef/Jev /v1/systemone)
-│   │   │   ├── stakeholder-judge.ts          # Typed verdicts, trust shifts & board votes
-│   │   │   └── providers/                    # Ollama, Gemini, Claude, OpenAI, Heuristic
-│   │   ├── simulation/
-│   │   │   ├── engine.ts                     # Deterministic quarterly state machine
-│   │   │   └── math.ts                       # Formulas (TDI, drag, OpEx, failure risk)
-│   │   ├── db/
-│   │   │   ├── schema.prisma                 # Postgres schema definition
-│   │   │   └── seeds.ts                      # Reference scenario seeds
+│   │   │   ├── registry.ts                        # Pluggable AI provider gateway & fallback chain
+│   │   │   ├── base.ts                            # Shared prompts, JSON & streaming helpers
+│   │   │   ├── ollama.ts, gemini.ts, claude.ts, openai.ts, fallback.ts  # Providers
+│   │   │   ├── circuit-breaker.ts                 # 3-strike / 60s cooldown resilience
+│   │   │   ├── repair-loop.ts                     # Self-healing LLM JSON repair
+│   │   │   ├── timeout.ts                         # Explicit configurable deadlines
+│   │   │   ├── systemone.ts                       # System 1 client (Clef/Jev /v1/systemone)
+│   │   │   ├── stakeholder-judge.ts               # Typed verdicts, trust shifts & board votes
+│   │   │   └── studio-generator.ts                # Scenario synthesis & normalization
+│   │   ├── engine/
+│   │   │   ├── math.ts                            # Formulas (TDI, drag, OpEx, failure risk, seeded roll)
+│   │   │   ├── resolver.ts                        # Quarter resolution state machine
+│   │   │   ├── rules.ts                           # Budget, capacity, one-time initiatives (shared with client)
+│   │   │   ├── outcome.ts                         # Win/loss evaluation (shared with client)
+│   │   │   ├── balance.ts                         # Bot strategies + beam search playability check
+│   │   │   └── session-service.ts                 # Advance a session (patience recovery, final outcomes)
+│   │   ├── services/round-service.ts              # Single round path for REST, WebSocket, BullMQ
+│   │   ├── queue/index.ts                         # BullMQ queues & workers
+│   │   ├── db/index.ts, db/prisma.ts, db/seeds.ts # SQLite store, PostgreSQL sync, seed scenarios
+│   │   ├── routes/                                # REST API (sessions, ai, studio, scenarios, docs)
+│   │   ├── socket/handler.ts                      # WebSocket gateway & round timer
+│   │   ├── auth.ts                                # Facilitator PIN guard, secret stripping
+│   │   ├── validation.ts                          # Zod request schemas
 │   │   └── index.ts
-├── shared/types.ts                           # Shared Zod schemas & TypeScript types
-└── Dockerfile & podman-compose.yml
+│   └── test/                                      # Vitest suites (math, game rules, balance, generation)
+└── Dockerfile, Containerfile & podman-compose.yml
 ```
 
 ---
@@ -105,7 +122,9 @@ $$\Delta \text{Trust}_i = \text{clamp}\Big(15 \times \sum (w_{i, k} \times \Delt
 - 7 objectives: the 6 `winLossConditions` plus solvency (cash ≥ 0), each with partial credit by distance to target; score 0–100.
 - **VICTORY** (A+/A) = all met; **PARTIAL** (B/C) = solvent and ≥ 4 met; **DEFEAT** (D/F) otherwise. Missing conditions in generated scenarios fall back to defaults.
 - Computed for every team when the last quarter resolves; players see a live objectives tracker and a final verdict screen; facilitator rankings use the score.
-- **Balance acceptance test**: scripted through the API on every seeded scenario, a modernization strategy must win, a cautious one must reach PARTIAL, and a bypass/feature-blitz one must lose.
+- **Grades**: 90 points for reaching targets (partial credit by distance) + 10 for headroom beyond them. VICTORY ≥ 97 is A+, else A; PARTIAL ≥ 80 is B, else C; DEFEAT is D when solvent with ≥ 55, else F.
+- **Balance acceptance test (`engine/balance.ts`)**: on every seeded scenario, a beam search over legal quarter decisions must find a VICTORY, the bypass/feature-blitz bot must lose, and Architect > Prudent > Cowboy in score. The Studio runs the same check on generated scenarios and reports it before publishing.
+- **Tension mechanics**: shipping creates debt (+1 TDI per 10 velocity points per quarter), resilience erodes by 4 per quarter, only 60% of an initiative's announced debt reduction is realized and returns diminish as debt gets low (and as resilience gets high).
 
 ---
 
@@ -124,6 +143,7 @@ Render an interactive, high-end 3D architectural digital twin matching modern en
    - **Fluted Wireframe Cylinders (`DATABASE`)**: Vertical glass barrels with vertical wireframe fluting ribs and pulsating ground halo rings for databases, vaults, and compliance stores.
    - **Solid Glass Slabs (`SLAB`)**: Clean translucent blocks for business logic and core microservices.
    - **Ground Pedestals (Plinths)**: Dark translucent podiums anchoring each building to the isometric ground grid.
+   - Each node may set `archetype: 'TOWER' | 'DATABASE' | 'SLAB'` explicitly; otherwise it is inferred from its layer and name.
 3. **Floating 3D Text Billboards**:
    - Crisp 2D canvas texture (1024x256) rendered onto a Three.js `Sprite` hovering above each building.
    - Configure with `depthTest: false` and `depthWrite: false` so labels are 100% sharp and never clipped by surrounding glass geometry.
@@ -179,9 +199,9 @@ In addition to 1-on-1 negotiations, players can convene an All-Hands Executive C
 ## 8. PRODUCTION-GRADE AI RESILIENCE LAYER
 
 1. **Token Streaming (`stream: true`)**:
-   All dialogue and studio generation endpoints stream tokens via Server-Sent Events (SSE) for zero-latency UI responsiveness.
+   All dialogue and studio generation endpoints stream tokens via Server-Sent Events (SSE) for zero-latency UI responsiveness (`/api/ai/negotiate/stream`, `/api/studio/generate/stream`; the Studio shows the live JSON tail and ends with the validated scenario and its balance report).
 2. **Explicit Configurable Timeouts**:
-   Every AI request wraps an `AbortController` with clear timeouts (e.g. 20s for dialogue, 45s for scenario synthesis), avoiding 300s hanging connections.
+   Every AI request wraps an `AbortController` with clear timeouts (`AI_CHAT_TIMEOUT_MS` 45s, `AI_STUDIO_TIMEOUT_MS` 300s); local Ollama calls never go below `OLLAMA_MIN_TIMEOUT_MS` (120s) because a model may need to load first.
 3. **Circuit Breaker Pattern**:
    - 3 consecutive provider failures $\rightarrow$ Circuit trips `OPEN` for a 60-second cooldown.
    - User receives an immediate friendly message: *"AI provider temporarily pausing for 60s cooldown. Automatic retry enabled."*
@@ -240,7 +260,15 @@ Response: `answers[id]` contains `{choice, confidence, probabilities}` for `choi
 
 ---
 
-## 10. FLAGSHIP SCENARIO: "HEALTHNOVA: CLINICAL EHR & TELEHEALTH OVERHAUL"
+## 10. FACILITATOR SECURITY
+
+- The facilitator PIN (`FACILITATOR_PIN`) is never serialized to clients (stripped from every REST and WebSocket payload).
+- Facilitator actions require the `x-facilitator-pin` header (timing-safe comparison): advance round (except solo sessions), timer, crisis injection, broadcast, reset, session deletion, scenario create/delete, Studio generate/publish, AI settings and provider tests. WebSocket facilitator messages carry the PIN too.
+- The client keeps the verified PIN for the browser session and opens the unlock dialog on any HTTP 401.
+
+---
+
+## 11. FLAGSHIP SCENARIO: "HEALTHNOVA: CLINICAL EHR & TELEHEALTH OVERHAUL"
 
 Pre-seed the database with the flagship enterprise scenario:
 - **Context**: 15 regional hospitals facing legacy EHR monolith lock-in, 68% Technical Debt Index, and critical video consultation latency during peak telehealth hours.
@@ -257,11 +285,12 @@ Pre-seed the database with the flagship enterprise scenario:
   - Dr. Sarah Lin (Chief Medical Officer) - Clinical stability & zero physician burnout
   - David Thornton (Chief Information Officer) - Mainframe modernization & uptime
   - Victoria Sterling (Chief Financial Officer) - Budget runway & OpEx containment
-- **4 Quarters of Balanced Initiatives**: Strangler Fig EHR migration, FHIR API abstraction, Kafka clinical streaming, Zero-Trust compliance.
+- **4 Quarters of Balanced Initiatives**: Strangler Fig EHR migration (2 quarters), FHIR API abstraction, Kafka clinical streaming, Zero-Trust compliance — plus one tempting "direct EHR database query scripts" bypass trap.
+- Difficulty EXECUTIVE: the greedy modernization bot only reaches PARTIAL; a VICTORY path exists (verified by the balance beam search).
 
 ---
 
-## 11. FACILITATOR COCKPIT (MULTI-TEAM WAR ROOM)
+## 12. FACILITATOR COCKPIT (MULTI-TEAM WAR ROOM)
 
 - Multi-squad live synchronization dashboard (1 to 5 squads competing side-by-side).
 - Round timer pause/resume, broadcast announcements, and manual black swan injection.
@@ -270,7 +299,7 @@ Pre-seed the database with the flagship enterprise scenario:
 
 ---
 
-## 12. DEPLOYMENT & CONTAINERIZATION
+## 13. DEPLOYMENT & CONTAINERIZATION
 
 - **Podman / Docker Compose**: Rootless, unprivileged container execution (UID `10001`).
 - **SELinux Support**: Persistent volume storage flags (`:Z`).

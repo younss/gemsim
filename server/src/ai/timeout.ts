@@ -29,7 +29,7 @@ export function getAITimeout(purpose: 'CHAT' | 'STUDIO' | 'DEFAULT' = 'DEFAULT',
   }
 
   if (purpose === 'STUDIO') {
-    return !isNaN(envStudio) && envStudio > 0 ? envStudio : 120000; // 120 seconds default for studio synthesis
+    return !isNaN(envStudio) && envStudio > 0 ? envStudio : 300000; // 5 minutes: a full scenario JSON is ~12K characters
   }
 
   return !isNaN(envDefault) && envDefault > 0 ? envDefault : 45000;

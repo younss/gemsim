@@ -26,6 +26,18 @@ export class StudioScenarioGenerator {
   }
 
   /**
+   * Same as generate(), streaming the model's raw output as it is produced
+   */
+  public static async generateStream(prompt: ScenarioGenerationPrompt, onChunk: (chunk: string) => void): Promise<Scenario> {
+    const registry = AIRegistry.getInstance();
+    const { result: rawScenario, usedProvider } = await registry.executeWithFallback(async provider =>
+      provider.generateScenarioStream ? provider.generateScenarioStream(prompt, onChunk) : provider.generateScenario(prompt)
+    );
+    console.log(`[StudioScenarioGenerator] Streamed scenario using provider: ${usedProvider}`);
+    return this.validateAndEnrich(rawScenario, prompt, usedProvider);
+  }
+
+  /**
    * Validates and enriches partial AI output to guarantee complete playable scenario schema
    */
   public static validateAndEnrich(

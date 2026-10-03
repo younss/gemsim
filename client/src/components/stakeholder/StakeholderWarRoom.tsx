@@ -389,16 +389,14 @@ export const StakeholderWarRoom: React.FC<Props> = ({
               {(() => {
                 const patience = team.stakeholderPatience?.[sh.id] ?? 100;
                 return (
-                  <div className="mt-2">
-                    <div className="flex items-center justify-between text-[10px] font-mono text-slate-500">
-                      <span>PATIENCE</span>
-                      <span className={patience <= 0 ? 'text-rose-400 font-bold' : patience < 35 ? 'text-amber-400' : 'text-violet-300'}>
-                        {patience <= 0 ? '🚪 door closed until next quarter' : `${patience}%`}
-                      </span>
-                    </div>
-                    <div className="mt-1 w-full bg-dark-900 h-1 rounded-full overflow-hidden border border-slate-800">
+                  <div className="mt-2 flex items-center gap-2 text-[10px] font-mono text-slate-500">
+                    <span>PATIENCE</span>
+                    <div className="flex-1 bg-dark-900 h-1.5 rounded-full overflow-hidden border border-slate-800">
                       <div className="h-full rounded-full bg-violet-500 transition-all duration-500" style={{ width: `${patience}%` }} />
                     </div>
+                    <span className={patience <= 0 ? 'text-rose-400 font-bold' : patience < 35 ? 'text-amber-400' : 'text-violet-300'}>
+                      {patience <= 0 ? '🚪 closed' : `${patience}%`}
+                    </span>
                   </div>
                 );
               })()}
@@ -588,7 +586,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
                       {msg.evaluation.concessionRequired && (
                         <div className="mt-2 text-amber-300 text-[11px] bg-amber-500/10 p-2 rounded border border-amber-500/30">
                           <strong>Concession Demanded:</strong> {msg.evaluation.concessionRequired}
-                          {msg.stakeholderId && msg.stakeholderId !== 'BOARDROOM' && session.state !== 'COMPLETED' && (
+                          {msg.stakeholderId && msg.stakeholderId !== 'BOARDROOM' && session.state !== 'COMPLETED' && msg.evaluation.decisionEngine !== 'sentinel' && (
                             signedPacts.some(p => p.stakeholderId === msg.stakeholderId && p.concession === msg.evaluation!.concessionRequired) ? (
                               <div className="mt-2 text-emerald-300 font-bold">🤝 Pact signed — honored at quarter resolution</div>
                             ) : !team.decisionSubmitted ? (

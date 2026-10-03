@@ -238,6 +238,11 @@ export class FallbackProvider extends BaseAIProvider {
     };
   }
 
+  /** The heuristic engine builds scenarios instantly: nothing worth streaming */
+  public async generateScenarioStream(prompt: ScenarioGenerationPrompt): Promise<Partial<Scenario>> {
+    return this.generateScenario(prompt);
+  }
+
   public async generateScenario(prompt: ScenarioGenerationPrompt): Promise<Partial<Scenario>> {
     return FallbackProvider.createDynamicScenario(prompt);
   }

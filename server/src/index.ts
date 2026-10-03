@@ -22,6 +22,7 @@ import { AIRegistry } from './ai/registry.js';
 import { QueueManager } from './queue/index.js';
 import { PrismaRepository } from './db/prisma.js';
 import { registerRoundHandler } from './services/round-service.js';
+import { stripSecrets } from './auth.js';
 
 dotenv.config();
 
@@ -37,6 +38,8 @@ const HOST = process.env.HOST || '0.0.0.0';
 // Middlewares
 app.use(cors());
 app.use(express.json({ limit: '15mb' }));
+// Never serialize the facilitator PIN to clients
+app.set('json replacer', stripSecrets);
 
 // Initialize DB and AI Singleton
 const db = DatabaseRepository.getInstance();

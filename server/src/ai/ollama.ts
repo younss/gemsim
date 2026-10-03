@@ -8,6 +8,15 @@ import { AIMessage, AIGenerateOptions } from './types.js';
 import { AIProviderType } from '../types/index.js';
 import { getAITimeout } from './timeout.js';
 
+/**
+ * Local models can need tens of seconds just to load (e.g. when Ollama swaps the
+ * dialogue model with a System One model), so local calls get a higher floor.
+ */
+function localTimeout(requestedMs: number): number {
+  const floor = parseInt(process.env.OLLAMA_MIN_TIMEOUT_MS || '', 10);
+  return Math.max(requestedMs, !isNaN(floor) && floor > 0 ? floor : 120000);
+}
+
 export class OllamaProvider extends BaseAIProvider {
   public readonly providerType: AIProviderType = 'ollama';
   private baseUrl: string;
@@ -106,7 +115,7 @@ export class OllamaProvider extends BaseAIProvider {
     // Ensure host is discovered
     await this.discoverHostAndModels();
 
-    const timeoutMs = getAITimeout('DEFAULT', options?.timeoutMs);
+    const timeoutMs = localTimeout(getAITimeout('DEFAULT', options?.timeoutMs));
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -159,7 +168,7 @@ export class OllamaProvider extends BaseAIProvider {
   ): Promise<string> {
     await this.discoverHostAndModels();
 
-    const timeoutMs = getAITimeout('CHAT', options?.timeoutMs);
+    const timeoutMs = localTimeout(getAITimeout('CHAT', options?.timeoutMs));
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 

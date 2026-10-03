@@ -11,6 +11,7 @@ import { broadcastToSession } from '../socket/handler.js';
 import { judgeProposal, judgeBoard, mergeDecision } from '../ai/stakeholder-judge.js';
 import { SystemOneClient } from '../ai/systemone.js';
 import { boardroomSchema, negotiateSchema, validateBody } from '../validation.js';
+import { requireFacilitator } from '../auth.js';
 
 // Patience spent per exchange (negative = recovered). At 0 the stakeholder closes the door until next quarter.
 const PATIENCE_COST = { LOW_EFFORT: 30, REPETITION: 35, REJECTED: 20, CONDITIONAL_ACCEPTANCE: 8, ACCEPTED: -5 } as const;
@@ -200,7 +201,7 @@ aiRouter.get('/settings', (req, res) => {
 });
 
 // POST /api/ai/settings
-aiRouter.post('/settings', (req, res) => {
+aiRouter.post('/settings', requireFacilitator, (req, res) => {
   try {
     const { activeProvider, updates } = req.body as {
       activeProvider?: AIProviderType;
@@ -226,7 +227,7 @@ aiRouter.post('/settings', (req, res) => {
 });
 
 // POST /api/ai/test
-aiRouter.post('/test', async (req, res) => {
+aiRouter.post('/test', requireFacilitator, async (req, res) => {
   try {
     const { provider } = req.body as { provider: AIProviderType };
     const registry = AIRegistry.getInstance();
@@ -332,6 +333,7 @@ aiRouter.post('/negotiate', validateBody(negotiateSchema), async (req, res) => {
         : `Executive negotiations require articulated proposals, not monosyllabic chatter. Formulate a real strategic proposal.`;
 
       const lowEffortEval: ProposalEvaluation = {
+        decisionEngine: 'sentinel',
         empathyScore: 25,
         financialAcumenScore: 20,
         strategicAlignmentScore: 25,
@@ -390,6 +392,7 @@ aiRouter.post('/negotiate', validateBody(negotiateSchema), async (req, res) => {
           : `You are repeating yourself verbatim. We already covered this exact proposal. What new value, compromise, or metrics are you offering now?`;
 
       const repEval: ProposalEvaluation = {
+        decisionEngine: 'sentinel',
         empathyScore: 20,
         financialAcumenScore: 20,
         strategicAlignmentScore: 20,
@@ -607,6 +610,7 @@ aiRouter.post('/negotiate/stream', validateBody(negotiateSchema), async (req, re
       : `Executive negotiations require articulated proposals, not monosyllabic chatter. Formulate a real strategic proposal.`;
 
     const lowEffortEval: ProposalEvaluation = {
+        decisionEngine: 'sentinel',
       empathyScore: 25,
       financialAcumenScore: 20,
       strategicAlignmentScore: 25,
@@ -665,6 +669,7 @@ aiRouter.post('/negotiate/stream', validateBody(negotiateSchema), async (req, re
         : `You are repeating yourself verbatim. We already covered this exact proposal. What new value, compromise, or metrics are you offering now?`;
 
     const repEval: ProposalEvaluation = {
+        decisionEngine: 'sentinel',
       empathyScore: 20,
       financialAcumenScore: 20,
       strategicAlignmentScore: 20,

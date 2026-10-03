@@ -99,6 +99,7 @@ Design, synthesize, and validate playable enterprise simulations from plain-text
 
 - **Natural Language Synthesis**: Enter industry briefs or complex multi-paragraph corporate cases (Healthcare EHR, Core Banking Modernization, Mirage Offshore Sourcing).
 - **5-Phase Generation Pipeline**: Progressive real-time compilation from topology graph and competing stakeholder dialectics to crisis roadmaps and mathematical constraint validation.
+- **Live Streaming & Balance Report**: The Studio streams the model's JSON as it is written, then runs the balance check (best achievable verdict and bot results) on the generated scenario before you publish.
 - **Active AI Engine Diagnostics**: Switch seamlessly at runtime between Local Ollama (`gemma4:12b`), Google Gemini, Claude, OpenAI, or the offline zero-dependency heuristic engine with live latency monitoring.
 - **One-Click Publishing**: Instant export and activation directly into the multiplayer simulation library.
 
@@ -196,6 +197,10 @@ Each quarter's choices are checked by the same pure rule function on the server 
 | **Incidents** | At-risk nodes (P(Fail) > 0.45) fail on a seeded roll against P(Fail): reproducible per session/team/quarter, not deterministic. Each incident also costs velocity. |
 | **Crisis injection** | An injected crisis hits immediately and is not charged again at resolution; teams that answered the old dilemma must choose again. |
 
+| Budget, capacity, multi-quarter delivery & pacts | Patience meters & binding pacts |
+| :---: | :---: |
+| <img src="docs/screenshots/initiatives-pacts.jpg" alt="Initiative portfolio with capacity, in-delivery and completed initiatives, and a signed pact" width="100%" /> | <img src="docs/screenshots/warroom-patience-pacts.jpg" alt="Stakeholder war room with patience meters and pact signing" width="100%" /> |
+
 ### Win / loss evaluation (`server/src/engine/outcome.ts`)
 
 After the final quarter every team gets a verdict against the scenario's `winLossConditions`, plus solvency:
@@ -206,13 +211,37 @@ After the final quarter every team gets a verdict against the scenario's `winLos
 | **PARTIAL** (B/C) | Solvent and at least 4 objectives met. |
 | **DEFEAT** (D/F) | Otherwise. |
 
-The score (0–100) gives partial credit by distance to each target and ranks teams in the facilitator debrief. Players see a live objectives tracker each quarter and a final verdict screen at the end. A node counts as a modernized capability when a completed modernization initiative brings its debt to 50 or below.
+The score (0–100) is 90 points for reaching the targets (partial credit by distance) plus 10 for the headroom beyond them: a narrow win is an A, a dominant one an A+. It ranks teams in the facilitator debrief. Players see a live objectives tracker each quarter and a final verdict screen at the end. A node counts as a modernized capability when a completed modernization initiative brings its debt to 50 or below.
 
-**Balance check (3 strategies × 3 seeded scenarios, scripted through the API):** "Architect" (accelerated modernization, best debt-reducing initiatives) wins A+ in all three; "Prudent" (strict governance, one cheap initiative per quarter) reaches PARTIAL B; "Cowboy" (bypass architecture, feature blitz) ends insolvent with a DEFEAT F.
+| Final verdict (player) | Debrief: radar & rankings (facilitator) |
+| :---: | :---: |
+| <img src="docs/screenshots/final-verdict.jpg" alt="Final verdict screen with grade and objectives" width="100%" /> | <img src="docs/screenshots/facilitator-debrief-radar.jpg" alt="Facilitator debrief with comparative radar and graded rankings" width="100%" /> |
+
+**Tension mechanics:** shipping creates debt (+1 TDI per 10 velocity points per quarter), resilience erodes by 4 per quarter, only 60% of an initiative's announced debt reduction is realized, and returns diminish as debt gets low or resilience gets high.
+
+### Balance & playability check (`server/src/engine/balance.ts`)
+
+Three bots play every quarter through the real resolver, and a beam search explores legal decision paths to find the best achievable outcome:
+
+| Scenario | Best path found | Architect bot | Prudent bot | Cowboy bot |
+| :--- | :--- | :--- | :--- | :--- |
+| NeoTitan (Intermediate) | VICTORY A+ | VICTORY A+ | PARTIAL C | DEFEAT F |
+| HealthNova (Executive) | VICTORY A+ | PARTIAL B | PARTIAL B | DEFEAT F |
+| Mirage Offshore (Executive) | VICTORY A+ | VICTORY A+ | PARTIAL C | DEFEAT F |
+
+A test fails if any seeded scenario becomes unwinnable or lets the bypass strategy win. The Studio runs the same check on every generated scenario and shows the report before publishing.
 
 ### Solo play
 
 When a session has a single team, the player can resolve the quarter from the arena after submitting; no facilitator PIN is needed.
+
+---
+
+## 🔐 Facilitator Security
+
+- The facilitator PIN (`FACILITATOR_PIN`) is never sent to clients: it is stripped from every REST and WebSocket payload.
+- Facilitator actions require the `x-facilitator-pin` header, checked server-side: advancing a round (except in solo sessions), timer, crisis injection, broadcast, reset, session deletion, scenario creation/deletion, Studio generation/publication, AI settings and provider tests.
+- The client keeps the verified PIN for the browser session and opens the unlock dialog whenever the server answers 401.
 
 ---
 
@@ -429,15 +458,15 @@ Test Results:
 ```
  ✓ server/src/ai/stakeholder-judge.test.ts (5 tests)
  ✓ server/test/math.test.ts (8 tests)
- ✓ server/test/game-rules.test.ts (16 tests)
+ ✓ server/test/game-rules.test.ts (19 tests)
  ✓ server/test/scenario-generation.test.ts (3 tests)
  ✓ server/src/ai/production-enhancements.test.ts (4 tests)
 
  Test Files  5 passed (5)
-      Tests  36 passed (36)
+      Tests  39 passed (39)
 ```
 
-`game-rules.test.ts` covers the budget and capacity rules, one-time and multi-quarter initiatives, run-budget economics, insolvency, pacts, crisis injection, seeded incidents, win/loss verdicts and request validation (Zod).
+`game-rules.test.ts` covers the budget and capacity rules, one-time and multi-quarter initiatives, run-budget economics, insolvency, pacts, crisis injection, seeded incidents, win/loss verdicts, request validation (Zod) and the balance check of every seeded scenario. `npm test` works from the repository root or from `server/`.
 
 ---
 

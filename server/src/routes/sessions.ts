@@ -17,7 +17,8 @@ import {
   ArchivedSimulationRun,
 } from '../types/index.js';
 import { broadcastToSession } from '../socket/handler.js';
-import { broadcastSchema, createSessionSchema, injectEventSchema, pactSchema, submitDecisionsSchema, validateBody } from '../validation.js';
+import { broadcastSchema, timerSchema, createSessionSchema, injectEventSchema, pactSchema, submitDecisionsSchema, validateBody } from '../validation.js';
+import { isValidFacilitatorPin, requireFacilitator, requireFacilitatorUnlessSolo } from '../auth.js';
 
 export const sessionsRouter = Router();
 
@@ -25,12 +26,7 @@ export const sessionsRouter = Router();
 sessionsRouter.get('/', (req, res) => {
   try {
     const db = DatabaseRepository.getInstance();
-    const configuredPin = process.env.FACILITATOR_PIN || '1337';
-    const sessions = db.getSessions().map(s => ({
-      ...s,
-      facilitatorPasscode: configuredPin,
-    }));
-    res.json({ sessions });
+    res.json({ sessions: db.getSessions() });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -44,7 +40,6 @@ sessionsRouter.get('/:id', (req, res) => {
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
-    session.facilitatorPasscode = process.env.FACILITATOR_PIN || session.facilitatorPasscode || '1337';
     const scenario = db.getScenario(session.scenarioId);
     res.json({ session, scenario });
   } catch (err: any) {
@@ -62,8 +57,7 @@ sessionsRouter.post('/:id/verify-facilitator', (req, res) => {
       return res.status(404).json({ error: 'Session not found' });
     }
 
-    const expectedPin = (process.env.FACILITATOR_PIN || session.facilitatorPasscode || '1337').trim();
-    if (pin && (pin.trim() === expectedPin || pin.trim() === '1337')) {
+    if (isValidFacilitatorPin(pin)) {
       return res.json({ valid: true });
     }
     return res.status(401).json({ valid: false, error: 'Incorrect Facilitator PIN' });
@@ -130,7 +124,6 @@ sessionsRouter.post('/', validateBody(createSessionSchema), (req, res) => {
       name: name || `${scenario.title} Run`,
       scenarioId: scenario.id,
       scenarioTitle: scenario.title,
-      facilitatorPasscode: process.env.FACILITATOR_PIN || '1337',
       state: 'WAITING',
       currentRound: 1,
       totalRounds: scenario.totalRounds || 4,
@@ -217,7 +210,7 @@ sessionsRouter.post('/:id/decisions', validateBody(submitDecisionsSchema), (req,
 });
 
 // POST /api/sessions/:id/advance (Resolves current round for all teams)
-sessionsRouter.post('/:id/advance', async (req, res) => {
+sessionsRouter.post('/:id/advance', requireFacilitatorUnlessSolo, async (req, res) => {
   try {
     const db = DatabaseRepository.getInstance();
     const session = db.getSession(req.params.id);
@@ -306,7 +299,7 @@ sessionsRouter.delete('/:id/pacts/:teamId/:stakeholderId', (req, res) => {
 });
 
 // POST /api/sessions/:id/timer
-sessionsRouter.post('/:id/timer', (req, res) => {
+sessionsRouter.post('/:id/timer', requireFacilitator, validateBody(timerSchema), (req, res) => {
   try {
     const { isRunning, secondsRemaining } = req.body as {
       isRunning?: boolean;
@@ -317,6 +310,10 @@ sessionsRouter.post('/:id/timer', (req, res) => {
     const session = db.getSession(req.params.id);
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
+    }
+
+    if (session.state === 'COMPLETED' && isRunning) {
+      return res.status(409).json({ error: 'Simulation already completed' });
     }
 
     if (isRunning !== undefined) {
@@ -350,7 +347,7 @@ sessionsRouter.post('/:id/timer', (req, res) => {
 });
 
 // POST /api/sessions/:id/inject-event (Facilitator Crisis Injection)
-sessionsRouter.post('/:id/inject-event', validateBody(injectEventSchema), (req, res) => {
+sessionsRouter.post('/:id/inject-event', requireFacilitator, validateBody(injectEventSchema), (req, res) => {
   try {
     const { event } = req.body as { event: RoundEvent };
     if (!event || !event.title) {
@@ -430,7 +427,7 @@ sessionsRouter.post('/:id/inject-event', validateBody(injectEventSchema), (req, 
 });
 
 // POST /api/sessions/:id/broadcast
-sessionsRouter.post('/:id/broadcast', validateBody(broadcastSchema), (req, res) => {
+sessionsRouter.post('/:id/broadcast', requireFacilitator, validateBody(broadcastSchema), (req, res) => {
   try {
     const { message } = req.body as { message: string };
     if (!message) {
@@ -461,7 +458,7 @@ sessionsRouter.get('/:id/runs', (req, res) => {
 });
 
 // POST /api/sessions/:id/reset
-sessionsRouter.post('/:id/reset', (req, res) => {
+sessionsRouter.post('/:id/reset', requireFacilitator, (req, res) => {
   try {
     const db = DatabaseRepository.getInstance();
     const session = db.getSession(req.params.id);
@@ -583,7 +580,7 @@ sessionsRouter.post('/:id/reset', (req, res) => {
 });
 
 // DELETE /api/sessions/:id
-sessionsRouter.delete('/:id', (req, res) => {
+sessionsRouter.delete('/:id', requireFacilitator, (req, res) => {
   try {
     const db = DatabaseRepository.getInstance();
     const deleted = db.deleteSession(req.params.id);

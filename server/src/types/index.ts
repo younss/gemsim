@@ -7,10 +7,13 @@ export type EnterpriseLayer = 'BUSINESS' | 'APPLICATION' | 'DATA' | 'INFRASTRUCT
 export type NodeHealthStatus = 'HEALTHY' | 'DEGRADED' | 'CRITICAL' | 'MODERNIZED';
 export type EdgeFlowStatus = 'NORMAL' | 'BOTTLENECK' | 'SEVERED' | 'OPTIMIZED';
 
+export type NodeArchetype = 'TOWER' | 'DATABASE' | 'SLAB';
+
 export interface TopologyNode {
   id: string;
   name: string;
   layer: EnterpriseLayer;
+  archetype?: NodeArchetype; // 3D building shape; inferred from name/layer when absent
   description: string;
   health: number; // 0 - 100
   technicalDebt: number; // 0 - 100
@@ -385,9 +388,9 @@ export type WSClientMessage =
   | { type: 'JOIN_SESSION'; sessionId: string; teamId?: string; role: 'PLAYER' | 'FACILITATOR' }
   | { type: 'SUBMIT_DECISIONS'; sessionId: string; teamId: string; decisions: TeamDecision }
   | { type: 'STAKEHOLDER_CHAT'; sessionId: string; teamId: string; stakeholderId: string; message: string }
-  | { type: 'FACILITATOR_CONTROL'; sessionId: string; action: 'START' | 'PAUSE' | 'RESUME' | 'ADVANCE_ROUND' | 'RESET'; targetRound?: number }
+  | { type: 'FACILITATOR_CONTROL'; sessionId: string; action: 'START' | 'PAUSE' | 'RESUME' | 'ADVANCE_ROUND' | 'RESET'; targetRound?: number; pin?: string }
   | { type: 'INJECT_EVENT'; sessionId: string; event: RoundEvent }
-  | { type: 'BROADCAST_ANNOUNCEMENT'; sessionId: string; message: string };
+  | { type: 'BROADCAST_ANNOUNCEMENT'; sessionId: string; message: string; pin?: string };
 
 export type WSServerMessage =
   | { type: 'SESSION_STATE'; session: SimulationSession }

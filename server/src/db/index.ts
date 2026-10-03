@@ -219,7 +219,7 @@ export class DatabaseRepository {
     return row ? JSON.parse(row.data) : null;
   }
 
-  public saveSession(session: SimulationSession): void {
+  public saveSession(session: SimulationSession, options: { mirror?: boolean } = {}): void {
     const now = new Date().toISOString();
     const stmt = this.db.prepare(`
       INSERT INTO sessions (id, name, scenario_id, state, current_round, data, created_at, updated_at)
@@ -244,7 +244,7 @@ export class DatabaseRepository {
     );
 
     // Asynchronous write-through to PostgreSQL via Prisma
-    void PrismaRepository.getInstance().saveSession(session);
+    if (options.mirror !== false) void PrismaRepository.getInstance().saveSession(session);
   }
 
   public deleteSession(id: string): boolean {

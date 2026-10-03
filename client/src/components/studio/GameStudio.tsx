@@ -6,7 +6,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Scenario, AISettingsState, AIProviderType } from '../../types/index';
-import { api } from '../../services/api';
+import { api, ScenarioBalanceSummary } from '../../services/api';
 import { EnterpriseCanvas } from '../3d/EnterpriseCanvas';
 import {
   Wand2,
@@ -46,7 +46,13 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
   const [generationDuration, setGenerationDuration] = useState<number | null>(null);
 
   const [synthesizedScenario, setSynthesizedScenario] = useState<Scenario | null>(null);
-  const [validationResult, setValidationResult] = useState<{ valid: boolean; errors?: string[]; message?: string } | null>(null);
+  const [validationResult, setValidationResult] = useState<{
+    valid: boolean;
+    errors?: string[];
+    message?: string;
+    balance?: ScenarioBalanceSummary;
+  } | null>(null);
+  const [streamPreview, setStreamPreview] = useState('');
   const [activeInspectorTab, setActiveInspectorTab] = useState<'TOPOLOGY' | 'STAKEHOLDERS' | 'TIMELINE' | 'INITIATIVES' | 'JSON'>('TOPOLOGY');
   const [timelineViewMode, setTimelineViewMode] = useState<'AUTHOR' | 'PLAYER_FOG'>('AUTHOR');
   const [copied, setCopied] = useState(false);
@@ -123,18 +129,19 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
     setGenerationStep(1);
     const startMs = Date.now();
 
-    // Step ticker to show real-time progress across generation phases
-    const stepTimer = setInterval(() => {
-      setGenerationStep(prev => (prev < 4 ? prev + 1 : prev));
-    }, 2400);
 
     try {
-      const scenario = await api.generateStudioScenario({
-        industry,
-        businessChallenge,
-        difficulty,
-        customDirectives,
-      });
+      setStreamPreview('');
+      let received = 0;
+      const { scenario } = await api.generateStudioScenarioStream(
+        { industry, businessChallenge, difficulty, customDirectives },
+        chunk => {
+          received += chunk.length;
+          // Keep the tail of the stream visible and move the phase bar with real progress
+          setStreamPreview(prev => (prev + chunk).slice(-700));
+          setGenerationStep(Math.min(4, 1 + Math.floor(received / 2500)));
+        }
+      );
 
       setGenerationStep(5);
       setSynthesizedScenario(scenario);
@@ -147,7 +154,6 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
       console.error('Scenario generation failed:', err);
       setValidationResult({ valid: false, errors: [err.message || 'Generation error'] });
     } finally {
-      clearInterval(stepTimer);
       setIsGenerating(false);
     }
   };
@@ -438,6 +444,11 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                 <p className="text-[11px] text-slate-300 font-mono leading-relaxed">
                   {stepLabels[generationStep] || 'Generating enterprise architecture blueprint...'}
                 </p>
+                {streamPreview && (
+                  <pre className="text-[10px] text-cyan-200/80 font-mono bg-dark-950 border border-slate-800 rounded p-2 max-h-40 overflow-hidden whitespace-pre-wrap break-all">
+                    {streamPreview}
+                  </pre>
+                )}
               </div>
             )}
 
@@ -453,6 +464,20 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                   <span>{validationResult.valid ? 'SCHEMA VALIDATED' : 'VALIDATION ISSUES'}</span>
                 </div>
                 <p className="text-[11px] text-slate-300">{validationResult.message || validationResult.errors?.join(', ')}</p>
+                {validationResult.balance?.strategies && (
+                  <div className={`mt-2 text-[11px] ${validationResult.balance.playable ? 'text-emerald-300' : 'text-amber-300'}`}>
+                    <div className="font-bold">
+                      {validationResult.balance.playable ? '⚖️ BALANCE CHECK PASSED' : '⚠️ BALANCE ISSUES'}
+                      {validationResult.balance.bestAchievable &&
+                        ` — best path: ${validationResult.balance.bestAchievable.verdict} (${validationResult.balance.bestAchievable.grade})`}
+                    </div>
+                    <div className="text-slate-400">
+                      {Object.entries(validationResult.balance.strategies)
+                        .map(([name, r]) => `${name}: ${r.verdict} ${r.grade}`)
+                        .join(' · ')}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

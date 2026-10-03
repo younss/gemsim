@@ -9,6 +9,7 @@ import { WSClientMessage, WSServerMessage } from '../types/index.js';
 import { DatabaseRepository } from '../db/index.js';
 import { checkDecisions } from '../engine/rules.js';
 import { advanceRound } from '../services/round-service.js';
+import { isValidFacilitatorPin, stripSecrets } from '../auth.js';
 
 interface ClientConnection {
   ws: WebSocket;
@@ -100,8 +101,13 @@ function handleClientMessage(conn: ClientConnection, msg: WSClientMessage) {
     case 'FACILITATOR_CONTROL': {
       const session = db.getSession(msg.sessionId);
       if (!session) return;
+      const soloAdvance = msg.action === 'ADVANCE_ROUND' && session.teams.length === 1;
+      if (!soloAdvance && !isValidFacilitatorPin(msg.pin)) {
+        sendToClient(conn.ws, { type: 'ERROR', message: 'Facilitator PIN required' });
+        return;
+      }
 
-      if (msg.action === 'START' || msg.action === 'RESUME') {
+      if ((msg.action === 'START' || msg.action === 'RESUME') && session.state !== 'COMPLETED') {
         session.isTimerRunning = true;
         session.state = 'ACTIVE';
       } else if (msg.action === 'PAUSE') {
@@ -126,6 +132,10 @@ function handleClientMessage(conn: ClientConnection, msg: WSClientMessage) {
     }
 
     case 'BROADCAST_ANNOUNCEMENT': {
+      if (!isValidFacilitatorPin(msg.pin)) {
+        sendToClient(conn.ws, { type: 'ERROR', message: 'Facilitator PIN required' });
+        return;
+      }
       broadcastToSession(msg.sessionId, {
         type: 'ANNOUNCEMENT',
         message: `📢 ${msg.message}`,
@@ -137,7 +147,7 @@ function handleClientMessage(conn: ClientConnection, msg: WSClientMessage) {
 }
 
 export function broadcastToSession(sessionId: string, message: WSServerMessage) {
-  const json = JSON.stringify(message);
+  const json = JSON.stringify(message, stripSecrets);
   for (const conn of connections) {
     if (conn.sessionId === sessionId && conn.ws.readyState === WebSocket.OPEN) {
       conn.ws.send(json);
@@ -147,7 +157,7 @@ export function broadcastToSession(sessionId: string, message: WSServerMessage) 
 
 function sendToClient(ws: WebSocket, message: WSServerMessage) {
   if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(message));
+    ws.send(JSON.stringify(message, stripSecrets));
   }
 }
 
@@ -162,7 +172,8 @@ function startSessionTimerLoop() {
       for (const session of sessions) {
         if (session.timerSecondsRemaining > 0) {
           session.timerSecondsRemaining -= 1;
-          db.saveSession(session);
+          // Ticks stay local; PostgreSQL gets the countdown every 15 seconds
+          db.saveSession(session, { mirror: session.timerSecondsRemaining % 15 === 0 });
 
           broadcastToSession(session.id, {
             type: 'TIMER_TICK',

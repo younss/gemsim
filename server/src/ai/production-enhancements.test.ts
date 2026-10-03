@@ -61,7 +61,7 @@ it('Timeout Manager enforces configurable deadlines and throws explicit AITimeou
   const chatTimeout = getAITimeout('CHAT');
   const studioTimeout = getAITimeout('STUDIO');
   assert.strictEqual(chatTimeout, 45000);
-  assert.strictEqual(studioTimeout, 120000);
+  assert.strictEqual(studioTimeout, 300000);
 
   // Test override
   const custom = getAITimeout('CHAT', 15000);

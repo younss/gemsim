@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "test": "node --test dist/ai/production-enhancements.test.js",
+    "test": "cd .. && vitest run server",
     "start": "node dist/index.js"
   },
   "dependencies": {

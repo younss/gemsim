@@ -29,6 +29,10 @@ const PERSISTENT_VELOCITY_SHARE = 0.5;
 const COMPLIANCE_FINE_THRESHOLD = 50;
 const OPEX_SAVINGS_RETURNED = 0.5;
 const MODERNIZED_DEBT_THRESHOLD = 50;
+// Share of an initiative's announced debt reduction actually realized on the global index
+const DEBT_REDUCTION_REALIZATION = 0.6;
+const FEATURE_DEBT_DIVISOR = 10; // +1 TDI per 10 velocity points per quarter
+const RESILIENCE_EROSION = 4; // unmaintained estates lose fault tolerance every quarter
 
 /** Quarterly run budget funded by the business: the OpEx of the scenario's starting estate. */
 export function getRunAllocation(scenario: Scenario): number {
@@ -93,16 +97,19 @@ export class SimulationResolver {
     }
 
     const totalCapEx = started.reduce((sum, i) => sum + i.capExCost, 0);
-    let initiativeTdiDelta = 0;
+    const debtReductionFactor = Math.max(0.3, Math.min(1, metricsBefore.technicalDebtIndex / 70));
+    const resilienceGainFactor = Math.max(0.3, Math.min(1, (100 - metricsBefore.resilienceIndex) / 50));
+    let initiativeTdiDelta = 0; // rounded below
     let initiativeVelocityDelta = 0;
     let initiativeResilienceDelta = 0;
     let initiativeComplianceDelta = 0;
     const initiativeTrust: Record<string, number> = {};
 
     for (const init of completing) {
-      initiativeTdiDelta += init.tdiDelta;
+      // Diminishing returns: the last points of debt and resilience are the hardest to win
+      initiativeTdiDelta += init.tdiDelta < 0 ? init.tdiDelta * DEBT_REDUCTION_REALIZATION * debtReductionFactor : init.tdiDelta;
       initiativeVelocityDelta += init.velocityDelta;
-      initiativeResilienceDelta += init.resilienceDelta;
+      initiativeResilienceDelta += init.resilienceDelta > 0 ? init.resilienceDelta * resilienceGainFactor : init.resilienceDelta;
       initiativeComplianceDelta += init.complianceDelta;
       for (const [shId, delta] of Object.entries(init.trustDelta || {})) {
         initiativeTrust[shId] = (initiativeTrust[shId] || 0) + delta;
@@ -156,13 +163,13 @@ export class SimulationResolver {
         governanceResilienceDelta = -3;
         break;
       case 'STRICT_GOVERNANCE':
-        governanceTdiSurge = -5;
+        governanceTdiSurge = -3;
         governanceComplianceDelta = 14;
         governanceVelocityBonus = -10; // Extra review cycles slow down velocity
         governanceResilienceDelta = 6;
         break;
       case 'ACCELERATED_MODERN':
-        governanceTdiSurge = -8;
+        governanceTdiSurge = -5;
         governanceComplianceDelta = 8;
         governanceVelocityBonus = 5;
         governanceResilienceDelta = 2;
@@ -171,7 +178,9 @@ export class SimulationResolver {
 
     // 3. Technical Debt Compounding
     const { driftAmount } = calculateCompoundDebtDrift(metricsBefore.technicalDebtIndex, decisions.governancePosture);
-    const netTdiDelta = driftAmount + initiativeTdiDelta + governanceTdiSurge;
+    // Delivering features always creates new debt: the faster the team ships, the more it accrues
+    const featureDebt = Math.round(metricsBefore.deliveryVelocity / FEATURE_DEBT_DIVISOR);
+    const netTdiDelta = driftAmount + initiativeTdiDelta + governanceTdiSurge + featureDebt;
     const newTdi = Math.max(5, Math.min(100, Math.round(metricsBefore.technicalDebtIndex + netTdiDelta)));
 
     // 4. Delivery Velocity: one-off bonuses this quarter + persistent capability gains
@@ -183,7 +192,7 @@ export class SimulationResolver {
     );
 
     // 5. Resilience and Compliance
-    const newResilience = Math.max(10, Math.min(100, Math.round(metricsBefore.resilienceIndex + initiativeResilienceDelta + governanceResilienceDelta)));
+    const newResilience = Math.max(10, Math.min(100, Math.round(metricsBefore.resilienceIndex + initiativeResilienceDelta + governanceResilienceDelta - RESILIENCE_EROSION)));
     const newCompliance = Math.max(10, Math.min(100, Math.round(metricsBefore.complianceScore + initiativeComplianceDelta + governanceComplianceDelta)));
 
     // 6. Round Event (injected black swan or scheduled disruption)

@@ -231,7 +231,7 @@ export const PlayerArena: React.FC<Props> = ({
             {tdi}%
           </div>
           <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-            <span className="text-rose-400">+{governancePosture === 'BYPASS_ARCH' ? '18%' : governancePosture === 'STRICT_GOVERNANCE' ? '2.5%' : '8%'}</span> drift
+            <span className="text-rose-400">+{{ BYPASS_ARCH: '18%', BALANCED_AGILE: '8%', STRICT_GOVERNANCE: '2.5%', ACCELERATED_MODERN: '4%' }[governancePosture]}</span> drift
           </div>
         </div>
 

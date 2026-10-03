@@ -164,7 +164,19 @@ describe('Win / loss evaluation', () => {
       budgetRemaining: 100,
     });
     expect(outcome.verdict).toBe('VICTORY');
-    expect(outcome.grade).toBe('A+');
+    expect(outcome.grade).toBe('A'); // targets met by a narrow margin
+
+    const dominant = evaluateOutcome(neoTitan, {
+      ...neoTitan.baselineMetrics,
+      technicalDebtIndex: 10,
+      stakeholderTrust: 95,
+      deliveryVelocity: 95,
+      resilienceIndex: 95,
+      tco: w.maxTCOBudget - 2000,
+      modernizedNodesCount: w.targetCapabilitiesModernized + 3,
+      budgetRemaining: 2000,
+    });
+    expect(dominant.grade).toBe('A+');
   });
 
   it('fails an insolvent team even with strong metrics', () => {
@@ -217,4 +229,18 @@ describe('Request validation', () => {
     expect(parsed.event.type).toBe('CRISIS');
     expect(parsed.event.severity).toBe('HIGH');
   });
+});
+
+describe('Scenario balance (every seeded scenario)', () => {
+  for (const scenario of SEED_SCENARIOS) {
+    it(`${scenario.id}: winnable, and bypassing architecture loses`, async () => {
+      const { checkScenarioBalance } = await import('../src/engine/balance.js');
+      const report = checkScenarioBalance(scenario);
+      expect(report.issues).toEqual([]);
+      expect(report.bestAchievable.verdict).toBe('VICTORY');
+      expect(report.results.COWBOY.verdict).toBe('DEFEAT');
+      expect(report.results.ARCHITECT.score).toBeGreaterThan(report.results.PRUDENT.score);
+      expect(report.results.PRUDENT.score).toBeGreaterThan(report.results.COWBOY.score);
+    });
+  }
 });

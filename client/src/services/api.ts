@@ -19,22 +19,72 @@ import {
 
 const API_BASE = '/api';
 
+export interface ScenarioBalanceSummary {
+  playable: boolean;
+  issues: string[];
+  bestAchievable?: { verdict: string; grade: string; score: number };
+  strategies?: Record<string, { verdict: string; grade: string; score: number }>;
+}
+
+// Facilitator PIN, kept for the browser session once verified and sent with every request
+const PIN_STORAGE_KEY = 'gemsim_facilitator_pin';
+let facilitatorPinRequiredHandler: (() => void) | null = null;
+
+function readStoredPin(): string | null {
+  try {
+    return sessionStorage.getItem(PIN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setFacilitatorPin(pin: string | null) {
+  try {
+    if (pin) sessionStorage.setItem(PIN_STORAGE_KEY, pin);
+    else sessionStorage.removeItem(PIN_STORAGE_KEY);
+  } catch {
+    // storage unavailable: the PIN will be asked again
+  }
+}
+
+export function hasFacilitatorPin(): boolean {
+  return Boolean(readStoredPin());
+}
+
+/** Called when the server rejects a facilitator action, e.g. to open the unlock dialog. */
+export function onFacilitatorPinRequired(handler: (() => void) | null) {
+  facilitatorPinRequiredHandler = handler;
+}
+
+async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const pin = readStoredPin();
+  if (pin) headers.set('x-facilitator-pin', pin);
+  const res = await fetch(input, { ...init, headers });
+  if (res.status === 401 && !input.includes('/verify-facilitator')) {
+    setFacilitatorPin(null);
+    facilitatorPinRequiredHandler?.();
+    throw new Error('Facilitator PIN required for this action.');
+  }
+  return res;
+}
+
 export const api = {
   // Scenarios
   async getScenarios(): Promise<Scenario[]> {
-    const res = await fetch(`${API_BASE}/scenarios`);
+    const res = await apiFetch(`${API_BASE}/scenarios`);
     const data = await res.json();
     return data.scenarios;
   },
 
   async getScenario(id: string): Promise<Scenario> {
-    const res = await fetch(`${API_BASE}/scenarios/${id}`);
+    const res = await apiFetch(`${API_BASE}/scenarios/${id}`);
     const data = await res.json();
     return data.scenario;
   },
 
   async createScenario(scenario: Scenario): Promise<Scenario> {
-    const res = await fetch(`${API_BASE}/scenarios`, {
+    const res = await apiFetch(`${API_BASE}/scenarios`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(scenario),
@@ -44,20 +94,20 @@ export const api = {
   },
 
   async deleteScenario(id: string): Promise<boolean> {
-    const res = await fetch(`${API_BASE}/scenarios/${id}`, { method: 'DELETE' });
+    const res = await apiFetch(`${API_BASE}/scenarios/${id}`, { method: 'DELETE' });
     const data = await res.json();
     return data.success;
   },
 
   // Sessions
   async getSessions(): Promise<SimulationSession[]> {
-    const res = await fetch(`${API_BASE}/sessions`);
+    const res = await apiFetch(`${API_BASE}/sessions`);
     const data = await res.json();
     return data.sessions;
   },
 
   async getSession(id: string): Promise<{ session: SimulationSession; scenario: Scenario }> {
-    const res = await fetch(`${API_BASE}/sessions/${id}`);
+    const res = await apiFetch(`${API_BASE}/sessions/${id}`);
     const data = await res.json();
     return data;
   },
@@ -68,7 +118,7 @@ export const api = {
     teamNames?: string[];
     roundDurationSeconds?: number;
   }): Promise<SimulationSession> {
-    const res = await fetch(`${API_BASE}/sessions`, {
+    const res = await apiFetch(`${API_BASE}/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -78,7 +128,7 @@ export const api = {
   },
 
   async submitDecisions(sessionId: string, teamId: string, decisions: TeamDecision): Promise<Team> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/decisions`, {
+    const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/decisions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ teamId, decisions }),
@@ -89,7 +139,7 @@ export const api = {
   },
 
   async advanceRound(sessionId: string): Promise<{ session: SimulationSession; results: any }> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/advance`, {
+    const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/advance`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -102,7 +152,7 @@ export const api = {
     sessionId: string,
     payload: { teamId: string; stakeholderId: string; concession: string; committedBudget: number }
   ): Promise<Team> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/pacts`, {
+    const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/pacts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -113,14 +163,14 @@ export const api = {
   },
 
   async withdrawPact(sessionId: string, teamId: string, stakeholderId: string): Promise<Team> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/pacts/${teamId}/${stakeholderId}`, { method: 'DELETE' });
+    const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/pacts/${teamId}/${stakeholderId}`, { method: 'DELETE' });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not withdraw pact');
     return data.team;
   },
 
   async updateTimer(sessionId: string, payload: { isRunning?: boolean; secondsRemaining?: number }): Promise<SimulationSession> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/timer`, {
+    const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/timer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -130,7 +180,7 @@ export const api = {
   },
 
   async injectEvent(sessionId: string, event: RoundEvent): Promise<any> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/inject-event`, {
+    const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/inject-event`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ event }),
@@ -139,7 +189,7 @@ export const api = {
   },
 
   async broadcastAnnouncement(sessionId: string, message: string): Promise<any> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/broadcast`, {
+    const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/broadcast`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message }),
@@ -148,7 +198,7 @@ export const api = {
   },
 
   async resetSession(sessionId: string): Promise<{ session: SimulationSession; archivedRun?: ArchivedSimulationRun }> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/reset`, {
+    const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/reset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
@@ -156,19 +206,20 @@ export const api = {
   },
 
   async getSessionRuns(sessionId: string): Promise<ArchivedSimulationRun[]> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/runs`);
+    const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/runs`);
     const data = await res.json();
     return data.runs || [];
   },
 
   async verifyFacilitatorPin(sessionId: string, pin: string): Promise<boolean> {
     try {
-      const res = await fetch(`${API_BASE}/sessions/${sessionId}/verify-facilitator`, {
+      const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/verify-facilitator`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin }),
       });
       const data = await res.json();
+      if (data.valid === true) setFacilitatorPin(pin);
       return data.valid === true;
     } catch {
       return false;
@@ -176,13 +227,46 @@ export const api = {
   },
 
   // Game Studio
+  async generateStudioScenarioStream(
+    prompt: { industry: string; businessChallenge: string; difficulty?: string; customDirectives?: string },
+    onChunk: (text: string) => void
+  ): Promise<{ scenario: Scenario; balance?: ScenarioBalanceSummary }> {
+    const res = await apiFetch(`${API_BASE}/studio/generate/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(prompt),
+    });
+    if (!res.ok || !res.body) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Scenario generation failed');
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+      for (const event of events) {
+        if (!event.startsWith('data: ')) continue;
+        const data = JSON.parse(event.slice(6));
+        if (data.type === 'chunk') onChunk(data.text);
+        else if (data.type === 'done') return { scenario: data.scenario, balance: data.balance };
+        else if (data.type === 'error') throw new Error(data.error);
+      }
+    }
+    throw new Error('Generation stream ended before the scenario was received');
+  },
+
   async generateStudioScenario(prompt: {
     industry: string;
     businessChallenge: string;
     difficulty?: string;
     customDirectives?: string;
   }): Promise<Scenario> {
-    const res = await fetch(`${API_BASE}/studio/generate`, {
+    const res = await apiFetch(`${API_BASE}/studio/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(prompt),
@@ -195,8 +279,10 @@ export const api = {
     return data.scenario;
   },
 
-  async validateScenario(scenario: Partial<Scenario>): Promise<{ valid: boolean; errors?: string[]; message?: string }> {
-    const res = await fetch(`${API_BASE}/studio/validate`, {
+  async validateScenario(
+    scenario: Partial<Scenario>
+  ): Promise<{ valid: boolean; errors?: string[]; message?: string; balance?: ScenarioBalanceSummary }> {
+    const res = await apiFetch(`${API_BASE}/studio/validate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(scenario),
@@ -205,7 +291,7 @@ export const api = {
   },
 
   async publishScenario(scenario: Scenario): Promise<Scenario> {
-    const res = await fetch(`${API_BASE}/studio/publish`, {
+    const res = await apiFetch(`${API_BASE}/studio/publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(scenario),
@@ -216,7 +302,7 @@ export const api = {
 
   // AI & Stakeholders
   async getAISettings(): Promise<AISettingsState> {
-    const res = await fetch(`${API_BASE}/ai/settings`);
+    const res = await apiFetch(`${API_BASE}/ai/settings`);
     return res.json();
   },
 
@@ -224,7 +310,7 @@ export const api = {
     activeProvider?: AIProviderType;
     updates?: Array<{ type: AIProviderType; config: any }>;
   }): Promise<AISettingsState> {
-    const res = await fetch(`${API_BASE}/ai/settings`, {
+    const res = await apiFetch(`${API_BASE}/ai/settings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -233,7 +319,7 @@ export const api = {
   },
 
   async testAIProvider(provider: AIProviderType): Promise<{ ok: boolean; message: string; latencyMs: number }> {
-    const res = await fetch(`${API_BASE}/ai/test`, {
+    const res = await apiFetch(`${API_BASE}/ai/test`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider }),
@@ -247,7 +333,7 @@ export const api = {
     stakeholderId: string;
     playerMessage: string;
   }): Promise<{ reply: ChatMessage; evaluation: ProposalEvaluation; updatedTrust: number; usedProvider: string }> {
-    const res = await fetch(`${API_BASE}/ai/negotiate`, {
+    const res = await apiFetch(`${API_BASE}/ai/negotiate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -268,7 +354,7 @@ export const api = {
     },
     onChunk: (chunk: string) => void
   ): Promise<{ reply: ChatMessage; evaluation: ProposalEvaluation; updatedTrust: number; usedProvider: string }> {
-    const res = await fetch(`${API_BASE}/ai/negotiate/stream`, {
+    const res = await apiFetch(`${API_BASE}/ai/negotiate/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -334,7 +420,7 @@ export const api = {
     averageTrust: number;
     usedProvider: string;
   }> {
-    const res = await fetch(`${API_BASE}/ai/boardroom`, {
+    const res = await apiFetch(`${API_BASE}/ai/boardroom`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -349,14 +435,14 @@ export const api = {
   async getChatHistory(sessionId: string, teamId: string, stakeholderId?: string): Promise<ChatMessage[]> {
     let url = `${API_BASE}/ai/chat/${sessionId}/${teamId}`;
     if (stakeholderId) url += `?stakeholderId=${stakeholderId}`;
-    const res = await fetch(url);
+    const res = await apiFetch(url);
     const data = await res.json();
     return data.messages;
   },
 
   // Docs
   async getDocs(): Promise<any[]> {
-    const res = await fetch(`${API_BASE}/docs`);
+    const res = await apiFetch(`${API_BASE}/docs`);
     const data = await res.json();
     return data.docs;
   },

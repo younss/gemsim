@@ -64,6 +64,7 @@ function createTextSprite(text: string, color = '#ffffff'): THREE.Sprite {
 
 // Determines architectural mesh type (Tower, Database, or Slab)
 function getNodeArchetype(node: TopologyNode): 'TOWER' | 'DATABASE' | 'SLAB' {
+  if (node.archetype) return node.archetype;
   const name = node.name.toLowerCase();
   const desc = (node.description || '').toLowerCase();
   const layer = node.layer;
