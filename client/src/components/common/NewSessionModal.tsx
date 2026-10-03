@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { Scenario, SimulationSession } from '../../types/index';
 import { api } from '../../services/api';
+import { useI18n, TranslationKey } from '../../i18n';
 import { X, Play, Users, Layers, Clock } from 'lucide-react';
 
 interface Props {
@@ -20,10 +21,11 @@ export const NewSessionModal: React.FC<Props> = ({
   scenarios,
   onSessionCreated,
 }) => {
-  const [sessionName, setSessionName] = useState('Executive Architecture War Game');
+  const { t } = useI18n();
+  const [sessionName, setSessionName] = useState(() => t('newSession.defaultName'));
   const [selectedScenarioId, setSelectedScenarioId] = useState(scenarios[0]?.id || '');
   const [teamCount, setTeamCount] = useState<number>(3);
-  const [roundDurationMinutes, setRoundDurationMinutes] = useState<number>(5);
+  const [roundDurationMinutes, setRoundDurationMinutes] = useState<number>(20);
   const [isCreating, setIsCreating] = useState(false);
 
   if (!isOpen) return null;
@@ -33,13 +35,7 @@ export const NewSessionModal: React.FC<Props> = ({
     setIsCreating(true);
 
     try {
-      const defaultTeamNames = [
-        'Team Alpha Enterprise',
-        'Team Beta Solutions',
-        'Team Gamma Systems',
-        'Team Delta Digital',
-        'Team Epsilon Platform',
-      ];
+      const defaultTeamNames = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon'].map(letter => t('newSession.teamName', { letter }));
       const assignedTeams = defaultTeamNames.slice(0, teamCount);
 
       const session = await api.createSession({
@@ -60,41 +56,43 @@ export const NewSessionModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-dark-850 w-full max-w-lg rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
+      <div role="dialog" aria-modal="true" aria-labelledby="new-session-title" className="bg-dark-850 w-full max-w-lg rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
         <div className="p-5 border-b border-slate-800 bg-dark-900 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
               <Play className="w-4 h-4" />
             </div>
-            <h3 className="font-bold text-slate-100 text-base font-mono">Launch New Simulation Arena</h3>
+            <h3 id="new-session-title" className="font-bold text-slate-100 text-base font-mono">{t('newSession.title')}</h3>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400">
+          <button onClick={onClose} aria-label={t('common.close')} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <div className="p-6 space-y-4 text-xs">
           <div>
-            <label className="text-slate-300 font-semibold block mb-1">Simulation Session Title:</label>
+            <label htmlFor="ns-name" className="text-slate-300 font-semibold block mb-1">{t('newSession.name')}</label>
             <input
+              id="ns-name"
               type="text"
               value={sessionName}
               onChange={e => setSessionName(e.target.value)}
               className="w-full bg-dark-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-cyan-500 font-medium"
-              placeholder="e.g. Q4 Executive Strategy Challenge"
+              placeholder={t('newSession.name.placeholder')}
             />
           </div>
 
           <div>
-            <label className="text-slate-300 font-semibold block mb-1">Select Scenario / Business Arena:</label>
+            <label htmlFor="ns-scenario" className="text-slate-300 font-semibold block mb-1">{t('newSession.scenario')}</label>
             <select
+              id="ns-scenario"
               value={selectedScenarioId}
               onChange={e => setSelectedScenarioId(e.target.value)}
               className="w-full bg-dark-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-cyan-500"
             >
               {scenarios.map(s => (
                 <option key={s.id} value={s.id}>
-                  {s.title} ({s.industry} - {s.difficulty})
+                  {s.title} ({s.industry} — {t(`brief.difficulty.${s.difficulty}` as TranslationKey)})
                 </option>
               ))}
             </select>
@@ -102,31 +100,34 @@ export const NewSessionModal: React.FC<Props> = ({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-slate-300 font-semibold block mb-1">Competing Teams:</label>
+              <label htmlFor="ns-teams" className="text-slate-300 font-semibold block mb-1">{t('newSession.teams')}</label>
               <select
+                id="ns-teams"
                 value={teamCount}
                 onChange={e => setTeamCount(parseInt(e.target.value, 10))}
                 className="w-full bg-dark-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-cyan-500"
               >
-                <option value={1}>1 Team (Solo Executive)</option>
-                <option value={2}>2 Teams (Head-to-Head)</option>
-                <option value={3}>3 Teams (Multi-Squad)</option>
-                <option value={4}>4 Teams (Tournament)</option>
-                <option value={5}>5 Teams (Enterprise Division)</option>
+                {[1, 2, 3, 4, 5].map(n => (
+                  <option key={n} value={n}>
+                    {t(n === 1 ? 'newSession.teams.solo' : 'newSession.teams.n', { n })}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label className="text-slate-300 font-semibold block mb-1">Round Timer:</label>
+              <label htmlFor="ns-timer" className="text-slate-300 font-semibold block mb-1">{t('newSession.timer')}</label>
               <select
+                id="ns-timer"
                 value={roundDurationMinutes}
                 onChange={e => setRoundDurationMinutes(parseInt(e.target.value, 10))}
                 className="w-full bg-dark-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-cyan-500"
               >
-                <option value={3}>3 Minutes / Round</option>
-                <option value={5}>5 Minutes / Round (Standard)</option>
-                <option value={8}>8 Minutes / Round</option>
-                <option value={12}>12 Minutes / Round (In-Depth)</option>
+                {[10, 15, 20, 25, 30, 45].map(n => (
+                  <option key={n} value={n}>
+                    {t(n === 20 ? 'newSession.timer.recommended' : 'newSession.timer.n', { n })}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -134,7 +135,7 @@ export const NewSessionModal: React.FC<Props> = ({
 
         <div className="p-4 border-t border-slate-800 bg-dark-900 flex items-center justify-end gap-2">
           <button onClick={onClose} className="px-4 py-2 rounded-xl text-slate-400 hover:text-slate-200 text-xs">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleCreate}
@@ -142,7 +143,7 @@ export const NewSessionModal: React.FC<Props> = ({
             className="px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,240,255,0.3)] transition-all disabled:opacity-50"
           >
             <Play className="w-3.5 h-3.5" />
-            <span>Launch Simulation</span>
+            <span>{t('newSession.launch')}</span>
           </button>
         </div>
       </div>

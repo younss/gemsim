@@ -5,7 +5,7 @@
 // punishes bypassing architecture.
 // ============================================================================
 
-import { Scenario, SimulationOutcome, Team, TeamDecision } from '../types/index.js';
+import type { RoundResult, Scenario, SimulationOutcome, Team, TeamDecision } from '../types/index.js';
 import { SimulationResolver } from './resolver.js';
 import { evaluateOutcome } from './outcome.js';
 import { checkDecisions, getRoundEvent, lockedInitiativeIds } from './rules.js';
@@ -115,6 +115,27 @@ export function searchBestOutcome(scenario: Scenario, beamWidth = 40): Simulatio
     beam = next.slice(0, beamWidth).map(n => n.team);
   }
   return evaluateOutcome(scenario, beam[0].metrics);
+}
+
+export interface StrategyReplay {
+  strategy: BotStrategy;
+  quarters: Array<{ round: number; decision: TeamDecision; before: Team['metrics']; result: RoundResult }>;
+  finalTeam: Team;
+  outcome: SimulationOutcome;
+}
+
+/** Plays a bot strategy and keeps every quarter's decision and result (used by the commented demo). */
+export function replayStrategy(scenario: Scenario, strategy: BotStrategy): StrategyReplay {
+  let team = initialTeam(scenario, `demo-${strategy}`);
+  const quarters: StrategyReplay['quarters'] = [];
+  for (let round = 1; round <= (scenario.totalRounds || 4); round++) {
+    const decision = botDecision(strategy, scenario, team, round);
+    const before = { ...team.metrics };
+    const { updatedTeam, roundResult } = SimulationResolver.resolveRound(scenario, { ...team, currentRoundDecisions: decision }, round);
+    quarters.push({ round, decision, before, result: roundResult });
+    team = updatedTeam;
+  }
+  return { strategy, quarters, finalTeam: team, outcome: evaluateOutcome(scenario, team.metrics) };
 }
 
 export function simulateStrategy(scenario: Scenario, strategy: BotStrategy): SimulationOutcome {

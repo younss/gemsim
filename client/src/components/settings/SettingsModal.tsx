@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { AISettingsState, AIProviderType, AIProviderConfig } from '../../types/index';
 import { api } from '../../services/api';
+import { useI18n } from '../../i18n';
 import {
   Settings,
   Cpu,
@@ -31,6 +32,7 @@ export const SettingsModal: React.FC<Props> = ({
   onClose,
   onSettingsUpdated,
 }) => {
+  const { t } = useI18n();
   const [settings, setSettings] = useState<AISettingsState | null>(null);
   const [activeProvider, setActiveProvider] = useState<AIProviderType>('fallback');
 
@@ -128,7 +130,7 @@ export const SettingsModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-dark-850 w-full max-w-3xl rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div role="dialog" aria-modal="true" aria-labelledby="settings-title" className="bg-dark-850 w-full max-w-3xl rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="p-5 border-b border-slate-800 bg-dark-900 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -136,12 +138,13 @@ export const SettingsModal: React.FC<Props> = ({
               <Cpu className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-100 text-base font-mono">Pluggable AI Abstraction Gateway</h3>
-              <p className="text-xs text-slate-400">Bring Your Own AI / Local Gemma Container Configuration</p>
+              <h3 id="settings-title" className="font-bold text-slate-100 text-base font-mono">{t('settings.title')}</h3>
+              <p className="text-xs text-slate-400">{t('settings.subtitle')}</p>
             </div>
           </div>
 
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400">
+          <button
+            aria-label={t('common.close')} onClick={onClose} className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -151,7 +154,7 @@ export const SettingsModal: React.FC<Props> = ({
           {/* Active Provider Selector */}
           <div>
             <label className="text-slate-300 font-bold uppercase tracking-wider text-[11px] font-mono block mb-2">
-              ACTIVE SIMULATION AI ENGINE:
+              {t('settings.active')}
             </label>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 font-mono">
               {(['fallback', 'ollama', 'gemini', 'claude', 'openai'] as const).map(type => (
@@ -166,7 +169,7 @@ export const SettingsModal: React.FC<Props> = ({
                 >
                   <div className="font-bold uppercase text-[11px]">{type}</div>
                   <div className="text-[9px] text-slate-500 mt-0.5">
-                    {type === 'fallback' ? 'Zero-Dep' : type === 'ollama' ? 'Local Gemma' : 'Cloud BYOK'}
+                    {type === 'fallback' ? t('settings.kind.offline') : type === 'ollama' ? t('settings.kind.local') : t('settings.kind.cloud')}
                   </div>
                 </button>
               ))}
@@ -177,9 +180,9 @@ export const SettingsModal: React.FC<Props> = ({
           <div className="p-4 rounded-xl bg-dark-900 border border-slate-800 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-200 font-mono">1. Local Ollama (Gemma 4 / Gemma 2)</span>
+                <span className="font-bold text-slate-200 font-mono">{t('settings.ollama')}</span>
                 <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-cyan-400 font-mono">
-                  Default Container Bridge
+                  {t('settings.ollama.badge')}
                 </span>
               </div>
               <button
@@ -188,13 +191,13 @@ export const SettingsModal: React.FC<Props> = ({
                 className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 font-mono flex items-center gap-1.5"
               >
                 {testingProvider === 'ollama' ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Activity className="w-3 h-3 text-cyan-400" />}
-                <span>Test Ping</span>
+                <span>{t('settings.test')}</span>
               </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-slate-400 block mb-1">Base URL / Podman Bridge:</label>
+                <label className="text-slate-400 block mb-1">{t('settings.ollama.url')}</label>
                 <input
                   type="text"
                   value={ollamaUrl}
@@ -204,7 +207,7 @@ export const SettingsModal: React.FC<Props> = ({
                 />
               </div>
               <div>
-                <label className="text-slate-400 block mb-1">Target Model Tag:</label>
+                <label className="text-slate-400 block mb-1">{t('settings.model')}</label>
                 <input
                   type="text"
                   value={ollamaModel}
@@ -228,20 +231,20 @@ export const SettingsModal: React.FC<Props> = ({
           {/* Provider 2: Google Gemini */}
           <div className="p-4 rounded-xl bg-dark-900 border border-slate-800 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-slate-200 font-mono">2. Google Gemini (BYOK)</span>
+              <span className="font-bold text-slate-200 font-mono">{t('settings.gemini')}</span>
               <button
                 onClick={() => handleTestConnection('gemini')}
                 disabled={testingProvider === 'gemini'}
                 className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 font-mono flex items-center gap-1.5"
               >
                 {testingProvider === 'gemini' ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Activity className="w-3 h-3 text-cyan-400" />}
-                <span>Test Ping</span>
+                <span>{t('settings.test')}</span>
               </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-slate-400 block mb-1">Gemini API Key:</label>
+                <label className="text-slate-400 block mb-1">{t('settings.apiKey', { provider: 'Gemini' })}</label>
                 <input
                   type="password"
                   value={geminiKey}
@@ -251,7 +254,7 @@ export const SettingsModal: React.FC<Props> = ({
                 />
               </div>
               <div>
-                <label className="text-slate-400 block mb-1">Model:</label>
+                <label className="text-slate-400 block mb-1">{t('settings.model')}</label>
                 <input
                   type="text"
                   value={geminiModel}
@@ -317,13 +320,13 @@ export const SettingsModal: React.FC<Props> = ({
         {/* Footer */}
         <div className="p-4 border-t border-slate-800 bg-dark-900 flex items-center justify-between">
           <span className="text-[11px] text-slate-500 font-mono">
-            Automatic Fallback: Active Provider → Ollama → Heuristic Engine
+            {t('settings.fallbackChain')}
           </span>
 
           <div className="flex items-center gap-2">
             {saveStatus && (
               <span className="text-xs text-emerald-400 font-mono flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Saved!
+                <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> {t('settings.saved')}
               </span>
             )}
             <button
@@ -331,7 +334,7 @@ export const SettingsModal: React.FC<Props> = ({
               className="px-5 py-2.5 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,240,255,0.3)] transition-all"
             >
               <Save className="w-4 h-4" />
-              <span>Apply Configuration</span>
+              <span>{t('settings.apply')}</span>
             </button>
           </div>
         </div>

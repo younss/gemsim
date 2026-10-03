@@ -25,7 +25,13 @@ import {
   Lock,
   Shield,
   KeyRound,
+  HelpCircle,
+  GraduationCap,
+  PlayCircle,
+  Dumbbell,
+  Languages,
 } from 'lucide-react';
+import { useI18n } from '../../i18n';
 
 interface Props {
   activeView: 'ARENA' | 'FACILITATOR' | 'STUDIO' | 'DOCS';
@@ -41,6 +47,10 @@ interface Props {
   userRole?: 'PLAYER' | 'FACILITATOR' | 'ADMIN';
   isTeamLocked?: boolean;
   onUnlockFacilitator?: () => void;
+  onStartTutorial?: () => void;
+  onOpenGlossary?: () => void;
+  onOpenDemo?: () => void;
+  onStartPractice?: () => void;
 }
 
 export const Navbar: React.FC<Props> = ({
@@ -57,7 +67,19 @@ export const Navbar: React.FC<Props> = ({
   userRole = 'ADMIN',
   isTeamLocked = false,
   onUnlockFacilitator,
+  onStartTutorial,
+  onOpenGlossary,
+  onOpenDemo,
+  onStartPractice,
 }) => {
+  const { t, lang, setLang } = useI18n();
+  const [helpOpen, setHelpOpen] = React.useState(false);
+  const helpItems = [
+    { label: t('nav.tutorial'), icon: GraduationCap, action: onStartTutorial },
+    { label: t('nav.glossary'), icon: BookOpen, action: onOpenGlossary },
+    { label: t('nav.demo'), icon: PlayCircle, action: onOpenDemo },
+    { label: t('nav.practice'), icon: Dumbbell, action: onStartPractice },
+  ].filter(item => item.action);
   // Format MM:SS for countdown timer
   const formatTimer = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -81,11 +103,11 @@ export const Navbar: React.FC<Props> = ({
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-slate-100 tracking-wider text-base font-mono">GEMSIM</span>
                 <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/40">
-                  {isPlayerMode ? 'SQUAD' : 'SaaS v1.0'}
+                  {isPlayerMode ? t('nav.squad') : 'SaaS v1.0'}
                 </span>
               </div>
               <p className="text-[10px] text-slate-400 font-mono hidden sm:block">
-                {isPlayerMode ? 'Team Strategy Arena' : 'Enterprise Strategy & 3D Topology Sim'}
+                {isPlayerMode ? t('nav.tagline.player') : t('nav.tagline.admin')}
               </p>
             </div>
           </div>
@@ -93,16 +115,17 @@ export const Navbar: React.FC<Props> = ({
           {/* Session Switcher Dropdown (or Locked Badge in Player Mode) */}
           {isPlayerMode ? (
             <div className="flex items-center gap-1.5 bg-dark-900 px-2.5 py-1.5 rounded-lg border border-slate-800 text-xs font-mono">
-              <span className="text-slate-500 text-[10px]">SESSION:</span>
+              <span className="text-slate-500 text-[10px]">{t('nav.session')}</span>
               <span className="text-slate-200 text-xs font-bold max-w-[140px] truncate">
                 {session?.name || 'Simulation'}
               </span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 bg-dark-900 px-2.5 py-1.5 rounded-lg border border-slate-800 text-xs font-mono">
-              <span className="text-slate-500 text-[10px]">SESSION:</span>
+              <span className="text-slate-500 text-[10px]">{t('nav.session')}</span>
               {sessions.length > 0 ? (
                 <select
+                  aria-label={t('nav.session')}
                   value={session?.id || ''}
                   onChange={e => onSelectSession(e.target.value)}
                   className="bg-transparent text-slate-200 text-xs font-bold focus:outline-none cursor-pointer max-w-[140px] truncate"
@@ -114,12 +137,13 @@ export const Navbar: React.FC<Props> = ({
                   ))}
                 </select>
               ) : (
-                <span className="text-slate-400 text-xs">No Sessions</span>
+                <span className="text-slate-400 text-xs">{t('nav.noSessions')}</span>
               )}
               <button
                 onClick={onOpenNewSessionModal}
                 className="p-1 rounded hover:bg-slate-800 text-cyan-400"
-                title="Create New Simulation Session"
+                title={t('nav.newSession')}
+                aria-label={t('nav.newSession')}
               >
                 <Plus className="w-3.5 h-3.5" />
               </button>
@@ -128,7 +152,7 @@ export const Navbar: React.FC<Props> = ({
         </div>
 
         {/* Navigation View Tabs */}
-        <nav className="flex items-center gap-1 bg-dark-900 p-1 rounded-xl border border-slate-800 text-xs font-mono">
+        <nav aria-label="GemSim" className="flex items-center gap-1 bg-dark-900 p-1 rounded-xl border border-slate-800 text-xs font-mono">
           <button
             onClick={() => setActiveView('ARENA')}
             className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
@@ -138,7 +162,7 @@ export const Navbar: React.FC<Props> = ({
             }`}
           >
             <Compass className="w-3.5 h-3.5" />
-            <span>Player Arena</span>
+            <span>{t('nav.arena')}</span>
           </button>
 
           {!isPlayerMode && (
@@ -152,7 +176,7 @@ export const Navbar: React.FC<Props> = ({
                 }`}
               >
                 <Radio className="w-3.5 h-3.5 text-rose-400" />
-                <span>Facilitator War Room</span>
+                <span>{t('nav.facilitator')}</span>
               </button>
 
               <button
@@ -164,7 +188,7 @@ export const Navbar: React.FC<Props> = ({
                 }`}
               >
                 <Wand2 className="w-3.5 h-3.5" />
-                <span>AI Studio</span>
+                <span>{t('nav.studio')}</span>
               </button>
             </>
           )}
@@ -178,7 +202,7 @@ export const Navbar: React.FC<Props> = ({
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
-            <span>Docs</span>
+            <span>{t('nav.docs')}</span>
           </button>
         </nav>
 
@@ -191,15 +215,16 @@ export const Navbar: React.FC<Props> = ({
                 isPlayerMode || isTeamLocked ? (
                   <div className="flex items-center gap-1.5 bg-indigo-950/40 px-2.5 py-1.5 rounded-lg border border-indigo-500/30 text-xs font-mono">
                     <Lock className="w-3 h-3 text-indigo-400" />
-                    <span className="text-slate-500 text-[10px]">TEAM:</span>
+                    <span className="text-slate-500 text-[10px]">{t('nav.team')}</span>
                     <span className="font-bold text-indigo-300 max-w-[120px] truncate">
                       {activeTeam?.name || 'Squad'}
                     </span>
                   </div>
                 ) : (
                   <div className="flex items-center gap-1.5 bg-dark-900 px-2.5 py-1.5 rounded-lg border border-slate-800 text-xs font-mono">
-                    <span className="text-slate-500 text-[10px]">TEAM:</span>
+                    <span className="text-slate-500 text-[10px]">{t('nav.team')}</span>
                     <select
+                      aria-label={t('nav.team')}
                       value={activeTeam?.id || ''}
                       onChange={e => onSelectTeam(e.target.value)}
                       className="bg-transparent text-cyan-400 font-bold focus:outline-none cursor-pointer text-xs"
@@ -217,7 +242,7 @@ export const Navbar: React.FC<Props> = ({
               {/* Round & Countdown Timer Badge */}
               <div className="flex items-center gap-2 bg-dark-900 px-3 py-1.5 rounded-lg border border-slate-800 font-mono text-xs">
                 <span className="text-slate-400 font-bold">
-                  Q{session.currentRound}
+                  {t('common.quarterShort', { n: session.currentRound })}
                 </span>
                 <span className="text-slate-600">|</span>
                 <div className="flex items-center gap-1.5">
@@ -233,7 +258,9 @@ export const Navbar: React.FC<Props> = ({
           {/* WebSocket Live Indicator */}
           <div
             className="flex items-center gap-1 text-[10px] font-mono text-slate-400"
-            title={isWsConnected ? 'Connected to WebSocket Telemetry Gateway' : 'Connecting to WebSocket Gateway...'}
+            title={isWsConnected ? t('nav.ws.connected') : t('nav.ws.connecting')}
+            role="status"
+            aria-label={isWsConnected ? t('nav.ws.connected') : t('nav.ws.connecting')}
           >
             {isWsConnected ? (
               <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.9)]" />
@@ -242,13 +269,60 @@ export const Navbar: React.FC<Props> = ({
             )}
           </div>
 
+          {/* Language toggle */}
+          <button
+            onClick={() => setLang(lang === 'fr' ? 'en' : 'fr')}
+            className="px-2 py-1.5 rounded-xl bg-dark-900 hover:bg-dark-800 text-slate-300 hover:text-cyan-400 border border-slate-800 text-[11px] font-mono font-bold flex items-center gap-1"
+            title={t('nav.switchLang')}
+            aria-label={t('nav.switchLang')}
+          >
+            <Languages className="w-3.5 h-3.5" aria-hidden="true" />
+            {lang.toUpperCase()}
+          </button>
+
+          {/* Help menu: tutorial, glossary, demo, practice */}
+          {helpItems.length > 0 && (
+            <div className="relative" onKeyDown={e => e.key === 'Escape' && setHelpOpen(false)}>
+              <button
+                onClick={() => setHelpOpen(o => !o)}
+                aria-haspopup="menu"
+                aria-expanded={helpOpen}
+                aria-label={t('nav.help')}
+                title={t('nav.help')}
+                data-tour="help"
+                className="p-2 rounded-xl bg-dark-900 hover:bg-dark-800 text-slate-300 hover:text-cyan-400 border border-slate-800"
+              >
+                <HelpCircle className="w-4 h-4" aria-hidden="true" />
+              </button>
+              {helpOpen && (
+                <div role="menu" className="absolute right-0 mt-2 w-56 bg-dark-900 border border-slate-700 rounded-xl shadow-2xl p-1 z-50">
+                  {helpItems.map(item => (
+                    <button
+                      key={item.label}
+                      role="menuitem"
+                      onClick={() => {
+                        setHelpOpen(false);
+                        item.action?.();
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg text-xs text-slate-200 hover:bg-slate-800 flex items-center gap-2"
+                    >
+                      <item.icon className="w-4 h-4 text-cyan-400" aria-hidden="true" />
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Settings or Facilitator Unlock Trigger */}
           {isPlayerMode ? (
             onUnlockFacilitator && (
               <button
                 onClick={onUnlockFacilitator}
                 className="p-2 rounded-xl bg-dark-900 hover:bg-dark-800 text-slate-400 hover:text-amber-400 border border-slate-800 transition-colors shadow-sm"
-                title="Facilitator Passcode Unlock"
+                title={t('nav.unlock')}
+                aria-label={t('nav.unlock')}
               >
                 <KeyRound className="w-4 h-4" />
               </button>
@@ -257,7 +331,8 @@ export const Navbar: React.FC<Props> = ({
             <button
               onClick={onOpenSettings}
               className="p-2 rounded-xl bg-dark-900 hover:bg-dark-800 text-slate-300 hover:text-cyan-400 border border-slate-800 transition-colors shadow-sm"
-              title="Configure Pluggable AI Engine & Podman Settings"
+              title={t('nav.settings')}
+              aria-label={t('nav.settings')}
             >
               <Settings className="w-4 h-4" />
             </button>

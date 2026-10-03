@@ -6,7 +6,39 @@
 import { AIRegistry } from './registry.js';
 import { FallbackProvider } from './fallback.js';
 import { ScenarioGenerationPrompt } from './types.js';
-import { Scenario, TopologyNode, TopologyEdge, StakeholderPersona, RoundEvent, InitiativeTemplate } from '../types/index.js';
+import {
+  Scenario,
+  TopologyNode,
+  TopologyEdge,
+  StakeholderPersona,
+  RoundEvent,
+  InitiativeTemplate,
+  INITIATIVE_CATEGORIES,
+  MetricKey,
+  ScenarioVocabulary,
+} from '../types/index.js';
+
+/** Keeps only well-formed string labels from the model's vocabulary output. */
+function sanitizeVocabulary(raw: any): ScenarioVocabulary | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined);
+  const metrics: ScenarioVocabulary['metrics'] = {};
+  for (const [k, v] of Object.entries(raw.metrics ?? {})) {
+    const label = str((v as any)?.label);
+    if (label) metrics[k as MetricKey] = { label, description: str((v as any)?.description) };
+  }
+  const layers: ScenarioVocabulary['layers'] = {};
+  for (const k of ['BUSINESS', 'APPLICATION', 'DATA', 'INFRASTRUCTURE'] as const) {
+    const label = str(raw.layers?.[k]);
+    if (label) layers[k] = label;
+  }
+  const postures: ScenarioVocabulary['postures'] = {};
+  for (const k of ['BYPASS_ARCH', 'BALANCED_AGILE', 'STRICT_GOVERNANCE', 'ACCELERATED_MODERN'] as const) {
+    const name = str(raw.postures?.[k]?.name);
+    if (name) postures[k] = { name, description: str(raw.postures?.[k]?.description) };
+  }
+  return { nodeNoun: str(raw.nodeNoun), metrics, layers, postures };
+}
 
 export class StudioScenarioGenerator {
   /**
@@ -202,7 +234,7 @@ export class StudioScenarioGenerator {
       initiativesCatalog = rawInitiatives.map((init, idx) => ({
         id: init.id || `init-${idx + 1}`,
         name: init.name || `Strategic Initiative ${idx + 1}`,
-        category: init.category || 'MODERNIZATION',
+        category: INITIATIVE_CATEGORIES.includes(init.category) ? init.category : prompt.domain && prompt.domain !== 'IT' ? 'OPERATIONS_EXCELLENCE' : 'MODERNIZATION',
         description: init.description || 'Targeted architectural refactoring initiative.',
         capExCost: typeof init.capExCost === 'number' ? init.capExCost : 200,
         opExDelta: typeof init.opExDelta === 'number' ? init.opExDelta : -20,
@@ -244,6 +276,9 @@ export class StudioScenarioGenerator {
       stakeholders,
       roundEvents,
       initiativesCatalog,
+      domain: raw.domain || prompt.domain || 'IT',
+      language: raw.language === 'fr' || raw.language === 'en' ? raw.language : /[éèàùç]|\b(le|la|les|des|une|pour)\b/i.test(prompt.businessChallenge) ? 'fr' : 'en',
+      vocabulary: sanitizeVocabulary(raw.vocabulary),
       tags: raw.tags || [industry, 'Architecture Strategy', difficulty],
       author: raw.author || (providerUsed === 'fallback' ? 'AI Studio (Heuristic Engine)' : `AI Studio (${providerUsed})`),
       isDefault: false,

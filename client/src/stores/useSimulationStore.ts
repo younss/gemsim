@@ -6,6 +6,11 @@
 import { create } from 'zustand';
 import { Scenario, SimulationSession, Team, WSServerMessage } from '../types/index';
 import { api } from '../services/api';
+import { translate, useLangStore } from '../i18n';
+import { translateCode } from '../i18n/game';
+
+const tr = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) =>
+  translate(useLangStore.getState().lang, key, vars);
 
 interface SimulationState {
   scenarios: Scenario[];
@@ -106,20 +111,21 @@ export const useSimulationStore = create<SimulationState>((set, get) => ({
         setCurrentSession(msg.session);
         announce(
           msg.session.state === 'COMPLETED'
-            ? '🏁 Final quarter resolved! Check your final verdict.'
-            : `🎉 Round ${msg.session.currentRound - 1} results resolved!`
+            ? tr('app.announce.finalResolved')
+            : tr('app.announce.roundResolved', { n: msg.session.currentRound - 1 })
         );
         break;
       case 'SESSION_RESET':
         setCurrentSession(msg.session);
-        announce('🔄 Simulation reset to Quarter 1. Past run results archived in Debrief.');
+        announce(tr('app.announce.reset'));
         break;
       case 'CRISIS_INJECTED':
         setCurrentSession(msg.session);
-        announce(`🚨 BLACK SWAN CRISIS INJECTED: ${msg.event.title}! Immediate impact applied.`, 8000);
+        announce(tr('app.announce.crisis', { title: msg.event.title }), 8000);
         break;
       case 'ANNOUNCEMENT':
-        announce(msg.message, 7000);
+        // Server announcements carry a translatable code; the raw text is the fallback
+        announce(msg.code ? translateCode(useLangStore.getState().lang, msg.code) : msg.message, 7000);
         break;
       case 'ERROR':
         set({ lastError: msg.message });

@@ -26,6 +26,7 @@ export interface JudgeContext {
   teamMetrics: Record<string, number>;
   teamDecisions?: string[];
   patience?: number;
+  metricLabels?: { debt: string; velocity: string; cash: string };
   isFrench: boolean;
 }
 
@@ -171,7 +172,7 @@ export async function judgeProposal(ctx: JudgeContext): Promise<ProposalEvaluati
     const { answers, latencyMs, model } = await client.decide(
       {
         stakeholder: { ...personaState(ctx.stakeholder, ctx.currentTrust), patienceWithPlayer: ctx.patience ?? 100 },
-        company: { round: ctx.currentRound, ...ctx.teamMetrics },
+        company: { round: ctx.currentRound, ...ctx.teamMetrics, metricMeaning: ctx.metricLabels },
         teamDecisions: ctx.teamDecisions ?? [],
         previousPlayerProposals: previousProposals(ctx.chatHistory, ctx.playerMessage),
         playerMessage: ctx.playerMessage,
@@ -212,7 +213,7 @@ export async function judgeBoard(
         boardMembers: Object.fromEntries(
           stakeholders.map((sh, i) => [`s${i}`, personaState(sh, trustMap[sh.id] ?? sh.baseTrust ?? 60)])
         ),
-        company: { round: ctx.currentRound, ...ctx.teamMetrics },
+        company: { round: ctx.currentRound, ...ctx.teamMetrics, metricMeaning: ctx.metricLabels },
         teamDecisions: ctx.teamDecisions ?? [],
         previousPlayerProposals: previousProposals(ctx.chatHistory, ctx.playerMessage),
         playerMessage: ctx.playerMessage,

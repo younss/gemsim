@@ -5,14 +5,16 @@
 
 import React from 'react';
 import { Scenario, Team } from '../../types/index';
+import { useGameText } from '../../i18n/game';
 
-const AXES: Array<{ label: string; value: (t: Team, s: Scenario) => number }> = [
-  { label: 'Debt Health', value: t => 100 - t.metrics.technicalDebtIndex },
-  { label: 'Velocity', value: t => t.metrics.deliveryVelocity },
-  { label: 'Trust', value: t => t.metrics.stakeholderTrust },
-  { label: 'Resilience', value: t => t.metrics.resilienceIndex },
-  { label: 'Compliance', value: t => t.metrics.complianceScore },
-  { label: 'Cash Health', value: (t, s) => (t.metrics.budgetRemaining / Math.max(1, s.baselineMetrics.budgetRemaining)) * 100 },
+type AxisKey = 'debt' | 'velocity' | 'trust' | 'resilience' | 'compliance' | 'cash';
+const AXES: Array<{ key: AxisKey; value: (t: Team, s: Scenario) => number }> = [
+  { key: 'debt', value: t => 100 - t.metrics.technicalDebtIndex },
+  { key: 'velocity', value: t => t.metrics.deliveryVelocity },
+  { key: 'trust', value: t => t.metrics.stakeholderTrust },
+  { key: 'resilience', value: t => t.metrics.resilienceIndex },
+  { key: 'compliance', value: t => t.metrics.complianceScore },
+  { key: 'cash', value: (t, s) => (t.metrics.budgetRemaining / Math.max(1, s.baselineMetrics.budgetRemaining)) * 100 },
 ];
 
 const SIZE = 320;
@@ -25,9 +27,19 @@ function point(axis: number, value: number): [number, number] {
   return [CENTER + r * Math.cos(angle), CENTER + r * Math.sin(angle)];
 }
 
-export const TeamRadarChart: React.FC<{ teams: Team[]; scenario: Scenario }> = ({ teams, scenario }) => (
+export const TeamRadarChart: React.FC<{ teams: Team[]; scenario: Scenario }> = ({ teams, scenario }) => {
+  const { t, vocab } = useGameText(scenario);
+  const label: Record<AxisKey, string> = {
+    debt: t('radar.debtHealth', { debt: vocab.metrics.technicalDebtIndex.label }),
+    velocity: vocab.metrics.deliveryVelocity.label,
+    trust: vocab.metrics.stakeholderTrust.label,
+    resilience: vocab.metrics.resilienceIndex.label,
+    compliance: vocab.metrics.complianceScore.label,
+    cash: vocab.metrics.budgetRemaining.label,
+  };
+  return (
   <div className="bg-dark-850 p-4 rounded-xl border border-slate-800 flex flex-col md:flex-row items-center gap-4">
-    <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full max-w-[320px]" role="img" aria-label="Comparative team radar chart">
+    <svg viewBox={`-40 -10 ${SIZE + 80} ${SIZE + 20}`} className="w-full max-w-[400px]" role="img" aria-label={t('radar.aria')}>
       {[25, 50, 75, 100].map(level => (
         <polygon
           key={level}
@@ -41,10 +53,10 @@ export const TeamRadarChart: React.FC<{ teams: Team[]; scenario: Scenario }> = (
         const [x, y] = point(i, 100);
         const [lx, ly] = point(i, 118);
         return (
-          <g key={axis.label}>
+          <g key={axis.key}>
             <line x1={CENTER} y1={CENTER} x2={x} y2={y} stroke="#334155" strokeWidth={0.6} />
             <text x={lx} y={ly} fill="#94a3b8" fontSize={10} fontFamily="monospace" textAnchor="middle" dominantBaseline="middle">
-              {axis.label}
+              {label[axis.key].length > 22 ? `${label[axis.key].slice(0, 21)}…` : label[axis.key]}
             </text>
           </g>
         );
@@ -70,3 +82,4 @@ export const TeamRadarChart: React.FC<{ teams: Team[]; scenario: Scenario }> = (
     </div>
   </div>
 );
+};

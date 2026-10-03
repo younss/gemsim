@@ -228,7 +228,7 @@ export const api = {
 
   // Game Studio
   async generateStudioScenarioStream(
-    prompt: { industry: string; businessChallenge: string; difficulty?: string; customDirectives?: string },
+    prompt: { industry: string; businessChallenge: string; difficulty?: string; customDirectives?: string; domain?: string },
     onChunk: (text: string) => void
   ): Promise<{ scenario: Scenario; balance?: ScenarioBalanceSummary }> {
     const res = await apiFetch(`${API_BASE}/studio/generate/stream`, {
@@ -441,8 +441,8 @@ export const api = {
   },
 
   // Docs
-  async getDocs(): Promise<any[]> {
-    const res = await apiFetch(`${API_BASE}/docs`);
+  async getDocs(lang: string = 'fr'): Promise<any[]> {
+    const res = await apiFetch(`${API_BASE}/docs?lang=${encodeURIComponent(lang)}`);
     const data = await res.json();
     return data.docs;
   },

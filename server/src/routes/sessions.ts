@@ -199,6 +199,7 @@ sessionsRouter.post('/:id/decisions', validateBody(submitDecisionsSchema), (req,
       broadcastToSession(session.id, {
         type: 'ANNOUNCEMENT',
         message: 'All teams have submitted decisions for this round! Ready for resolution.',
+        code: { code: 'announce.allSubmitted' },
         timestamp: new Date().toISOString(),
       });
     }
@@ -417,6 +418,7 @@ sessionsRouter.post('/:id/inject-event', requireFacilitator, validateBody(inject
     broadcastToSession(session.id, {
       type: 'ANNOUNCEMENT',
       message: `🚨 BLACK SWAN CRISIS INJECTED: ${enrichedEvent.title} - ${enrichedEvent.description}`,
+      code: { code: 'announce.crisis', params: { title: enrichedEvent.title } },
       timestamp: new Date().toISOString(),
     });
 
@@ -437,6 +439,7 @@ sessionsRouter.post('/:id/broadcast', requireFacilitator, validateBody(broadcast
     broadcastToSession(req.params.id, {
       type: 'ANNOUNCEMENT',
       message: `📢 FACILITATOR BROADCAST: ${message}`,
+      code: { code: 'announce.broadcast', params: { message } },
       timestamp: new Date().toISOString(),
     });
 

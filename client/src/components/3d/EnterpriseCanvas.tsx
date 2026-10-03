@@ -7,6 +7,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { TopologyGraph, TopologyNode, EnterpriseLayer } from '../../types/index';
+import { useI18n, TranslationKey } from '../../i18n';
 import {
   Layers,
   RotateCcw,
@@ -23,6 +24,7 @@ interface Props {
   nodeHealthOverrides?: Record<string, { health: number; technicalDebt: number; status: any }>;
   selectedNodeId?: string | null;
   onSelectNode?: (node: TopologyNode | null) => void;
+  layerLabels?: Partial<Record<EnterpriseLayer, string>>; // scenario vocabulary for the four planes
 }
 
 // Generates crisp billboard text sprites with shadow for 3D space
@@ -156,9 +158,20 @@ function getNodeThemeColor(node: TopologyNode): { primary: number; glow: number;
 export const EnterpriseCanvas: React.FC<Props> = ({
   topology,
   nodeHealthOverrides,
-  selectedNodeId,
-  onSelectNode,
+  selectedNodeId: controlledSelectedId,
+  onSelectNode: onSelectNodeProp,
+  layerLabels,
 }) => {
+  const { t } = useI18n();
+  // Selection is controlled when the parent passes selectedNodeId, internal otherwise
+  const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
+  const selectedNodeId = controlledSelectedId !== undefined ? controlledSelectedId : internalSelectedId;
+  const onSelectNode = (node: TopologyNode | null) => {
+    setInternalSelectedId(node?.id ?? null);
+    onSelectNodeProp?.(node);
+  };
+  const layerName = (layer: EnterpriseLayer | 'ALL') => (layer === 'ALL' ? t('canvas.allLayers') : layerLabels?.[layer] ?? layer);
+  const statusName = (status: string) => t(`canvas.status.${status}` as TranslationKey);
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeLayerFilter, setActiveLayerFilter] = useState<EnterpriseLayer | 'ALL'>('ALL');
   const [hoveredNode, setHoveredNode] = useState<TopologyNode | null>(null);
@@ -212,6 +225,8 @@ export const EnterpriseCanvas: React.FC<Props> = ({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.domElement.setAttribute('role', 'img');
+    renderer.domElement.setAttribute('aria-label', t('canvas.ariaLabel'));
     containerRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
@@ -686,9 +701,7 @@ export const EnterpriseCanvas: React.FC<Props> = ({
         {/* Top Left: LIVE ENTERPRISE MODEL Pill Badge (Codex-inspired) */}
         <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-dark-900/80 backdrop-blur-md px-3.5 py-1.5 rounded-lg border border-slate-700/60 shadow-lg">
           <Layers className="w-3.5 h-3.5 text-cyan-400" />
-          <span className="text-xs font-mono font-bold text-slate-200 tracking-wider uppercase">
-            Live Enterprise Model
-          </span>
+          <span className="text-xs font-mono font-bold text-slate-200 tracking-wider uppercase">{t('canvas.badge')}</span>
         </div>
 
         {/* Top Right: Reset View & Fullscreen Action Buttons (Codex-inspired) */}
@@ -696,7 +709,8 @@ export const EnterpriseCanvas: React.FC<Props> = ({
           <button
             onClick={() => resetCameraFnRef.current && resetCameraFnRef.current()}
             className="p-2 rounded-lg bg-dark-900/80 hover:bg-dark-800 backdrop-blur-md text-slate-300 border border-slate-700/60 transition-all shadow-lg"
-            title="Reset Camera View"
+            title={t('canvas.reset')}
+            aria-label={t('canvas.reset')}
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -704,7 +718,8 @@ export const EnterpriseCanvas: React.FC<Props> = ({
           <button
             onClick={toggleFullscreen}
             className="p-2 rounded-lg bg-dark-900/80 hover:bg-dark-800 backdrop-blur-md text-slate-300 border border-slate-700/60 transition-all shadow-lg"
-            title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            title={isFullscreen ? t('canvas.exitFullscreen') : t('canvas.fullscreen')}
+            aria-label={isFullscreen ? t('canvas.exitFullscreen') : t('canvas.fullscreen')}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
@@ -714,27 +729,29 @@ export const EnterpriseCanvas: React.FC<Props> = ({
             className={`p-2 rounded-lg backdrop-blur-md text-xs transition-colors flex items-center gap-1.5 border shadow-lg ${
               autoRotate ? 'bg-indigo-500/30 text-indigo-300 border-indigo-500/50' : 'bg-dark-900/80 text-slate-300 border-slate-700/60 hover:bg-dark-800'
             }`}
-            title="Toggle Continuous Orbit Rotation"
+            title={t('canvas.orbitToggle')}
+            aria-pressed={autoRotate}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${autoRotate ? 'animate-spin' : ''}`} />
-            <span className="font-mono text-[11px] hidden sm:inline">Orbit</span>
+            <span className="font-mono text-[11px] hidden sm:inline">{t('canvas.orbit')}</span>
           </button>
         </div>
 
         {/* Bottom Left: Architecture Planes Filter Tabs */}
         <div className="absolute bottom-4 left-4 z-10 flex flex-wrap items-center gap-1.5 bg-dark-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-xs font-mono shadow-lg">
-          <span className="text-slate-400 text-[11px] mr-1 hidden sm:inline">Planes:</span>
+          <span className="text-slate-400 text-[11px] mr-1 hidden sm:inline">{t('canvas.planes')}</span>
           {(['ALL', 'BUSINESS', 'APPLICATION', 'DATA', 'INFRASTRUCTURE'] as const).map(layer => (
             <button
               key={layer}
               onClick={() => setActiveLayerFilter(layer)}
+              aria-pressed={activeLayerFilter === layer}
               className={`text-[11px] px-2.5 py-0.5 rounded transition-all font-mono ${
                 activeLayerFilter === layer
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 font-bold'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
               }`}
             >
-              {layer}
+              {layerName(layer)}
             </button>
           ))}
         </div>
@@ -743,15 +760,15 @@ export const EnterpriseCanvas: React.FC<Props> = ({
         <div className="absolute bottom-4 right-4 z-10 hidden md:flex items-center gap-3 bg-dark-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-[11px] font-mono shadow-lg">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
-            <span className="text-slate-300">Modern/Healthy</span>
+            <span className="text-slate-300">{t('canvas.legend.healthy')}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
-            <span className="text-slate-300">Technical Drift</span>
+            <span className="text-slate-300">{t('canvas.legend.degraded')}</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]" />
-            <span className="text-slate-300">Critical Bottleneck</span>
+            <span className="text-slate-300">{t('canvas.legend.critical')}</span>
           </div>
         </div>
 
@@ -761,24 +778,47 @@ export const EnterpriseCanvas: React.FC<Props> = ({
             <div className="flex items-center justify-between gap-2 mb-1">
               <span className="font-bold text-sm text-slate-100">{hoveredNode.name}</span>
               <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-slate-800 text-cyan-400 border border-slate-700">
-                {hoveredNode.layer}
+                {layerName(hoveredNode.layer)}
               </span>
             </div>
             <p className="text-xs text-slate-400 mb-2 line-clamp-2">{hoveredNode.description}</p>
             <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-dark-900 p-2 rounded border border-slate-800">
               <div>
-                <span className="text-slate-500 text-[10px] block">TECH DEBT</span>
+                <span className="text-slate-500 text-[10px] block">{t('canvas.debt')}</span>
                 <span className={`font-semibold ${hoveredNode.technicalDebt > 60 ? 'text-rose-400' : 'text-emerald-400'}`}>
                   {hoveredNode.technicalDebt}%
                 </span>
               </div>
               <div>
-                <span className="text-slate-500 text-[10px] block">LATENCY</span>
+                <span className="text-slate-500 text-[10px] block">{t('canvas.latency')}</span>
                 <span className="text-slate-200">{hoveredNode.telemetry.latencyMs} ms</span>
               </div>
             </div>
           </div>
         )}
+      </div>
+
+      {/* Keyboard-accessible list of elements (the WebGL scene is mouse-only) */}
+      <div className="border-t border-slate-800 bg-dark-900/90 px-3 py-2 flex items-center gap-2 overflow-x-auto text-[11px] font-mono">
+        <span className="text-slate-500 shrink-0">{t('canvas.elements')}</span>
+        {effectiveNodes.map(node => (
+          <button
+            key={node.id}
+            onClick={() => onSelectNode(selectedNodeId === node.id ? null : node)}
+            aria-pressed={selectedNodeId === node.id}
+            className={`shrink-0 px-2 py-0.5 rounded border ${
+              selectedNodeId === node.id
+                ? 'border-cyan-500 text-cyan-300 bg-cyan-500/10'
+                : node.status === 'CRITICAL'
+                ? 'border-rose-500/40 text-rose-300'
+                : node.status === 'DEGRADED'
+                ? 'border-amber-500/40 text-amber-300'
+                : 'border-slate-700 text-slate-300'
+            }`}
+          >
+            {node.name}
+          </button>
+        ))}
       </div>
 
       {/* Selected Node Deep Inspector Drawer */}
@@ -788,11 +828,11 @@ export const EnterpriseCanvas: React.FC<Props> = ({
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-slate-100 text-base">{selectedNode.name}</h3>
               <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-mono">
-                {selectedNode.layer}
+                {layerName(selectedNode.layer)}
               </span>
               {selectedNode.criticalPath && (
                 <span className="text-xs px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30 font-mono flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" /> Critical Path
+                  <AlertTriangle className="w-3 h-3" aria-hidden="true" /> {t('canvas.criticalPath')}
                 </span>
               )}
             </div>
@@ -801,36 +841,36 @@ export const EnterpriseCanvas: React.FC<Props> = ({
 
           <div className="flex flex-wrap items-center gap-4 text-xs font-mono">
             <div className="bg-dark-850 px-3 py-1.5 rounded border border-slate-800">
-              <span className="text-slate-500 text-[10px] block">HEALTH STATUS</span>
+              <span className="text-slate-500 text-[10px] block">{t('canvas.health')}</span>
               <span className={`font-bold ${selectedNode.health >= 70 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                {selectedNode.status} ({selectedNode.health}/100)
+                {statusName(selectedNode.status)} ({selectedNode.health}/100)
               </span>
             </div>
 
             <div className="bg-dark-850 px-3 py-1.5 rounded border border-slate-800">
-              <span className="text-slate-500 text-[10px] block">TECH DEBT INDEX</span>
+              <span className="text-slate-500 text-[10px] block">{t('canvas.debt')}</span>
               <span className={`font-bold ${selectedNode.technicalDebt >= 60 ? 'text-rose-400' : 'text-emerald-400'}`}>
                 {selectedNode.technicalDebt}%
               </span>
             </div>
 
             <div className="bg-dark-850 px-3 py-1.5 rounded border border-slate-800">
-              <span className="text-slate-500 text-[10px] block">THROUGHPUT / LATENCY</span>
+              <span className="text-slate-500 text-[10px] block">{t('canvas.flow')}</span>
               <span className="text-cyan-400 font-semibold">
-                {selectedNode.telemetry.throughputRps} rps | {selectedNode.telemetry.latencyMs}ms
+                {selectedNode.telemetry.throughputRps} | {selectedNode.telemetry.latencyMs} ms
               </span>
             </div>
 
             <div className="bg-dark-850 px-3 py-1.5 rounded border border-slate-800">
-              <span className="text-slate-500 text-[10px] block">OPEX RUN-RATE</span>
-              <span className="text-slate-200 font-semibold">${selectedNode.costPerRound}K / round</span>
+              <span className="text-slate-500 text-[10px] block">{t('canvas.cost')}</span>
+              <span className="text-slate-200 font-semibold">{t('canvas.costValue', { cost: selectedNode.costPerRound })}</span>
             </div>
 
             <button
               onClick={() => onSelectNode && onSelectNode(null)}
               className="text-xs text-slate-400 hover:text-slate-200 underline ml-2"
             >
-              Close
+              {t('common.close')}
             </button>
           </div>
         </div>

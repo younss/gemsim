@@ -12,6 +12,10 @@ import {
 } from './types/index';
 import { api, wsService, onFacilitatorPinRequired } from './services/api';
 import { useSimulationStore } from './stores/useSimulationStore';
+import { useHelpStore } from './stores/useHelpStore';
+import { useI18n } from './i18n';
+import { GlossaryPanel } from './components/help/GlossaryPanel';
+import { DemoPlayer } from './components/help/DemoPlayer';
 import { Navbar } from './components/navbar/Navbar';
 import { PlayerArena } from './components/arena/PlayerArena';
 import { FacilitatorCockpit } from './components/warroom/FacilitatorCockpit';
@@ -55,10 +59,34 @@ export const App: React.FC = () => {
   const [unlockPasscode, setUnlockPasscode] = useState('');
   const [unlockError, setUnlockError] = useState<string | null>(null);
 
+  const { t } = useI18n();
+  const { setGlossaryOpen, setDemoOpen, startTutorial } = useHelpStore();
+
+  // Practice game: a solo session on the current (or first) scenario, with the tutorial
+  const handleStartPractice = async () => {
+    const scenario = currentScenario ?? scenarios[0];
+    if (!scenario) return;
+    announce(t('app.practice.creating'), 3000);
+    try {
+      const session = await api.createSession({
+        name: t('app.practice.name', { title: scenario.title }),
+        scenarioId: scenario.id,
+        teamNames: [t('nav.practice')],
+        roundDurationSeconds: 1800,
+      });
+      setCurrentScenario(scenario);
+      activateSession(session);
+      setActiveView('ARENA');
+      startTutorial();
+    } catch (err: any) {
+      announce(`⚠️ ${err.message}`, 6000);
+    }
+  };
+
   // Facilitator actions rejected by the server (missing or wrong PIN) open the unlock dialog
   useEffect(() => {
     onFacilitatorPinRequired(() => {
-      setUnlockError('This action requires the Facilitator PIN.');
+      setUnlockError(t('app.unlock.required'));
       setIsUnlockModalOpen(true);
     });
     return () => onFacilitatorPinRequired(null);
@@ -142,9 +170,9 @@ export const App: React.FC = () => {
       setIsUnlockModalOpen(false);
       setUnlockPasscode('');
       setUnlockError(null);
-      announce('🔓 Facilitator Operations Unlocked', 4000);
+      announce(t('app.unlock.success'), 4000);
     } else {
-      setUnlockError('Incorrect Passcode. Contact your session facilitator.');
+      setUnlockError(t('app.unlock.wrong'));
     }
   };
 
@@ -188,6 +216,13 @@ export const App: React.FC = () => {
         userRole={userRole}
         isTeamLocked={isTeamLocked}
         onUnlockFacilitator={() => setIsUnlockModalOpen(true)}
+        onStartTutorial={() => {
+          setActiveView('ARENA');
+          startTutorial();
+        }}
+        onOpenGlossary={() => setGlossaryOpen(true)}
+        onOpenDemo={() => setDemoOpen(true)}
+        onStartPractice={handleStartPractice}
       />
 
       {/* Global Live Announcement Toast Banner */}
@@ -227,13 +262,14 @@ export const App: React.FC = () => {
       {/* Facilitator Passcode Unlock Modal */}
       {isUnlockModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-dark-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="unlock-title" className="bg-dark-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2 text-rose-400">
                 <Lock className="w-5 h-5" />
-                <h3 className="font-bold text-slate-100 font-mono">Facilitator Passcode Unlock</h3>
+                <h3 id="unlock-title" className="font-bold text-slate-100 font-mono">{t('app.unlock.title')}</h3>
               </div>
               <button
+                aria-label={t('common.close')}
                 onClick={() => {
                   setIsUnlockModalOpen(false);
                   setUnlockError(null);
@@ -245,9 +281,7 @@ export const App: React.FC = () => {
               </button>
             </div>
 
-            <p className="text-xs text-slate-400 leading-relaxed">
-              Enter the Facilitator PIN to elevate session controls, unlock the Multi-Team War Room, and access all org states.
-            </p>
+            <p className="text-xs text-slate-400 leading-relaxed">{t('app.unlock.body')}</p>
 
             <form
               onSubmit={e => {
@@ -257,14 +291,15 @@ export const App: React.FC = () => {
               className="space-y-4"
             >
               <div>
-                <label className="block text-[11px] font-mono font-bold text-slate-300 mb-1.5 uppercase">
-                  Facilitator Passcode (PIN)
+                <label htmlFor="unlock-pin" className="block text-[11px] font-mono font-bold text-slate-300 mb-1.5 uppercase">
+                  {t('app.unlock.label')}
                 </label>
                 <input
+                  id="unlock-pin"
                   type="password"
                   value={unlockPasscode}
                   onChange={e => setUnlockPasscode(e.target.value)}
-                  placeholder="Enter Facilitator PIN"
+                  placeholder={t('app.unlock.placeholder')}
                   autoFocus
                   className="w-full bg-dark-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm font-mono text-cyan-300 focus:outline-none focus:border-cyan-500 placeholder:text-slate-600"
                 />
@@ -286,20 +321,24 @@ export const App: React.FC = () => {
                   }}
                   className="px-4 py-2 rounded-xl text-xs font-mono text-slate-400 hover:text-slate-200 hover:bg-slate-800"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
                   className="px-4 py-2 rounded-xl text-xs font-mono font-bold bg-cyan-500 hover:bg-cyan-400 text-black flex items-center gap-1.5 shadow-[0_0_15px_rgba(0,240,255,0.4)]"
                 >
                   <KeyRound className="w-3.5 h-3.5" />
-                  <span>Unlock Controls</span>
+                  <span>{t('app.unlock.submit')}</span>
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Help surfaces */}
+      <GlossaryPanel />
+      <DemoPlayer />
 
       {/* Modals */}
       <SettingsModal

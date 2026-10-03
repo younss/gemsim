@@ -52,7 +52,49 @@ export type InitiativeCategory =
   | 'GOVERNANCE_STRICT'
   | 'CLOUD_INFRA'
   | 'SECURITY_COMPLIANCE'
-  | 'AI_AUTOMATION';
+  | 'AI_AUTOMATION'
+  // Domain-neutral categories for industrial, expansion and sourcing cases
+  | 'CAPACITY_EXPANSION'
+  | 'OPERATIONS_EXCELLENCE'
+  | 'SOURCING_PARTNERSHIP'
+  | 'MARKET_EXPANSION'
+  | 'RISK_MITIGATION'
+  | 'PEOPLE_CHANGE'
+  | 'QUICK_WIN';
+
+export const INITIATIVE_CATEGORIES: InitiativeCategory[] = [
+  'MODERNIZATION', 'FEATURE_EXPEDITE', 'DEBT_REDUCTION', 'GOVERNANCE_STRICT', 'CLOUD_INFRA', 'SECURITY_COMPLIANCE',
+  'AI_AUTOMATION', 'CAPACITY_EXPANSION', 'OPERATIONS_EXCELLENCE', 'SOURCING_PARTNERSHIP', 'MARKET_EXPANSION',
+  'RISK_MITIGATION', 'PEOPLE_CHANGE', 'QUICK_WIN',
+];
+
+export type GovernancePosture = 'BYPASS_ARCH' | 'BALANCED_AGILE' | 'STRICT_GOVERNANCE' | 'ACCELERATED_MODERN';
+
+/** Business domain of a scenario: drives default vocabulary and Studio prompting. */
+export type ScenarioDomain = 'IT' | 'INDUSTRIAL' | 'MARKET_EXPANSION' | 'SOURCING' | 'GENERIC';
+
+export type MetricKey =
+  | 'technicalDebtIndex'
+  | 'deliveryVelocity'
+  | 'stakeholderTrust'
+  | 'resilienceIndex'
+  | 'complianceScore'
+  | 'budgetRemaining'
+  | 'opEx'
+  | 'tco'
+  | 'modernizedNodesCount';
+
+/**
+ * Scenario-specific wording, written in the scenario's language. The engine keeps
+ * its generic model (debt, throughput, resilience, compliance); the vocabulary says
+ * what those mean in this business (e.g. debt = ageing of the plant).
+ */
+export interface ScenarioVocabulary {
+  metrics?: Partial<Record<MetricKey, { label: string; description?: string }>>;
+  layers?: Partial<Record<EnterpriseLayer, string>>;
+  postures?: Partial<Record<GovernancePosture, { name: string; description?: string }>>;
+  nodeNoun?: string; // what a topology node is: "system", "site", "line"...
+}
 
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'EXTREME';
 
@@ -148,6 +190,9 @@ export interface Scenario {
   stakeholders: StakeholderPersona[];
   roundEvents: RoundEvent[];
   initiativesCatalog: InitiativeTemplate[];
+  domain?: ScenarioDomain;
+  language?: 'fr' | 'en';
+  vocabulary?: ScenarioVocabulary;
   maxInitiativesPerRound?: number; // delivery capacity per quarter (default 2)
   tags: string[];
   author: string;
@@ -180,8 +225,15 @@ export interface TeamDecision {
   }>;
 }
 
+/** Language-neutral message: the client translates `code` with `params`. */
+export interface MessageCode {
+  code: string;
+  params?: Record<string, string | number>;
+}
+
 export interface RoundResult {
   roundNumber: number;
+  notes?: MessageCode[]; // structured version of facilitatorFeedback
   teamId: string;
   metricsBefore: TeamMetrics;
   metricsAfter: TeamMetrics;
@@ -209,6 +261,9 @@ export interface RoundResult {
     costImpact: number;
     description: string;
     affectedNodeId?: string;
+    nodeName?: string;
+    nodeDebt?: number;
+    failureProbability?: number; // percent
   }>;
   debtCompoundedAmount: number;
   activeInitiativesProgress: Array<{
@@ -223,6 +278,7 @@ export interface RoundResult {
     name: string;
     trustDelta: number;
     comment: string;
+    notes?: MessageCode[];
   }>;
 }
 
@@ -408,7 +464,7 @@ export type WSServerMessage =
   | { type: 'SESSION_RESET'; sessionId: string; session: SimulationSession; archivedRun?: ArchivedSimulationRun }
   | { type: 'STAKEHOLDER_CHUNK'; teamId: string; stakeholderId: string; chunk: string }
   | { type: 'STAKEHOLDER_RESPONSE'; teamId: string; message: ChatMessage }
-  | { type: 'ANNOUNCEMENT'; message: string; timestamp: string }
+  | { type: 'ANNOUNCEMENT'; message: string; timestamp: string; code?: MessageCode }
   | { type: 'TELEMETRY_PULSE'; activeTeams: number; round: number; avgTdi: number; avgTrust: number }
   | { type: 'ERROR'; message: string };
 

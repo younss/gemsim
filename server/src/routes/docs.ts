@@ -4,13 +4,16 @@
 // ============================================================================
 
 import { Router } from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 export const docsRouter = Router();
 
 export interface DocSection {
   id: string;
   title: string;
-  category: 'JOURNEYS' | 'FORMULAS' | 'SCHEMA' | 'AI_GATEWAY' | 'PODMAN';
+  category: 'PLAYER' | 'FACILITATOR_KIT' | 'JOURNEYS' | 'FORMULAS' | 'SCHEMA' | 'AI_GATEWAY' | 'PODMAN';
   summary: string;
   content: string;
 }
@@ -172,12 +175,52 @@ podman exec -it gemsim-ollama ollama pull gemma:2b
   },
 ];
 
+// --- Pedagogical kit (docs/kit/{fr,en}/*.md), readable on GitHub and served in-app ---
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function findKitDir(): string | null {
+  const candidates = [
+    path.resolve(__dirname, '../../../docs/kit'), // repo layout (src/routes or dist/routes)
+    path.resolve(process.cwd(), 'docs/kit'),
+    path.resolve(process.cwd(), '../docs/kit'),
+  ];
+  return candidates.find(dir => fs.existsSync(dir)) ?? null;
+}
+
+function loadKit(lang: 'fr' | 'en'): DocSection[] {
+  const dir = findKitDir();
+  if (!dir || !fs.existsSync(path.join(dir, lang))) return [];
+  return fs
+    .readdirSync(path.join(dir, lang))
+    .filter(f => f.endsWith('.md'))
+    .sort()
+    .map(file => {
+      const content = fs.readFileSync(path.join(dir, lang, file), 'utf8');
+      const title = content.match(/^#\s+(.+)$/m)?.[1] ?? file;
+      const summary = content.split('\n').find(l => l.trim() && !l.startsWith('#'))?.replace(/[*_`]/g, '').slice(0, 160) ?? '';
+      return {
+        id: `kit-${file.replace(/\.md$/, '')}`,
+        title,
+        category: file.startsWith('01-') ? ('PLAYER' as const) : ('FACILITATOR_KIT' as const),
+        summary,
+        content,
+      };
+    });
+}
+
+const KIT: Record<'fr' | 'en', DocSection[]> = { fr: loadKit('fr'), en: loadKit('en') };
+
+function docsFor(lang: unknown): DocSection[] {
+  const l = lang === 'en' ? 'en' : 'fr';
+  return [...KIT[l], ...SYSTEM_DOCS];
+}
+
 docsRouter.get('/', (req, res) => {
-  res.json({ docs: SYSTEM_DOCS });
+  res.json({ docs: docsFor(req.query.lang) });
 });
 
 docsRouter.get('/:id', (req, res) => {
-  const section = SYSTEM_DOCS.find(d => d.id === req.params.id);
+  const section = docsFor(req.query.lang).find(d => d.id === req.params.id);
   if (!section) {
     return res.status(404).json({ error: 'Documentation section not found' });
   }

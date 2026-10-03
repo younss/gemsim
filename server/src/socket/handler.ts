@@ -139,6 +139,7 @@ function handleClientMessage(conn: ClientConnection, msg: WSClientMessage) {
       broadcastToSession(msg.sessionId, {
         type: 'ANNOUNCEMENT',
         message: `📢 ${msg.message}`,
+        code: { code: 'announce.broadcast', params: { message: msg.message } },
         timestamp: new Date().toISOString(),
       });
       break;
@@ -196,6 +197,7 @@ function startSessionTimerLoop() {
           broadcastToSession(session.id, {
             type: 'ANNOUNCEMENT',
             message: `⏰ Round ${session.currentRound} timer expired. Facilitator may advance or review final submissions.`,
+            code: { code: 'announce.timerExpired', params: { n: session.currentRound } },
             timestamp: new Date().toISOString(),
           });
         }

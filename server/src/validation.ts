@@ -85,6 +85,7 @@ export const studioGenerateSchema = z.object({
   targetScale: z.string().max(200).optional(),
   difficulty: z.enum(['ENTRY', 'INTERMEDIATE', 'EXECUTIVE', 'CRISIS_CHIEF']).optional(),
   customDirectives: z.string().max(5000).optional(),
+  domain: z.enum(['IT', 'INDUSTRIAL', 'MARKET_EXPANSION', 'SOURCING', 'GENERIC']).optional(),
 }).passthrough();
 
 /** Express middleware: replaces req.body with the parsed value or answers 400. */

@@ -14,6 +14,9 @@ import {
 import { api } from '../../services/api';
 import { evaluateOutcome } from '../../engine';
 import { TeamRadarChart } from './TeamRadarChart';
+import { buildCrisisTemplates, CrisisTemplate } from './crisisTemplates';
+import { useGameText } from '../../i18n/game';
+import type { TranslationKey } from '../../i18n';
 import {
   Play,
   Pause,
@@ -43,183 +46,13 @@ interface Props {
   onSessionUpdated: (updatedSession: SimulationSession) => void;
 }
 
-const CRISIS_TEMPLATES: Array<Omit<RoundEvent, 'roundNumber'> & { cost: string; badge: string }> = [
-  {
-    title: 'Critical Zero-Day Vulnerability Exploit',
-    description: 'A remote code execution zero-day is discovered in edge gateway authentication libraries. Attackers are actively probing the perimeter.',
-    type: 'CRISIS',
-    severity: 'BLACK_SWAN',
-    cost: '$150K Fine + 12% TDI',
-    badge: 'CYBER RESILIENCE',
-    immediateImpact: {
-      budgetFine: 150,
-      tdiSurge: 12,
-      velocityPenalty: 15,
-      downedNodeIds: ['node-api-gw'],
-    },
-    choices: [
-      {
-        id: 'inj-zd-1',
-        text: 'Deploy emergency zero-day patch & hotfix cluster across all API gateways and edge tiers',
-        capExImpact: 140,
-        tdiImpact: -10,
-        velocityImpact: -8,
-        trustImpact: { 'board-chair': 5, 'ciso': 10 },
-        nodeHealthImpacts: { 'node-api-gw': 50 },
-      },
-      {
-        id: 'inj-zd-2',
-        text: 'Sever external ingress traffic and run forensic isolation audit on core services',
-        capExImpact: 80,
-        tdiImpact: 5,
-        velocityImpact: -25,
-        trustImpact: { 'ciso': 8, 'cfo': -5 },
-        nodeHealthImpacts: { 'node-api-gw': 20 },
-      },
-      {
-        id: 'inj-zd-3',
-        text: 'Accept vulnerability exposure risk and purchase emergency cyber insurance indemnity rider',
-        capExImpact: 210,
-        tdiImpact: 15,
-        velocityImpact: 0,
-        trustImpact: { 'cfo': -12, 'board-chair': -10 },
-        nodeHealthImpacts: {},
-      },
-    ],
-  },
-  {
-    title: 'Primary Cloud Provider Regional Blackout',
-    description: 'Major cloud provider region suffers power grid collapse and fiber severance. Unreplicated cloud services go offline immediately.',
-    type: 'CRISIS',
-    severity: 'HIGH',
-    cost: '$200K Fine + 10% TDI',
-    badge: 'INFRASTRUCTURE OUTAGE',
-    immediateImpact: {
-      budgetFine: 200,
-      tdiSurge: 10,
-      velocityPenalty: 20,
-      downedNodeIds: ['node-infra-cloud'],
-    },
-    choices: [
-      {
-        id: 'inj-cb-1',
-        text: 'Initiate automated multi-cloud failover to secondary disaster recovery region',
-        capExImpact: 180,
-        tdiImpact: -8,
-        velocityImpact: -10,
-        trustImpact: { 'vp-eng': 10, 'cfo': -5 },
-        nodeHealthImpacts: { 'node-infra-cloud': 50 },
-      },
-      {
-        id: 'inj-cb-2',
-        text: 'Operate degraded read-only caching layer while awaiting upstream cloud restoration',
-        capExImpact: 60,
-        tdiImpact: 12,
-        velocityImpact: -18,
-        trustImpact: { 'board-chair': -10, 'vp-sales': -15 },
-        nodeHealthImpacts: { 'node-infra-cloud': 20 },
-      },
-      {
-        id: 'inj-cb-3',
-        text: 'Repatriate critical transaction workloads to on-premises enterprise hybrid enclave',
-        capExImpact: 260,
-        tdiImpact: -15,
-        velocityImpact: -15,
-        trustImpact: { 'ciso': 10, 'cfo': -15 },
-        nodeHealthImpacts: { 'node-infra-cloud': 55 },
-      },
-    ],
-  },
-  {
-    title: 'Hostile Acquisition & Strategic Tech Freeze',
-    description: 'An aggressive activist hedge fund demands an immediate freeze on modernization CapEx and maximum short-term cash flow.',
-    type: 'MARKET_SHIFT',
-    severity: 'HIGH',
-    cost: '$120K Fine + 6% TDI',
-    badge: 'CORPORATE GOVERNANCE',
-    immediateImpact: {
-      budgetFine: 120,
-      tdiSurge: 6,
-      velocityPenalty: 12,
-      downedNodeIds: [],
-    },
-    choices: [
-      {
-        id: 'inj-ha-1',
-        text: 'Submit formal architectural ROI dossier proving modernization protects operating margin',
-        capExImpact: 90,
-        tdiImpact: -5,
-        velocityImpact: -5,
-        trustImpact: { 'board-chair': 12, 'cfo': 10 },
-      },
-      {
-        id: 'inj-ha-2',
-        text: 'Halt all non-essential tech debt refactoring to maximize short-term cash reserves',
-        capExImpact: 0,
-        tdiImpact: 18,
-        velocityImpact: -10,
-        trustImpact: { 'cfo': 15, 'vp-eng': -20 },
-      },
-      {
-        id: 'inj-ha-3',
-        text: 'Structure a strategic joint venture carve-out for proprietary software assets',
-        capExImpact: 150,
-        tdiImpact: -10,
-        velocityImpact: 8,
-        trustImpact: { 'board-chair': 8, 'cfo': 5 },
-      },
-    ],
-  },
-  {
-    title: 'Unannounced Federal Regulatory Data Audit',
-    description: 'Enforcement authorities inspect customer data retention, ledger flow logs, and issue an immediate compliance summons.',
-    type: 'AUDIT',
-    severity: 'MEDIUM',
-    cost: '$90K Fine + 8% TDI',
-    badge: 'COMPLIANCE AUDIT',
-    immediateImpact: {
-      budgetFine: 90,
-      tdiSurge: 8,
-      velocityPenalty: 10,
-      downedNodeIds: ['node-db-mainframe'],
-    },
-    choices: [
-      {
-        id: 'inj-ra-1',
-        text: 'Deploy automated data lineage masking and enterprise regulatory compliance telemetry',
-        capExImpact: 110,
-        tdiImpact: -12,
-        velocityImpact: -6,
-        trustImpact: { 'ciso': 15, 'board-chair': 8 },
-        nodeHealthImpacts: { 'node-db-mainframe': 40 },
-      },
-      {
-        id: 'inj-ra-2',
-        text: 'Retain Big-4 forensic audit specialists to negotiate consent decree extension',
-        capExImpact: 140,
-        tdiImpact: 2,
-        velocityImpact: -12,
-        trustImpact: { 'cfo': -8, 'ciso': 5 },
-        nodeHealthImpacts: { 'node-db-mainframe': 20 },
-      },
-      {
-        id: 'inj-ra-3',
-        text: 'Purge unindexed legacy data clusters and accept mitigated statutory settlement',
-        capExImpact: 170,
-        tdiImpact: 10,
-        velocityImpact: 0,
-        trustImpact: { 'ciso': -15, 'cfo': -5 },
-        nodeHealthImpacts: { 'node-db-mainframe': 15 },
-      },
-    ],
-  },
-];
-
 export const FacilitatorCockpit: React.FC<Props> = ({
   session,
   scenario,
   onSessionUpdated,
 }) => {
+  const { t, vocab, objective, severity, code } = useGameText(scenario);
+  const crisisTemplates = buildCrisisTemplates(scenario, t);
   const [broadcastText, setBroadcastText] = useState('');
   const [isAdvancing, setIsAdvancing] = useState(false);
   const [activeTab, setActiveTab] = useState<'TELEMETRY' | 'CONTROLS' | 'INJECTION' | 'DEBRIEF'>('TELEMETRY');
@@ -274,7 +107,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
 
   // Master Session Reset (Preserves Previous Simulation Results in Run Archives)
   const handleResetSession = async () => {
-    if (!confirm('Start a new simulation? Previous round history, scorecards, and debrief metrics will be safely preserved in Debrief History Archives. Active team scores, AI roleplay chats, and decisions will be reset back to Quarter 1.')) return;
+    if (!confirm(t('cockpit.resetConfirm'))) return;
     try {
       const { session: updated, archivedRun } = await api.resetSession(session.id);
       onSessionUpdated(updated);
@@ -299,7 +132,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
   };
 
   // Inject Event
-  const handleInjectCrisis = async (template: typeof CRISIS_TEMPLATES[0]) => {
+  const handleInjectCrisis = async (template: CrisisTemplate) => {
     const crisisEvent: RoundEvent = {
       roundNumber: session.currentRound,
       title: template.title,
@@ -328,30 +161,34 @@ export const FacilitatorCockpit: React.FC<Props> = ({
   const allTeamsSubmitted = session.teams.every(t => t.decisionSubmitted);
 
   const handleExportMarkdown = () => {
+    const m = vocab.metrics;
+    const verdict = (v: string) => t(`outcome.verdict.${v}` as TranslationKey);
     const lines: string[] = [
-      `# Executive Debrief — ${session.name}`,
+      `# ${t('cockpit.md.title', { name: session.name })}`,
       '',
-      `- Scenario: ${scenario.title}`,
-      `- Quarters played: ${session.state === 'COMPLETED' ? session.totalRounds : session.currentRound - 1} / ${session.totalRounds}`,
-      `- Exported: ${new Date().toISOString()}`,
+      `- ${t('cockpit.md.scenario', { title: scenario.title })}`,
+      `- ${t('cockpit.md.quarters', { played: session.state === 'COMPLETED' ? session.totalRounds : session.currentRound - 1, total: session.totalRounds })}`,
+      `- ${t('cockpit.md.exported', { date: new Date().toISOString() })}`,
       '',
-      '## Rankings',
+      `## ${t('cockpit.md.rankings')}`,
       '',
-      '| Rank | Team | Verdict | Grade | Score | TDI | Velocity | Trust | Resilience | Cash | TCO |',
+      `| # | ${t('cockpit.col.team')} | ${t('cockpit.col.verdict')} | ${t('cockpit.col.grade')} | Score | ${m.technicalDebtIndex.label} | ${m.deliveryVelocity.label} | ${m.stakeholderTrust.label} | ${m.resilienceIndex.label} | ${m.budgetRemaining.label} | ${m.tco.label} |`,
       '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
-      ...sortedTeams.map((t, i) => {
-        const o = outcomes.get(t.id)!;
-        const m = t.metrics;
-        return `| ${i + 1} | ${t.name} | ${o.verdict} | ${o.grade} | ${o.score} | ${m.technicalDebtIndex} | ${m.deliveryVelocity} | ${m.stakeholderTrust} | ${m.resilienceIndex} | $${m.budgetRemaining}K | $${m.tco}K |`;
+      ...sortedTeams.map((tm, i) => {
+        const o = outcomes.get(tm.id)!;
+        const mt = tm.metrics;
+        return `| ${i + 1} | ${tm.name} | ${verdict(o.verdict)} | ${o.grade} | ${o.score} | ${mt.technicalDebtIndex} | ${mt.deliveryVelocity} | ${mt.stakeholderTrust} | ${mt.resilienceIndex} | ${mt.budgetRemaining}K$ | ${mt.tco}K$ |`;
       }),
     ];
-    for (const t of sortedTeams) {
-      const o = outcomes.get(t.id)!;
-      lines.push('', `## ${t.name} — ${o.verdict} (${o.grade})`, '', '| Objective | Target | Final | Met |', '| --- | --- | --- | --- |');
-      for (const ob of o.objectives) lines.push(`| ${ob.label} | ${ob.comparator} ${ob.target} | ${ob.actual} | ${ob.met ? '✅' : '❌'} |`);
-      lines.push('', '### Quarter log', '');
-      for (const h of t.history) {
-        lines.push(`- **Q${h.roundNumber}**: ${h.facilitatorFeedback} Incidents: ${h.incidentsTriggered.length}. Initiatives: ${h.activeInitiativesProgress.map(p => `${p.name}${p.completed ? '' : ` (${p.remainingRounds}Q left)`}`).join(', ') || 'none'}.`);
+    for (const tm of sortedTeams) {
+      const o = outcomes.get(tm.id)!;
+      lines.push('', `## ${tm.name} — ${verdict(o.verdict)} (${o.grade})`, '', `| ${t('outcome.col.objective')} | ${t('outcome.col.target')} | ${t('outcome.col.final')} | ✓ |`, '| --- | --- | --- | --- |');
+      for (const ob of o.objectives) lines.push(`| ${objective(ob.key)} | ${ob.comparator} ${ob.target} | ${ob.actual} | ${ob.met ? '✅' : '❌'} |`);
+      lines.push('', `### ${t('cockpit.md.log')}`, '');
+      for (const h of tm.history) {
+        const notes = h.notes?.length ? h.notes.map(n => code(n)).join(' ') : h.facilitatorFeedback;
+        const inits = h.activeInitiativesProgress.map(p => `${p.name}${p.completed ? '' : ` (${t('cockpit.md.left', { n: p.remainingRounds })})`}`).join(', ') || t('demo.none');
+        lines.push(`- **${t('common.quarterShort', { n: h.roundNumber })}** : ${notes} ${t('cockpit.md.incidents', { n: h.incidentsTriggered.length })} ${t('cockpit.md.initiatives', { list: inits })}`);
       }
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
@@ -417,13 +254,13 @@ export const FacilitatorCockpit: React.FC<Props> = ({
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Radio className="w-4 h-4 text-cyan-400 animate-pulse" />
-            <h2 className="text-base font-bold text-slate-100 font-mono">Facilitator Master Operations War Room</h2>
+            <h2 className="text-base font-bold text-slate-100 font-mono">{t('cockpit.title')}</h2>
             <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-mono">
-              Q{session.currentRound} OF Q{session.totalRounds}
+              {t('arena.quarterOf', { n: session.currentRound, total: session.totalRounds })}
             </span>
           </div>
           <p className="text-xs text-slate-400">
-            Real-time telemetry and state orchestration for {session.teams.length} competing organizations.
+            {t('cockpit.subtitle', { n: session.teams.length })}
           </p>
         </div>
 
@@ -438,13 +275,14 @@ export const FacilitatorCockpit: React.FC<Props> = ({
             }`}
           >
             {session.isTimerRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-            <span>{session.isTimerRunning ? 'Pause Round Timer' : 'Start Round Timer'}</span>
+            <span>{session.isTimerRunning ? t('cockpit.timer.pause') : t('cockpit.timer.start')}</span>
           </button>
 
           <button
             onClick={handleResetTimer}
             className="p-2 rounded-lg bg-dark-750 hover:bg-dark-700 text-slate-300 border border-slate-700 text-xs"
-            title="Reset Round Timer"
+            title={t('cockpit.timer.reset')}
+            aria-label={t('cockpit.timer.reset')}
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
@@ -453,7 +291,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
 
           <button
             onClick={handleAdvanceRound}
-            disabled={isAdvancing}
+            disabled={isAdvancing || session.state === 'COMPLETED'}
             className={`px-4 py-2 rounded-lg text-xs font-bold font-mono flex items-center gap-1.5 transition-all ${
               allTeamsSubmitted
                 ? 'bg-cyan-500 hover:bg-cyan-400 text-black shadow-[0_0_20px_rgba(0,240,255,0.4)] animate-pulse'
@@ -461,15 +299,21 @@ export const FacilitatorCockpit: React.FC<Props> = ({
             }`}
           >
             <FastForward className="w-3.5 h-3.5" />
-            <span>{session.currentRound >= session.totalRounds ? 'Finalize Simulation' : `Advance to Q${session.currentRound + 1}`}</span>
+            <span>
+              {session.state === 'COMPLETED'
+                ? t('arena.complete')
+                : session.currentRound >= session.totalRounds
+                ? t('cockpit.finalize')
+                : t('cockpit.advance', { n: session.currentRound + 1 })}
+            </span>
           </button>
 
           <button
             onClick={handleResetSession}
             className="px-3 py-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-mono"
-            title="Reset Session to Q1"
+            title={t('cockpit.reset.title')}
           >
-            Reset
+            {t('cockpit.reset')}
           </button>
 
           <div className="h-6 w-px bg-slate-700 mx-1" />
@@ -477,10 +321,10 @@ export const FacilitatorCockpit: React.FC<Props> = ({
           <button
             onClick={() => setIsInvitesOpen(true)}
             className="px-3.5 py-2 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/40 text-xs font-mono font-bold flex items-center gap-1.5 transition-all shadow-[0_0_15px_rgba(99,102,241,0.2)]"
-            title="Manage & Share Team Access Links"
+            title={t('cockpit.invites.title')}
           >
             <Share2 className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Share Team Invites</span>
+            <span>{t('cockpit.invites')}</span>
           </button>
         </div>
       </div>
@@ -496,7 +340,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
           }`}
         >
           <BarChart3 className="w-4 h-4" />
-          <span>Multi-Team Leaderboard</span>
+          <span>{t('cockpit.tab.teams')}</span>
         </button>
 
         <button
@@ -508,7 +352,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
           }`}
         >
           <Flame className="w-4 h-4 text-rose-400" />
-          <span>Crisis & Black Swan Injector</span>
+          <span>{t('cockpit.tab.crisis')}</span>
         </button>
 
         <button
@@ -520,7 +364,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
           }`}
         >
           <Trophy className="w-4 h-4 text-amber-400" />
-          <span>Executive Debrief & Rankings</span>
+          <span>{t('cockpit.tab.debrief')}</span>
         </button>
       </div>
 
@@ -532,7 +376,8 @@ export const FacilitatorCockpit: React.FC<Props> = ({
           value={broadcastText}
           onChange={e => setBroadcastText(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSendBroadcast()}
-          placeholder="Broadcast high-priority announcement to all player cockpits..."
+          placeholder={t('cockpit.broadcast.placeholder')}
+          aria-label={t('cockpit.broadcast.placeholder')}
           className="flex-1 bg-dark-900 text-slate-100 text-xs px-3 py-2 rounded-lg border border-slate-700 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500"
         />
         <button
@@ -541,7 +386,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
           className="px-4 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:opacity-40 text-black text-xs font-bold flex items-center gap-1.5"
         >
           <Send className="w-3.5 h-3.5" />
-          <span>Broadcast</span>
+          <span>{t('cockpit.broadcast.send')}</span>
         </button>
       </div>
 
@@ -549,26 +394,26 @@ export const FacilitatorCockpit: React.FC<Props> = ({
       {activeTab === 'TELEMETRY' && (
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {session.teams.map((t, idx) => {
-              const tdi = t.metrics.technicalDebtIndex;
-              const isReady = t.decisionSubmitted;
+            {session.teams.map((tm, idx) => {
+              const tdi = tm.metrics.technicalDebtIndex;
+              const isReady = tm.decisionSubmitted;
 
               return (
                 <div
-                  key={t.id}
+                  key={tm.id}
                   className="bg-dark-850 p-5 rounded-xl border border-slate-800 shadow-xl space-y-4 relative overflow-hidden"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div
                         className="w-10 h-10 rounded-xl flex items-center justify-center text-xl font-bold shadow-inner"
-                        style={{ backgroundColor: `${t.color}20`, border: `1px solid ${t.color}60` }}
+                        style={{ backgroundColor: `${tm.color}20`, border: `1px solid ${tm.color}60` }}
                       >
-                        {t.avatar}
+                        {tm.avatar}
                       </div>
                       <div>
-                        <h4 className="font-bold text-slate-100 text-sm">{t.name}</h4>
-                        <span className="text-[10px] text-slate-400 font-mono">Team #{idx + 1}</span>
+                        <h4 className="font-bold text-slate-100 text-sm">{tm.name}</h4>
+                        <span className="text-[10px] text-slate-400 font-mono">{t('cockpit.team', { n: idx + 1 })}</span>
                       </div>
                     </div>
 
@@ -580,49 +425,49 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                       }`}
                     >
                       {isReady ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                      {isReady ? 'DECISIONS READY' : 'PLANNING'}
+                      {isReady ? t('cockpit.ready') : t('cockpit.planning')}
                     </span>
                   </div>
 
                   {/* Core Metrics Grid */}
                   <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-dark-900 p-3 rounded-lg border border-slate-800/80">
                     <div>
-                      <span className="text-slate-500 text-[10px] block">TECH DEBT (TDI)</span>
+                      <span className="text-slate-500 text-[10px] block truncate">{vocab.metrics.technicalDebtIndex.label}</span>
                       <span className={`font-bold ${tdi > 65 ? 'text-rose-400' : tdi > 40 ? 'text-amber-400' : 'text-emerald-400'}`}>
                         {tdi}%
                       </span>
                     </div>
 
                     <div>
-                      <span className="text-slate-500 text-[10px] block">DELIVERY VELOCITY</span>
-                      <span className="font-bold text-cyan-400">{t.metrics.deliveryVelocity} pts</span>
+                      <span className="text-slate-500 text-[10px] block truncate">{vocab.metrics.deliveryVelocity.label}</span>
+                      <span className="font-bold text-cyan-400">{tm.metrics.deliveryVelocity}</span>
                     </div>
 
                     <div>
-                      <span className="text-slate-500 text-[10px] block">CASH RESERVES</span>
-                      <span className="font-bold text-slate-200">${t.metrics.budgetRemaining}K</span>
+                      <span className="text-slate-500 text-[10px] block truncate">{vocab.metrics.budgetRemaining.label}</span>
+                      <span className="font-bold text-slate-200">{tm.metrics.budgetRemaining}K$</span>
                     </div>
 
                     <div>
-                      <span className="text-slate-500 text-[10px] block">STAKEHOLDER TRUST</span>
-                      <span className="font-bold text-indigo-400">{t.metrics.stakeholderTrust}%</span>
+                      <span className="text-slate-500 text-[10px] block truncate">{vocab.metrics.stakeholderTrust.label}</span>
+                      <span className="font-bold text-indigo-400">{tm.metrics.stakeholderTrust} %</span>
                     </div>
 
                     <div>
-                      <span className="text-slate-500 text-[10px] block">RESILIENCE</span>
-                      <span className="font-bold text-emerald-400">{t.metrics.resilienceIndex}/100</span>
+                      <span className="text-slate-500 text-[10px] block truncate">{vocab.metrics.resilienceIndex.label}</span>
+                      <span className="font-bold text-emerald-400">{tm.metrics.resilienceIndex}/100</span>
                     </div>
 
                     <div>
-                      <span className="text-slate-500 text-[10px] block">COMPLIANCE</span>
-                      <span className="font-bold text-violet-400">{t.metrics.complianceScore}%</span>
+                      <span className="text-slate-500 text-[10px] block truncate">{vocab.metrics.complianceScore.label}</span>
+                      <span className="font-bold text-violet-400">{tm.metrics.complianceScore} %</span>
                     </div>
                   </div>
 
                   {/* Governance Strategy Chosen */}
                   <div className="text-[11px] font-mono text-slate-400 flex items-center justify-between border-t border-slate-800 pt-2">
-                    <span className="text-slate-500">Governance:</span>
-                    <span className="text-slate-200 font-semibold">{t.currentRoundDecisions?.governancePosture || 'BALANCED_AGILE'}</span>
+                    <span className="text-slate-500">{t('cockpit.posture')}</span>
+                    <span className="text-slate-200 font-semibold">{vocab.postures[tm.currentRoundDecisions?.governancePosture || 'BALANCED_AGILE'].name}</span>
                   </div>
                 </div>
               );
@@ -635,8 +480,8 @@ export const FacilitatorCockpit: React.FC<Props> = ({
       {activeTab === 'INJECTION' && (
         <div className="space-y-4">
           <div>
-            <h3 className="text-base font-bold text-slate-100">Live Crisis & Black Swan Injector</h3>
-            <p className="text-xs text-slate-400">Trigger unexpected market shifts, cyber attacks, or infrastructure outages across all active teams.</p>
+            <h3 className="text-base font-bold text-slate-100">{t('cockpit.crisis.title')}</h3>
+            <p className="text-xs text-slate-400">{t('cockpit.crisis.subtitle')}</p>
           </div>
 
           {session.activeCrisis && session.activeCrisis.roundNumber === session.currentRound && (
@@ -648,28 +493,33 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-500 text-black">
-                      ACTIVE IN Q{session.currentRound}
+                      {t('cockpit.crisis.activeIn', { n: session.currentRound })}
                     </span>
                     <span className="text-sm text-slate-100 font-bold">{session.activeCrisis.title}</span>
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Immediate penalties applied across all {session.teams.length} teams (-${session.activeCrisis.immediateImpact?.budgetFine || 0}K, +{session.activeCrisis.immediateImpact?.tdiSurge || 0}% TDI). Teams must submit remediation before round resolution.
+                    {t('cockpit.crisis.activeBody', {
+                      n: session.teams.length,
+                      fine: session.activeCrisis.immediateImpact?.budgetFine || 0,
+                      debt: session.activeCrisis.immediateImpact?.tdiSurge || 0,
+                      debtLabel: vocab.metrics.technicalDebtIndex.label,
+                    })}
                   </p>
                 </div>
               </div>
               <span className="text-xs font-mono font-bold text-rose-400 px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 shrink-0 self-start sm:self-auto">
-                {session.activeCrisis.severity} SEVERITY
+                {t('arena.crisis.badge', { severity: severity(session.activeCrisis.severity), type: '' }).replace(/[:：]\s*$/, '')}
               </span>
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {CRISIS_TEMPLATES.map(crisis => {
+            {crisisTemplates.map(crisis => {
               const isCurrentlyActive = session.activeCrisis?.title === crisis.title && session.activeCrisis?.roundNumber === session.currentRound;
 
               return (
                 <div
-                  key={crisis.title}
+                  key={crisis.key}
                   className={`p-5 rounded-xl border transition-all flex flex-col justify-between ${
                     isCurrentlyActive
                       ? 'bg-rose-950/20 border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.2)]'
@@ -679,7 +529,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30">
-                        {crisis.severity}
+                        {severity(crisis.severity)}
                       </span>
                       <span className="text-[10px] text-slate-500 font-mono">{crisis.badge}</span>
                     </div>
@@ -688,24 +538,28 @@ export const FacilitatorCockpit: React.FC<Props> = ({
 
                     <div className="text-[11px] font-mono bg-dark-900/60 p-2.5 rounded-lg border border-slate-800/80 mb-4 space-y-1">
                       <div className="text-slate-400 flex items-center justify-between">
-                        <span>Immediate Fine:</span>
-                        <span className="text-rose-400 font-bold">-${crisis.immediateImpact.budgetFine}K</span>
+                        <span>{t('cockpit.crisis.fine')}</span>
+                        <span className="text-rose-400 font-bold">-{crisis.immediateImpact.budgetFine}K$</span>
                       </div>
                       <div className="text-slate-400 flex items-center justify-between">
-                        <span>TDI Surge / Velocity Drag:</span>
-                        <span className="text-rose-400 font-bold">+{crisis.immediateImpact.tdiSurge}% TDI / -{crisis.immediateImpact.velocityPenalty} pts</span>
+                        <span>{vocab.metrics.technicalDebtIndex.label} / {vocab.metrics.deliveryVelocity.label} :</span>
+                        <span className="text-rose-400 font-bold">
+                          +{crisis.immediateImpact.tdiSurge} / -{Math.abs(crisis.immediateImpact.velocityPenalty)}
+                        </span>
                       </div>
                       {crisis.immediateImpact.downedNodeIds && crisis.immediateImpact.downedNodeIds.length > 0 && (
                         <div className="text-slate-400 flex items-center justify-between">
-                          <span>Outage Target:</span>
-                          <span className="text-amber-400 font-bold">{crisis.immediateImpact.downedNodeIds.join(', ')}</span>
+                          <span>{t('cockpit.crisis.target')}</span>
+                          <span className="text-amber-400 font-bold">
+                            {crisis.immediateImpact.downedNodeIds.map(id => scenario.topology.nodes.find(n => n.id === id)?.name ?? id).join(', ')}
+                          </span>
                         </div>
                       )}
                     </div>
                   </div>
 
                   <div className="flex items-center justify-between pt-3 border-t border-slate-800">
-                    <span className="text-xs font-mono text-slate-500">Est. Impact: {crisis.cost}</span>
+                    <span className="text-xs font-mono text-slate-500">{t('cockpit.crisis.choices', { n: crisis.choices.length })}</span>
                     <button
                       onClick={() => handleInjectCrisis(crisis)}
                       disabled={isCurrentlyActive}
@@ -716,7 +570,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                       }`}
                     >
                       <Flame className="w-3.5 h-3.5" />
-                      <span>{isCurrentlyActive ? 'Crisis Active' : 'Inject Crisis'}</span>
+                      <span>{isCurrentlyActive ? t('cockpit.crisis.active') : t('cockpit.crisis.inject')}</span>
                     </button>
                   </div>
                 </div>
@@ -733,9 +587,10 @@ export const FacilitatorCockpit: React.FC<Props> = ({
             <div>
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <Trophy className="w-5 h-5 text-amber-400" />
-                <span>Executive Post-Mortem & Team Scorecard</span>
+                <span>{t('cockpit.debrief.title')}</span>
               </h3>
-              <p className="text-xs text-slate-400">Comprehensive comparative analysis of architectural outcomes, debt reduction, and business agility.</p>
+              <p className="text-xs text-slate-400">{t('cockpit.debrief.subtitle')}</p>
+              <p className="text-xs text-cyan-300 mt-1">📘 {t('cockpit.debrief.guideHint')}</p>
             </div>
 
             <button
@@ -743,7 +598,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
               className="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-lg"
             >
               <Download className="w-4 h-4" />
-              <span>{selectedArchivedRun ? `Export Run #${selectedArchivedRun.runNumber} (.JSON)` : 'Export Executive Briefing (.JSON)'}</span>
+              <span>{selectedArchivedRun ? t('cockpit.export.run', { n: selectedArchivedRun.runNumber }) : t('cockpit.export.json')}</span>
             </button>
             {!selectedArchivedRun && (
               <button
@@ -751,7 +606,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                 className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-lg"
               >
                 <Download className="w-4 h-4" />
-                <span>Export Audit Log (.MD)</span>
+                <span>{t('cockpit.export.md')}</span>
               </button>
             )}
           </div>
@@ -760,7 +615,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
           <div className="flex items-center gap-2 bg-dark-900 p-2 rounded-xl border border-slate-800 text-xs font-mono overflow-x-auto">
             <span className="text-slate-500 text-[10px] pl-1 flex items-center gap-1 font-bold shrink-0">
               <Archive className="w-3.5 h-3.5 text-cyan-400" />
-              <span>SIMULATION RUN:</span>
+              <span>{t('cockpit.run.label')}</span>
             </span>
             <button
               onClick={() => setSelectedRunId('CURRENT')}
@@ -770,7 +625,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
               }`}
             >
-              Live Session (Q{session.currentRound})
+              {t('cockpit.run.live', { n: session.currentRound })}
             </button>
 
             {archivedRuns.map(run => (
@@ -784,7 +639,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                 }`}
               >
                 <Trophy className="w-3 h-3" />
-                <span>Run #{run.runNumber} ({run.winnerTeamName || 'Archived'})</span>
+                <span>{t('cockpit.run.archived', { n: run.runNumber, winner: run.winnerTeamName || '—' })}</span>
               </button>
             ))}
           </div>
@@ -800,15 +655,15 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400 font-bold">
-                        ARCHIVED SIMULATION RUN #{selectedArchivedRun.runNumber}
+                        {t('cockpit.run.archivedTitle', { n: selectedArchivedRun.runNumber })}
                       </span>
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700">
                         {new Date(selectedArchivedRun.completedAt).toLocaleString()}
                       </span>
                     </div>
-                    <h3 className="text-xl font-extrabold text-slate-100">{selectedArchivedRun.winnerTeamName || 'Archived Organization'}</h3>
+                    <h3 className="text-xl font-extrabold text-slate-100">{selectedArchivedRun.winnerTeamName || '—'}</h3>
                     <p className="text-xs text-slate-300 mt-1">
-                      Historical simulation record preserved safely during session reset. {selectedArchivedRun.teams.length} organizations competed across {selectedArchivedRun.totalRounds} quarters.
+                      {t('cockpit.run.archivedBody', { teams: selectedArchivedRun.teams.length, quarters: selectedArchivedRun.totalRounds })}
                     </p>
                   </div>
                 </div>
@@ -819,14 +674,15 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                 <table className="w-full text-left text-xs font-mono">
                   <thead className="bg-dark-900 text-slate-400 uppercase text-[10px] border-b border-slate-800">
                     <tr>
-                      <th className="p-3">Rank</th>
-                      <th className="p-3">Organization</th>
-                      <th className="p-3">Tech Debt (TDI)</th>
-                      <th className="p-3">Delivery Velocity</th>
-                      <th className="p-3">Stakeholder Trust</th>
-                      <th className="p-3">Resilience</th>
-                      <th className="p-3">Cash Reserves</th>
-                      <th className="p-3">Total TCO</th>
+                      <th className="p-3">#</th>
+                      <th className="p-3">{t('cockpit.col.team')}</th>
+                      <th className="p-3">{t('cockpit.col.grade')}</th>
+                      <th className="p-3">{vocab.metrics.technicalDebtIndex.label}</th>
+                      <th className="p-3">{vocab.metrics.deliveryVelocity.label}</th>
+                      <th className="p-3">{vocab.metrics.stakeholderTrust.label}</th>
+                      <th className="p-3">{vocab.metrics.resilienceIndex.label}</th>
+                      <th className="p-3">{vocab.metrics.budgetRemaining.label}</th>
+                      <th className="p-3">{vocab.metrics.tco.label}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 text-slate-200">
@@ -834,6 +690,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                       <tr key={rank.rank} className="hover:bg-dark-800/50 transition-colors">
                         <td className="p-3 font-bold text-cyan-400">#{rank.rank}</td>
                         <td className="p-3 font-bold text-slate-100">{rank.teamName}</td>
+                        <td className="p-3 font-bold">{rank.grade ? `${rank.grade} · ${t(`outcome.verdict.${rank.verdict}` as TranslationKey)}` : '—'}</td>
                         <td className="p-3 font-bold text-emerald-400">{rank.technicalDebtIndex}</td>
                         <td className="p-3 font-bold text-cyan-400">{rank.deliveryVelocity}</td>
                         <td className="p-3">{rank.stakeholderTrust}</td>
@@ -856,27 +713,29 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                       🏆
                     </div>
                     <div>
-                      <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400 font-bold">
-                        TOP PERFORMING STRATEGY
-                      </span>
+                      <span className="text-[10px] font-mono uppercase tracking-widest text-amber-400 font-bold">{t('cockpit.winner.label')}</span>
                       <h3 className="text-xl font-extrabold text-slate-100">{sortedTeams[0].name}</h3>
                       <p className="text-xs text-slate-300 mt-1">
-                        Achieved optimal balance of Technical Debt Remediation ({sortedTeams[0].metrics.technicalDebtIndex}%) and Delivery Velocity ({sortedTeams[0].metrics.deliveryVelocity} pts).
+                        {t('cockpit.winner.body', {
+                          verdict: t(`outcome.verdict.${outcomes.get(sortedTeams[0].id)!.verdict}` as TranslationKey),
+                          grade: outcomes.get(sortedTeams[0].id)!.grade,
+                          score: outcomes.get(sortedTeams[0].id)!.score,
+                        })}
                       </p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-3 font-mono text-center">
                     <div className="bg-dark-900/80 p-2.5 rounded-lg border border-slate-700">
-                      <span className="text-[10px] text-slate-500 block">FINAL TDI</span>
+                      <span className="text-[10px] text-slate-500 block truncate">{vocab.metrics.technicalDebtIndex.label}</span>
                       <span className="text-emerald-400 font-bold text-sm">{sortedTeams[0].metrics.technicalDebtIndex}%</span>
                     </div>
                     <div className="bg-dark-900/80 p-2.5 rounded-lg border border-slate-700">
-                      <span className="text-[10px] text-slate-500 block">VELOCITY</span>
+                      <span className="text-[10px] text-slate-500 block truncate">{vocab.metrics.deliveryVelocity.label}</span>
                       <span className="text-cyan-400 font-bold text-sm">{sortedTeams[0].metrics.deliveryVelocity}</span>
                     </div>
                     <div className="bg-dark-900/80 p-2.5 rounded-lg border border-slate-700">
-                      <span className="text-[10px] text-slate-500 block">TRUST</span>
+                      <span className="text-[10px] text-slate-500 block truncate">{vocab.metrics.stakeholderTrust.label}</span>
                       <span className="text-indigo-400 font-bold text-sm">{sortedTeams[0].metrics.stakeholderTrust}%</span>
                     </div>
                   </div>
@@ -890,39 +749,39 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                 <table className="w-full text-left text-xs font-mono">
                   <thead className="bg-dark-900 text-slate-400 uppercase text-[10px] border-b border-slate-800">
                     <tr>
-                      <th className="p-3">Rank</th>
-                      <th className="p-3">Organization</th>
-                      <th className="p-3">Verdict</th>
-                      <th className="p-3">Tech Debt (TDI)</th>
-                      <th className="p-3">Delivery Velocity</th>
-                      <th className="p-3">Stakeholder Trust</th>
-                      <th className="p-3">Resilience</th>
-                      <th className="p-3">Cash Reserves</th>
-                      <th className="p-3">Total TCO</th>
+                      <th className="p-3">#</th>
+                      <th className="p-3">{t('cockpit.col.team')}</th>
+                      <th className="p-3">{t('cockpit.col.verdict')}</th>
+                      <th className="p-3">{vocab.metrics.technicalDebtIndex.label}</th>
+                      <th className="p-3">{vocab.metrics.deliveryVelocity.label}</th>
+                      <th className="p-3">{vocab.metrics.stakeholderTrust.label}</th>
+                      <th className="p-3">{vocab.metrics.resilienceIndex.label}</th>
+                      <th className="p-3">{vocab.metrics.budgetRemaining.label}</th>
+                      <th className="p-3">{vocab.metrics.tco.label}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 text-slate-200">
-                    {sortedTeams.map((t, idx) => (
-                      <tr key={t.id} className="hover:bg-dark-800/50 transition-colors">
+                    {sortedTeams.map((tm, idx) => (
+                      <tr key={tm.id} className="hover:bg-dark-800/50 transition-colors">
                         <td className="p-3 font-bold text-cyan-400">#{idx + 1}</td>
                         <td className="p-3 font-bold text-slate-100 flex items-center gap-2">
-                          <span>{t.avatar}</span>
-                          <span>{t.name}</span>
+                          <span>{tm.avatar}</span>
+                          <span>{tm.name}</span>
                         </td>
                         <td className="p-3 font-bold">
-                          <span className={outcomes.get(t.id)!.verdict === 'VICTORY' ? 'text-emerald-400' : outcomes.get(t.id)!.verdict === 'PARTIAL' ? 'text-amber-400' : 'text-rose-400'}>
-                            {outcomes.get(t.id)!.grade} · {outcomes.get(t.id)!.verdict}
+                          <span className={outcomes.get(tm.id)!.verdict === 'VICTORY' ? 'text-emerald-400' : outcomes.get(tm.id)!.verdict === 'PARTIAL' ? 'text-amber-400' : 'text-rose-400'}>
+                            {outcomes.get(tm.id)!.grade} · {t(`outcome.verdict.${outcomes.get(tm.id)!.verdict}` as TranslationKey)}
                           </span>
-                          <span className="text-slate-500 font-normal"> ({outcomes.get(t.id)!.score}{session.state === 'COMPLETED' ? '' : ', projected'})</span>
+                          <span className="text-slate-500 font-normal"> ({outcomes.get(tm.id)!.score}{session.state === 'COMPLETED' ? '' : `, ${t('cockpit.projected')}`})</span>
                         </td>
-                        <td className={`p-3 font-bold ${t.metrics.technicalDebtIndex > 60 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                          {t.metrics.technicalDebtIndex}%
+                        <td className={`p-3 font-bold ${tm.metrics.technicalDebtIndex > 60 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                          {tm.metrics.technicalDebtIndex}%
                         </td>
-                        <td className="p-3 font-bold text-cyan-400">{t.metrics.deliveryVelocity} pts</td>
-                        <td className="p-3">{t.metrics.stakeholderTrust}%</td>
-                        <td className="p-3 text-emerald-400">{t.metrics.resilienceIndex}/100</td>
-                        <td className="p-3">${t.metrics.budgetRemaining.toLocaleString()}K</td>
-                        <td className="p-3 text-slate-400">${t.metrics.tco.toLocaleString()}K</td>
+                        <td className="p-3 font-bold text-cyan-400">{tm.metrics.deliveryVelocity} pts</td>
+                        <td className="p-3">{tm.metrics.stakeholderTrust}%</td>
+                        <td className="p-3 text-emerald-400">{tm.metrics.resilienceIndex}/100</td>
+                        <td className="p-3">${tm.metrics.budgetRemaining.toLocaleString()}K</td>
+                        <td className="p-3 text-slate-400">${tm.metrics.tco.toLocaleString()}K</td>
                       </tr>
                     ))}
                   </tbody>

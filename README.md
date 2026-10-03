@@ -21,6 +21,8 @@ The platform features:
 - **Facilitator War Room Cockpit**: Real-time telemetry monitoring all competing teams, master timer controls, black swan crisis injection, and post-simulation debriefing radar scorecards.
 - **Pluggable AI Abstraction Layer ("Bring Your Own AI")**: Seamless runtime switching between Local Ollama (Gemma 4/2), Google Gemini, Anthropic Claude, OpenAI, and a zero-dependency heuristic fallback engine.
 - **Hybrid System 1 / System 2 Decisions**: A non-autoregressive decision model (Clef-flash, Jev-compatible) decides stakeholder verdicts, trust shifts and board votes as calibrated probabilities; the LLM only writes the dialogue.
+- **Any business case, not only IT**: each scenario declares a domain (IT, industrial, market expansion, sourcing/offshore, generic) and its own vocabulary, so a plant acquisition talks about *asset ageing* and *production capacity* while the engine stays the same.
+- **Learning by design**: FR/EN interface, glossary and contextual tooltips, a guided tutorial with a practice game, a commented demo, and a facilitator kit (learning objectives, agenda, debrief guide, assessment rubric, pilot protocol).
 - **Rootless Podman Containerization**: Fully unprivileged multi-container compose architecture running under UID `10001`.
 
 ---
@@ -230,12 +232,34 @@ Three bots play every quarter through the real resolver, and a beam search explo
 | NeoTitan (Intermediate) | VICTORY A+ | VICTORY A+ | PARTIAL C | DEFEAT F |
 | HealthNova (Executive) | VICTORY A+ | PARTIAL B | PARTIAL B | DEFEAT F |
 | Mirage Offshore (Executive) | VICTORY A+ | VICTORY A+ | PARTIAL C | DEFEAT F |
+| Vénissieux plant acquisition (Executive, industrial) | VICTORY A | PARTIAL B | DEFEAT F | DEFEAT F |
 
 A test fails if any seeded scenario becomes unwinnable or lets the bypass strategy win. The Studio runs the same check on every generated scenario and shows the report before publishing.
 
 ### Solo play
 
 When a session has a single team, the player can resolve the quarter from the arena after submitting; no facilitator PIN is needed.
+
+---
+
+## 🎓 Learning Design: Making the Case Playable for Everyone
+
+GemSim targets executives, MBA students and professionals without a technical background as much as architects. Everything below works without an AI provider.
+
+| Feature | What the player or facilitator gets | Where |
+| :--- | :--- | :--- |
+| **Case file** | Context, organisation map, decision-makers with their priorities, the 7 victory conditions with today's starting values, every game rule computed from the scenario, and a quarter in 7 steps. | `ExecutiveBriefingModal.tsx` |
+| **Glossary & tooltips** | 22 concepts plus the scenario's own metric names, searchable; ⓘ tooltips on the HUD, objectives, postures and patience. Keyboard and screen-reader accessible. | `help/GlossaryPanel.tsx`, `help/InfoTip.tsx` |
+| **Guided tutorial** | A 13-step tour of the arena that starts on the first visit and can be replayed from the Help menu. | `help/TutorialTour.tsx` |
+| **Practice game** | Help → *Practice game* creates a solo session on the current scenario and starts the tutorial. | `App.tsx` |
+| **Commented demo** | The real engine replays a disciplined strategy against a shortcut strategy quarter by quarter, on any scenario, with commentary computed from the actual gaps. | `help/DemoPlayer.tsx`, `replayStrategy()` in `engine/balance.ts` |
+| **FR / EN interface** | A toggle in the navbar switches the whole UI. Engine notes, stakeholder reactions, rule violations and announcements travel as message codes and are translated on the client. | `client/src/i18n/` |
+| **Domain vocabulary** | Metrics, layers and postures are renamed per domain (`server/src/engine/vocabulary.ts`). A scenario may ship its own wording; it is used in its own language, the domain defaults otherwise. | `Scenario.domain`, `Scenario.vocabulary` |
+| **Neutral initiative categories** | Besides IT categories: capacity expansion, operations excellence, sourcing partnership, market expansion, risk mitigation, people & change, quick win. | `INITIATIVE_CATEGORIES` |
+| **Generic crises** | The facilitator's injectable crises (security, outage, investor pressure, audit) are built from the current scenario: they hit its most fragile critical element and move the executives who care. | `warroom/crisisTemplates.ts` |
+| **Facilitator kit** | Player manual, learning objectives, workshop agenda (3h30 and 2h), debrief guide, assessment rubric, pilot protocol with a pre/post quiz, and a guide to adapting a case. FR and EN, served in the *Docs & kit* portal. | `docs/kit/{fr,en}/` |
+
+The Studio has a domain selector and presets for banking, health, a plant acquisition, a market expansion and an offshore transfer. The seeded **Vénissieux plant acquisition** (`scen-industrial-lyon`, French) shows a fully non-technical case: line retrofit, MES/ERP integration, single-source foundry, HSE compliance, unions and a 3x8 trap initiative.
 
 ---
 
@@ -426,21 +450,22 @@ podman exec -it gemsim-ollama ollama pull gemma:2b
 ## 🎮 Online Interactive User Journeys
 
 ### 1. Player Journey (Cross-Functional Squad)
-1. **Analyze Topology**: Open the **3D Spatial Enterprise Canvas** to inspect application nodes, dependencies, and high-debt bottlenecks.
-2. **Negotiate with Stakeholders**: Enter the **AI Stakeholder War Room** to propose compromises to the CFO, VP Product, and Chief Architect.
-3. **Allocate Portfolio**: Select strategic modernization initiatives (Strangler Fig, Kafka Streaming, Cloud Mesh, Zero-Trust).
-4. **Set Governance**: Pick a governance posture (Bypass, Balanced, Strict, Modernize) and address the quarterly crisis.
-5. **Submit & Review**: Lock turn decisions and review quarterly outcomes, incident logs, and compounding drift.
+1. **Read the Case File**: Context, decision-makers, the 7 victory conditions and the rules (the tutorial walks through the screen on the first visit).
+2. **Analyze the Map**: Open the **3D canvas** (or its keyboard list) to find the most fragile elements: systems, plants, sites or suppliers depending on the case.
+3. **Negotiate**: Meet decision-makers one by one, sign pacts, then pitch the board to obtain the quarter's mandate.
+4. **Allocate Portfolio**: Pick initiatives within budget, capacity and mandate.
+5. **Set Governance**: Choose a posture and answer the quarter's crisis.
+6. **Submit & Review**: Lock decisions and read the quarter's report in the History tab.
 
 ### 2. Facilitator Journey (War Room Cockpit)
 1. **Launch Session**: Create a simulation session selecting any scenario and setting competing team count (1-5 teams).
 2. **Live Telemetry**: Monitor team metrics side-by-side in real time via WebSockets.
 3. **Control Flow**: Play/pause round timers, send broadcast announcements, and advance rounds with one click.
 4. **Inject Crises**: Trigger black-swan events (Zero-Day Exploit, Cloud Outage) on the fly.
-5. **Executive Debrief**: Review comparative radar charts, determine the winning strategy, and export executive JSON/Markdown reports.
+5. **Executive Debrief**: Review comparative radar charts, determine the winning strategy, and export executive JSON/Markdown reports. The debrief guide in the facilitator kit gives the questions to ask.
 
 ### 3. Game Studio Authoring Journey (Scenario Designer)
-1. **Generative Prompt**: Enter an industry vertical and business challenge in plain text.
+1. **Generative Prompt**: Pick a domain (or a preset) and describe the industry and business challenge in plain text.
 2. **One-Click Synthesis**: The AI Gateway generates a validated multi-tier scenario schema.
 3. **Inspect & Tweak**: Preview the 3D topology graph, adjust stakeholder personas, and edit round timelines.
 4. **Publish**: Save directly into the game library for immediate multiplayer play.
@@ -458,17 +483,18 @@ npm test
 
 Test Results:
 ```
- ✓ server/src/ai/stakeholder-judge.test.ts (5 tests)
+ ✓ server/src/ai/stakeholder-judge.test.ts (6 tests)
  ✓ server/test/math.test.ts (8 tests)
- ✓ server/test/game-rules.test.ts (19 tests)
+ ✓ client/src/i18n/i18n.test.ts (7 tests)
  ✓ server/test/scenario-generation.test.ts (3 tests)
  ✓ server/src/ai/production-enhancements.test.ts (4 tests)
+ ✓ server/test/game-rules.test.ts (24 tests)
 
- Test Files  5 passed (5)
-      Tests  39 passed (39)
+ Test Files  6 passed (6)
+      Tests  52 passed (52)
 ```
 
-`game-rules.test.ts` covers the budget and capacity rules, one-time and multi-quarter initiatives, run-budget economics, insolvency, pacts, crisis injection, seeded incidents, win/loss verdicts, request validation (Zod) and the balance check of every seeded scenario. `npm test` works from the repository root or from `server/`.
+`game-rules.test.ts` covers the budget and capacity rules, one-time and multi-quarter initiatives, run-budget economics, insolvency, pacts, crisis injection, seeded incidents, win/loss verdicts, request validation (Zod) and the balance check of every seeded scenario. `i18n.test.ts` checks that French and English define the same keys and placeholders, that every message code emitted by the engine is translated, and that every domain names every metric, layer and posture. `npm test` works from the repository root or from `server/`.
 
 ---
 

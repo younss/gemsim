@@ -4,6 +4,7 @@
 // ============================================================================
 
 import {
+  MessageCode,
   Scenario,
   Team,
   TeamMetrics,
@@ -261,6 +262,9 @@ export class SimulationResolver {
         costImpact: cost,
         description: `High debt (${candidate.node.technicalDebt}%) and latency overload caused service disruptions (failure probability ${Math.round(candidate.failureProbability * 100)}%). Required emergency triage, SLA credits and customer remediation.`,
         affectedNodeId: candidate.node.id,
+        nodeName: candidate.node.name,
+        nodeDebt: candidate.node.technicalDebt,
+        failureProbability: Math.round(candidate.failureProbability * 100),
       });
 
       candidate.node.health = Math.max(10, candidate.node.health - 25);
@@ -308,21 +312,32 @@ export class SimulationResolver {
 
       let extra = (eventTrustImpacts[stakeholder.id] || 0) + (initiativeTrust[stakeholder.id] || 0);
       const notes: string[] = [reactionNote];
+      const reactionCodes: MessageCode[] = [
+        {
+          code: trustDelta >= 10 ? 'reaction.impressed' : trustDelta > 0 ? 'reaction.favorable' : trustDelta > -8 ? 'reaction.cautious' : 'reaction.critical',
+          params: { name: stakeholder.name },
+        },
+      ];
 
       for (const pact of pacts.filter(p => p.stakeholderId === stakeholder.id)) {
         const bonus = Math.max(5, Math.min(15, Math.round(5 + pact.committedBudget / 20)));
         extra += bonus;
         notes.push(`Pact honored: "${pact.concession}" (+${bonus}).`);
+        reactionCodes.push({ code: 'reaction.pact', params: { concession: pact.concession, bonus } });
       }
       if (insolvent) {
         const penalty = Math.round(3 + 12 * stakeholder.decisionWeights.financialAcumen);
         extra -= penalty;
         notes.push(`Cash reserves are negative (-${penalty}).`);
+        reactionCodes.push({ code: 'reaction.insolvent', params: { penalty } });
       }
       if (regulatoryFine > 0) {
         const penalty = Math.round(10 * stakeholder.decisionWeights.regulatoryCompliance);
         extra -= penalty;
-        if (penalty > 0) notes.push(`Regulatory fine of $${regulatoryFine}K (-${penalty}).`);
+        if (penalty > 0) {
+          notes.push(`Regulatory fine of $${regulatoryFine}K (-${penalty}).`);
+          reactionCodes.push({ code: 'reaction.fine', params: { fine: regulatoryFine, penalty } });
+        }
       }
 
       const finalTrust = Math.max(5, Math.min(100, newTrust + extra));
@@ -334,6 +349,7 @@ export class SimulationResolver {
         name: stakeholder.name,
         trustDelta: finalTrust - currentTrust,
         comment: notes.join(' '),
+        notes: reactionCodes,
       });
     }
 
@@ -355,32 +371,43 @@ export class SimulationResolver {
 
     // Facilitator Feedback
     let facilitatorFeedback = `Round ${roundNumber} Completed. `;
+    const notes: MessageCode[] = [];
     if (metricsAfter.technicalDebtIndex > 75) {
       facilitatorFeedback += `WARNING: Technical debt has reached critical levels (${metricsAfter.technicalDebtIndex}%). Feature delivery will stall unless refactoring is prioritized. `;
+      notes.push({ code: 'note.debtCritical', params: { value: metricsAfter.technicalDebtIndex } });
     } else if (metricsAfter.technicalDebtIndex < 35) {
       facilitatorFeedback += `EXCELLENT: Architectural health is strong, unlocking high delivery agility. `;
+      notes.push({ code: 'note.debtHealthy' });
     }
     if (mandate) {
       facilitatorFeedback += `Board resolution this quarter: ${mandate.verdict} (${mandate.consensusScore}% consensus)${boardVelocityBonus ? `, +${boardVelocityBonus} velocity` : ''}. `;
+      notes.push({ code: 'note.board', params: { verdict: mandate.verdict, consensus: mandate.consensusScore, velocity: boardVelocityBonus } });
     }
     if (stillActive.length > 0) {
       facilitatorFeedback += `${stillActive.length} multi-quarter initiative(s) still in delivery. `;
+      notes.push({ code: 'note.inDelivery', params: { count: stillActive.length } });
     }
     if (incidentsTriggered.length > 0) {
       facilitatorFeedback += `${incidentsTriggered.length} production incident(s) occurred costing $${incidentCostTotal}K. `;
+      notes.push({ code: 'note.incidents', params: { count: incidentsTriggered.length, cost: incidentCostTotal } });
     }
     if (opExOverrun > 0) {
       facilitatorFeedback += `OpEx run-rate exceeds the funded run budget by $${opExOverrun}K, charged to the change budget. `;
+      notes.push({ code: 'note.opexOverrun', params: { amount: opExOverrun } });
     } else if (opExOverrun < 0) {
       facilitatorFeedback += `OpEx savings of $${-opExOverrun}K returned to the change budget. `;
+      notes.push({ code: 'note.opexSavings', params: { amount: -opExOverrun } });
     }
     if (regulatoryFine > 0) {
       facilitatorFeedback += `REGULATORY FINE: compliance at ${newCompliance}% triggered a $${regulatoryFine}K penalty. `;
+      notes.push({ code: 'note.fine', params: { compliance: newCompliance, fine: regulatoryFine } });
     }
     if (insolvent) {
       facilitatorFeedback += `INSOLVENT: cash reserves are negative ($${metricsAfter.budgetRemaining}K). Trust collapses and the program fails if not restored by the final quarter. `;
+      notes.push({ code: 'note.insolvent', params: { cash: metricsAfter.budgetRemaining } });
     } else if (metricsAfter.budgetRemaining < 200) {
       facilitatorFeedback += `CRITICAL: Cash reserves are nearly depleted ($${metricsAfter.budgetRemaining}K remaining). `;
+      notes.push({ code: 'note.cashLow', params: { cash: metricsAfter.budgetRemaining } });
     }
 
     const updatedNodeOverrides: Record<string, { health: number; technicalDebt: number; status: NodeHealthStatus }> = {};
@@ -390,6 +417,7 @@ export class SimulationResolver {
 
     const roundResult: RoundResult = {
       roundNumber,
+      notes,
       teamId: team.id,
       metricsBefore,
       metricsAfter,

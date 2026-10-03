@@ -60,6 +60,7 @@ COPY --chown=10001:10001 --from=builder /build/server/dist ./server/dist
 COPY --chown=10001:10001 --from=builder /build/server/public ./server/public
 COPY --chown=10001:10001 --from=builder /build/server/package.json ./server/package.json
 COPY --chown=10001:10001 --from=builder /build/package.json ./package.json
+COPY --chown=10001:10001 docs/kit/ ./docs/kit/
 
 # Environment variables
 ENV NODE_ENV=production \

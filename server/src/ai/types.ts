@@ -38,6 +38,8 @@ export interface StakeholderNegotiationContext {
   };
   /** Human-readable summary of the team's submitted quarter decisions and last results. */
   teamDecisions?: string[];
+  /** Business meaning of the engine metrics in this scenario (e.g. debt = plant ageing). */
+  metricLabels?: { debt: string; velocity: string; cash: string };
   /** Remaining patience with the player this quarter (0-100). */
   patience?: number;
   /** Decision already made by System One; the LLM only voices it. */
@@ -50,6 +52,7 @@ export interface ScenarioGenerationPrompt {
   targetScale?: string;
   difficulty?: 'ENTRY' | 'INTERMEDIATE' | 'EXECUTIVE' | 'CRISIS_CHIEF';
   customDirectives?: string;
+  domain?: 'IT' | 'INDUSTRIAL' | 'MARKET_EXPANSION' | 'SOURCING' | 'GENERIC';
 }
 
 export interface AIProvider {

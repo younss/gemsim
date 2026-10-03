@@ -13,6 +13,10 @@ import {
 } from '../../types/index';
 import { api } from '../../services/api';
 import { useSimulationStore } from '../../stores/useSimulationStore';
+import { useGameText } from '../../i18n/game';
+import type { TranslationKey } from '../../i18n';
+import { InfoTip } from '../help/InfoTip';
+import { BOARD_MANDATE_EFFECTS } from '../../../../server/src/engine/rules';
 import {
   MessageSquare,
   Send,
@@ -44,6 +48,8 @@ export const StakeholderWarRoom: React.FC<Props> = ({
   stakeholders,
   onTrustUpdated,
 }) => {
+  const scenario = useSimulationStore(s => s.currentScenario);
+  const { t, vocab, risk } = useGameText(scenario);
   // Can be 'BOARDROOM' for Plenary Executive Meeting, or individual stakeholder ID
   const [activeStakeholderId, setActiveStakeholderId] = useState<string>('BOARDROOM');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -73,8 +79,11 @@ export const StakeholderWarRoom: React.FC<Props> = ({
             id: `greet-boardroom`,
             sender: 'SYSTEM',
             stakeholderId: 'BOARDROOM',
-            senderName: 'Secrétariat Général du Conseil d\'Administration',
-            content: `🏛️ Séance Plénière du Conseil d'Administration convoquée pour le Trimestre ${session.currentRound}.\n\nParticipants au tour de table : ${stakeholders.map(s => `${s.name} (${s.title})`).join(', ')}.\n\nPrésentez votre stratégie d'architecture globale et vos arbitrages budgétaires. Tous les membres du Conseil délibèreront et voteront sur votre proposition.`,
+            senderName: t('war.board.secretariat'),
+            content: t('war.board.greeting', {
+              n: session.currentRound,
+              members: stakeholders.map(s => `${s.name} (${s.title})`).join(', '),
+            }),
             timestamp: new Date().toISOString(),
           };
           setMessages([initialBoardroomGreeting]);
@@ -136,6 +145,31 @@ export const StakeholderWarRoom: React.FC<Props> = ({
     }
   };
 
+  const mandateEffects = (verdict: keyof typeof BOARD_MANDATE_EFFECTS) => {
+    const e = BOARD_MANDATE_EFFECTS[verdict];
+    const parts: string[] = [];
+    if (e.capacityDelta > 0) parts.push(t('mandate.effect.capacityUp', { n: e.capacityDelta }));
+    if (e.capacityDelta < 0) parts.push(t('mandate.effect.capacityDown', { n: e.capacityDelta }));
+    if (e.velocityBonus) parts.push(t('mandate.effect.velocity', { n: e.velocityBonus, velocity: vocab.metrics.deliveryVelocity.label.toLowerCase() }));
+    if (e.blockedRisk.length) parts.push(t('mandate.effect.blocked', { risks: e.blockedRisk.map(r => risk(r)).join(' / ') }));
+    return parts.join(' · ');
+  };
+
+  // Domain-neutral starter proposals, made concrete with the scenario's best debt-reducing initiatives
+  const topInitiatives = [...(scenario?.initiativesCatalog ?? [])].filter(i => i.tdiDelta < 0).sort((a, b) => a.tdiDelta - b.tdiDelta);
+  const first = topInitiatives[0]?.name ?? '';
+  const second = topInitiatives[1]?.name ?? first;
+  const quickPitches = [
+    { id: 'phased', label: `🧭 ${t('war.pitch.phased.label')}`, text: t('war.pitch.phased.text', { first, second }) },
+    { id: 'costs', label: `💰 ${t('war.pitch.costs.label')}`, text: t('war.pitch.costs.text', { opex: vocab.metrics.opEx.label.toLowerCase() }) },
+    {
+      id: 'balance',
+      label: `⚖️ ${t('war.pitch.balance.label')}`,
+      text: t('war.pitch.balance.text', { velocity: vocab.metrics.deliveryVelocity.label.toLowerCase(), debt: vocab.metrics.technicalDebtIndex.label.toLowerCase() }),
+    },
+    { id: 'compliance', label: `🛡️ ${t('war.pitch.compliance.label')}`, text: t('war.pitch.compliance.text', { compliance: vocab.metrics.complianceScore.label.toLowerCase() }) },
+  ];
+
   const handleSendMessage = async () => {
     if (!inputText.trim() || isEvaluating) return;
 
@@ -147,7 +181,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
       id: `temp-${Date.now()}`,
       sender: 'PLAYER',
       stakeholderId: isBoardroom ? 'BOARDROOM' : activeStakeholder?.id,
-      senderName: `${team.name} (Directeur Architecture)`,
+      senderName: `${team.name} (${t('war.playerRole')})`,
       content: userText,
       timestamp: new Date().toISOString(),
     };
@@ -271,8 +305,8 @@ export const StakeholderWarRoom: React.FC<Props> = ({
         id: `err-${Date.now()}`,
         sender: 'SYSTEM',
         stakeholderId: isBoardroom ? 'BOARDROOM' : activeStakeholder?.id,
-        senderName: 'Système // Incident IA',
-        content: `⚠️ ${err.message || 'La négociation a échoué. Veuillez réessayer.'}`,
+        senderName: t('war.error.sender'),
+        content: `⚠️ ${err.message || t('war.error.body')}`,
         timestamp: new Date().toISOString(),
       };
       setMessages(prev => [...prev, errorMsg]);
@@ -292,10 +326,10 @@ export const StakeholderWarRoom: React.FC<Props> = ({
       <div className="lg:col-span-4 flex flex-col gap-3 overflow-y-auto pr-1">
         <div className="flex items-center justify-between mb-1">
           <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300 font-mono flex items-center gap-2">
-            <Briefcase className="w-4 h-4 text-cyan-400" />
-            <span>Political Arena</span>
+            <Briefcase className="w-4 h-4 text-cyan-400" aria-hidden="true" />
+            <span>{t('war.arena')}</span>
           </h3>
-          <span className="text-xs text-slate-500 font-mono">Q{session.currentRound}</span>
+          <span className="text-xs text-slate-500 font-mono">{t('common.quarterShort', { n: session.currentRound })}</span>
         </div>
 
         {/* Executive Board Meeting (ComEx Plenary) Card */}
@@ -313,20 +347,20 @@ export const StakeholderWarRoom: React.FC<Props> = ({
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-1">
-                <span className="font-bold text-slate-100 text-sm truncate">Conseil d'Administration</span>
+                <span className="font-bold text-slate-100 text-sm truncate">{t('war.board.name')}</span>
                 <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shrink-0">
-                  PLÉNIÈRE COMEX
+                  {t('war.board.badge')}
                 </span>
               </div>
               <div className="text-xs text-indigo-300 font-medium truncate mt-0.5">
-                Tous les Décideurs Réunis ({stakeholders.length} Membres)
+                {t('war.board.members', { n: stakeholders.length })}
               </div>
               <div className="flex items-center gap-1.5 mt-2 text-sm bg-dark-900/60 p-1.5 rounded border border-slate-800">
                 {stakeholders.map(s => (
                   <span key={s.id} title={`${s.name} (${s.title})`} className="cursor-help">{s.avatar}</span>
                 ))}
                 <span className="text-[10px] font-mono text-indigo-300 ml-auto font-bold">
-                  {averageBoardTrust}% Quorum
+                  {t('war.board.alignment', { n: averageBoardTrust })}
                 </span>
               </div>
             </div>
@@ -334,7 +368,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
         </button>
 
         <div className="flex items-center gap-2 px-1 pt-2 border-t border-slate-800 text-[10px] font-mono text-slate-500 uppercase tracking-wider">
-          <span>Entretiens Individuels (1-sur-1)</span>
+          <span>{t('war.oneOnOne')}</span>
         </div>
 
         {stakeholders.map(sh => {
@@ -369,7 +403,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-bold text-slate-100 text-sm truncate">{sh.name}</span>
                     <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${trustColor}`}>
-                      {trust}% Trust
+                      {t('war.trust', { n: trust })}
                     </span>
                   </div>
                   <div className="text-xs text-cyan-400 font-medium truncate">{sh.title}</div>
@@ -390,12 +424,15 @@ export const StakeholderWarRoom: React.FC<Props> = ({
                 const patience = team.stakeholderPatience?.[sh.id] ?? 100;
                 return (
                   <div className="mt-2 flex items-center gap-2 text-[10px] font-mono text-slate-500">
-                    <span>PATIENCE</span>
+                    <span className="flex items-center">
+                      {t('war.patience')}
+                      <InfoTip text={t('war.patienceHelp')} />
+                    </span>
                     <div className="flex-1 bg-dark-900 h-1.5 rounded-full overflow-hidden border border-slate-800">
                       <div className="h-full rounded-full bg-violet-500 transition-all duration-500" style={{ width: `${patience}%` }} />
                     </div>
                     <span className={patience <= 0 ? 'text-rose-400 font-bold' : patience < 35 ? 'text-amber-400' : 'text-violet-300'}>
-                      {patience <= 0 ? '🚪 closed' : `${patience}%`}
+                      {patience <= 0 ? `🚪 ${t('war.closed')}` : `${patience}%`}
                     </span>
                   </div>
                 );
@@ -403,7 +440,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
 
               {/* Quick Bias Tag */}
               <div className="mt-2 text-[10px] text-slate-400 italic line-clamp-1">
-                <span className="font-semibold text-slate-300">Focus:</span> {sh.bias}
+                <span className="font-semibold text-slate-300">{t('war.focus')}</span> {sh.bias}
               </div>
             </button>
           );
@@ -421,14 +458,12 @@ export const StakeholderWarRoom: React.FC<Props> = ({
               </span>
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-slate-100 text-base">Conseil d'Administration & ComEx Plénier</h4>
+                  <h4 className="font-bold text-slate-100 text-base">{t('war.board.title')}</h4>
                   <span className="text-xs px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-mono">
-                    {stakeholders.length} DÉCIDEURS EN SÉANCE
+                    {t('war.board.inSession', { n: stakeholders.length })}
                   </span>
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Délibération stratégique collective • Trimestre {session.currentRound}
-                </p>
+                <p className="text-xs text-slate-400 mt-0.5">{t('war.board.subtitle', { n: session.currentRound })}</p>
               </div>
             </div>
           ) : (
@@ -444,7 +479,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  <strong className="text-slate-300">Hidden Agenda:</strong> {activeStakeholder.hiddenAgenda}
+                  <strong className="text-slate-300">{t('brief.people.agenda')}</strong> {activeStakeholder.hiddenAgenda}
                 </p>
               </div>
             </div>
@@ -453,7 +488,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
           <div className="flex items-center gap-3">
             <div className="text-right">
               <span className="text-[10px] text-slate-500 block font-mono">
-                {isBoardroom ? 'ALIGNEMENT QUORUM' : 'CURRENT TRUST'}
+                {isBoardroom ? t('war.board.alignmentLabel') : t('war.currentTrust')}
               </span>
               <span className={`text-sm font-mono font-bold ${
                 (isBoardroom ? averageBoardTrust : currentTrust) > 60 ? 'text-emerald-400' : 'text-amber-400'
@@ -493,7 +528,21 @@ export const StakeholderWarRoom: React.FC<Props> = ({
                       : 'bg-dark-800 text-slate-100 border border-slate-700/80 rounded-tl-none'
                   }`}
                 >
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  {msg.boardResolution ? (
+                    <p className="whitespace-pre-wrap">
+                      {t('war.resolution.summary', {
+                        verdict: t(`mandate.${msg.boardResolution.verdict}` as TranslationKey),
+                        consensus: msg.boardResolution.consensusScore,
+                        accepted: msg.boardResolution.votes.accepted,
+                        conditional: msg.boardResolution.votes.conditional,
+                        rejected: msg.boardResolution.votes.rejected,
+                      })}
+                      {'\n'}
+                      {t('war.resolution.mandate', { effects: mandateEffects(msg.boardResolution.verdict) })}
+                    </p>
+                  ) : (
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  )}
 
                   {/* If Boardroom Resolution Attached */}
                   {msg.boardResolution && (
@@ -511,16 +560,10 @@ export const StakeholderWarRoom: React.FC<Props> = ({
                           ) : (
                             <AlertCircle className="w-4 h-4 text-amber-400" />
                           )}
-                          <span>
-                            {msg.boardResolution.verdict === 'APPROVED'
-                              ? 'RÉSOLUTION ADOPTÉE'
-                              : msg.boardResolution.verdict === 'CONDITIONAL_QUORUM'
-                              ? 'QUORUM SOUS CONDITIONS'
-                              : 'PROPOSITION REJETÉE'}
-                          </span>
+                          <span>{t(`mandate.${msg.boardResolution.verdict}` as TranslationKey)}</span>
                         </span>
                         <span className="text-xs font-bold px-2 py-0.5 rounded bg-dark-900 border border-slate-700">
-                          Consensus : {msg.boardResolution.consensusScore}%
+                          {t('war.resolution.consensus', { n: msg.boardResolution.consensusScore })}
                         </span>
                       </div>
 
@@ -531,7 +574,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
                             <div key={shId} className="bg-dark-900/80 p-2 rounded border border-slate-800">
                               <span className="text-slate-300 font-bold block truncate">{item.stakeholderName}</span>
                               <span className={item.verdict === 'ACCEPTED' ? 'text-emerald-400' : item.verdict === 'CONDITIONAL_ACCEPTANCE' ? 'text-amber-400' : 'text-rose-400'}>
-                                {item.verdict === 'ACCEPTED' ? '✓ Pour' : item.verdict === 'CONDITIONAL_ACCEPTANCE' ? '⚠️ Réserve' : '✗ Contre'} ({item.trustDelta > 0 ? `+${item.trustDelta}` : item.trustDelta})
+                                {item.verdict === 'ACCEPTED' ? `✓ ${t('war.vote.for')}` : item.verdict === 'CONDITIONAL_ACCEPTANCE' ? `⚠️ ${t('war.vote.conditional')}` : `✗ ${t('war.vote.against')}`} ({item.trustDelta > 0 ? `+${item.trustDelta}` : item.trustDelta})
                               </span>
                             </div>
                           ))}
@@ -547,15 +590,15 @@ export const StakeholderWarRoom: React.FC<Props> = ({
                         <div className="flex items-center gap-1.5">
                           {msg.evaluation.verdict === 'ACCEPTED' ? (
                             <span className="text-emerald-400 flex items-center gap-1 font-bold">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> PACT ACCEPTED
+                              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" /> {t('war.verdict.ACCEPTED')}
                             </span>
                           ) : msg.evaluation.verdict === 'CONDITIONAL_ACCEPTANCE' ? (
                             <span className="text-amber-400 flex items-center gap-1 font-bold">
-                              <HelpCircle className="w-3.5 h-3.5" /> CONDITIONAL CONCESSION
+                              <HelpCircle className="w-3.5 h-3.5" aria-hidden="true" /> {t('war.verdict.CONDITIONAL_ACCEPTANCE')}
                             </span>
                           ) : (
                             <span className="text-rose-400 flex items-center gap-1 font-bold">
-                              <XCircle className="w-3.5 h-3.5" /> PROPOSAL REJECTED
+                              <XCircle className="w-3.5 h-3.5" aria-hidden="true" /> {t('war.verdict.REJECTED')}
                             </span>
                           )}
                         </div>
@@ -564,35 +607,38 @@ export const StakeholderWarRoom: React.FC<Props> = ({
                             msg.evaluation.trustDelta >= 0 ? 'text-emerald-400' : 'text-rose-400'
                           }`}
                         >
-                          {msg.evaluation.trustDelta >= 0 ? `+${msg.evaluation.trustDelta}` : msg.evaluation.trustDelta} Trust
+                          {t('war.trustDelta', { n: msg.evaluation.trustDelta >= 0 ? `+${msg.evaluation.trustDelta}` : msg.evaluation.trustDelta })}
                         </span>
                       </div>
 
                       <div className="grid grid-cols-3 gap-2 bg-dark-900/60 p-2 rounded border border-slate-700/40 text-[10px]">
                         <div>
-                          <span className="text-slate-500 block">EMPATHY</span>
+                          <span className="text-slate-500 block">{t('war.score.empathy')}</span>
                           <span className="text-slate-200 font-bold">{msg.evaluation.empathyScore}/100</span>
                         </div>
                         <div>
-                          <span className="text-slate-500 block">FINANCIAL</span>
+                          <span className="text-slate-500 block">{t('war.score.financial')}</span>
                           <span className="text-slate-200 font-bold">{msg.evaluation.financialAcumenScore}/100</span>
                         </div>
                         <div>
-                          <span className="text-slate-500 block">STRATEGY</span>
+                          <span className="text-slate-500 block">{t('war.score.strategy')}</span>
                           <span className="text-slate-200 font-bold">{msg.evaluation.strategicAlignmentScore}/100</span>
                         </div>
                       </div>
 
                       {msg.evaluation.concessionRequired && (
                         <div className="mt-2 text-amber-300 text-[11px] bg-amber-500/10 p-2 rounded border border-amber-500/30">
-                          <strong>Concession Demanded:</strong> {msg.evaluation.concessionRequired}
+                          <strong>{t('war.concession')}</strong> {msg.evaluation.concessionRequired}
                           {msg.stakeholderId && msg.stakeholderId !== 'BOARDROOM' && session.state !== 'COMPLETED' && msg.evaluation.decisionEngine !== 'sentinel' && (
                             signedPacts.some(p => p.stakeholderId === msg.stakeholderId && p.concession === msg.evaluation!.concessionRequired) ? (
-                              <div className="mt-2 text-emerald-300 font-bold">🤝 Pact signed — honored at quarter resolution</div>
+                              <div className="mt-2 text-emerald-300 font-bold">🤝 {t('war.pact.signed')}</div>
                             ) : !team.decisionSubmitted ? (
                               <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <span className="text-slate-400">Commit budget ($K):</span>
+                                <label className="text-slate-400" htmlFor={`pact-${msg.id}`}>
+                                  {t('war.pact.budget')}
+                                </label>
                                 <input
+                                  id={`pact-${msg.id}`}
                                   type="number"
                                   min={0}
                                   step={10}
@@ -604,7 +650,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
                                   onClick={() => handleSignPact(msg.stakeholderId!, msg.evaluation!.concessionRequired!, msg.id)}
                                   className="px-2.5 py-1 rounded bg-indigo-500 hover:bg-indigo-400 text-white font-bold"
                                 >
-                                  🤝 Sign pact
+                                  🤝 {t('war.pact.sign')}
                                 </button>
                               </div>
                             ) : null
@@ -622,9 +668,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
             <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono p-2 animate-pulse">
               <Sparkles className="w-4 h-4 animate-spin" />
               <span>
-                {isBoardroom
-                  ? 'Le Conseil d\'Administration délibère en plénière...'
-                  : `${activeStakeholder.name} is evaluating your proposal against executive metrics...`}
+                {isBoardroom ? t('war.board.deliberating') : t('war.evaluating', { name: activeStakeholder.name })}
               </span>
             </div>
           )}
@@ -633,140 +677,35 @@ export const StakeholderWarRoom: React.FC<Props> = ({
           <div ref={chatBottomRef} />
         </div>
 
-        {/* Quick Strategic Proposal Chips */}
+        {/* Quick proposals: built from the scenario's own initiatives, in the interface language */}
         <div className="px-4 py-2 bg-dark-900 border-t border-slate-800 flex items-center gap-2 overflow-x-auto text-xs">
-          <span className="text-slate-500 text-[11px] font-mono shrink-0">
-            {isBoardroom ? 'Board Pitches:' : 'Quick Pacts:'}
-          </span>
-          {isBoardroom ? (
-            <>
-              {[
-                {
-                  id: 'paved-path',
-                  label: '⚖️ Compromis Sablier & Paved Path',
-                  text: `Mesdames et messieurs du Conseil, nous proposons une architecture en sablier avec des Quality Gates automatiques : nous réduisons la dette technique tout en garantissant les délais de mise sur le marché.`,
-                },
-                {
-                  id: 'sovereignty',
-                  label: '🛡️ Souveraineté & Données Synthétiques',
-                  text: `Nous sanctuarisons le coeur souverain avec des données synthétiques et un contrôle strict des prestataires, garantissant la conformité réglementaire et la sécurité.`,
-                },
-                {
-                  id: 'opex-cut',
-                  label: '💰 Engagement ROI & Baisse d\'OpEx',
-                  text: `Nous nous engageons sur une baisse d'OpEx de 15% dès le prochain trimestre en échange du déblocage d'un budget d'outillage et d'automatisation CI/CD.`,
-                },
-              ].map(chip => {
-                const used = messages.some(
-                  m => m.sender === 'PLAYER' &&
-                  m.stakeholderId === 'BOARDROOM' &&
-                  m.content.trim().toLowerCase() === chip.text.trim().toLowerCase()
-                );
-                return (
-                  <button
-                    key={chip.id}
-                    disabled={used}
-                    onClick={() => handleQuickProposal(chip.text)}
-                    className={`px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                      used
-                        ? 'bg-slate-900 text-slate-500 border border-slate-800 line-through opacity-60 cursor-not-allowed'
-                        : 'bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-500/40'
-                    }`}
-                  >
-                    <span>{chip.label}</span>
-                    {used && <span className="text-[9px] font-mono text-amber-400 no-underline">(Déjà engagé)</span>}
-                  </button>
-                );
-              })}
-            </>
-          ) : /(?:[éàèùâêîôûëïç]|directeur|responsable|chef|président|mirage|assurance)/i.test((activeStakeholder?.title || '') + (activeStakeholder?.name || '')) ? (
-            <>
-              {[
-                {
-                  id: 'fr-opex',
-                  label: '💰 Engagement Réduction OpEx (-15%)',
-                  text: `Nous nous engageons sur une baisse d'OpEx de 15% d'ici deux trimestres en échange de votre arbitrage budgétaire favorable.`,
-                },
-                {
-                  id: 'fr-fasttrack',
-                  label: '🚀 Fast-track Fonctionnalités Métier',
-                  text: `Nous accélérons en parallèle les fonctionnalités métier prioritaires via des couches anti-corruption, sans violer les normes d'architecture.`,
-                },
-                {
-                  id: 'fr-security',
-                  label: '🛡️ Garantie Sécurité & Zero-Trust',
-                  text: `Nous sanctuarisons les flux avec journalisation d'audit automatique et zero-trust pour éliminer toute exposition réglementaire.`,
-                },
-                {
-                  id: 'fr-pavedpath',
-                  label: '⚖️ Paved Path & Sas d\'Intégration',
-                  text: `Nous déployons un sas d'intégration et un paved path standardisé pour fluidifier le delivery sans désorganiser les équipes.`,
-                },
-              ].map(chip => {
-                const used = messages.some(
-                  m => m.sender === 'PLAYER' &&
-                  m.stakeholderId === activeStakeholder?.id &&
-                  m.content.trim().toLowerCase() === chip.text.trim().toLowerCase()
-                );
-                return (
-                  <button
-                    key={chip.id}
-                    disabled={used}
-                    onClick={() => handleQuickProposal(chip.text)}
-                    className={`px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                      used
-                        ? 'bg-slate-900 text-slate-500 border border-slate-800 line-through opacity-60 cursor-not-allowed'
-                        : 'bg-dark-800 hover:bg-dark-750 text-cyan-300 border border-cyan-500/30'
-                    }`}
-                  >
-                    <span>{chip.label}</span>
-                    {used && <span className="text-[9px] font-mono text-amber-400 no-underline">(Déjà engagé)</span>}
-                  </button>
-                );
-              })}
-            </>
-          ) : (
-            <>
-              {[
-                {
-                  id: 'en-opex',
-                  label: '💰 OpEx Cut Commitment',
-                  text: `I commit to reducing ongoing legacy maintenance OpEx by 15% within two quarters in exchange for your capital sign-off.`,
-                },
-                {
-                  id: 'en-fasttrack',
-                  label: '🚀 Parallel Feature Fast-Track',
-                  text: `We will fast-track high-priority user features concurrently using anti-corruption layers without violating architecture standards.`,
-                },
-                {
-                  id: 'en-zerotrust',
-                  label: '⚖️ Zero-Trust Compliance Guarantee',
-                  text: `We are implementing automated compliance audit logging and zero-trust mTLS to eliminate all regulatory exposure.`,
-                },
-              ].map(chip => {
-                const used = messages.some(
-                  m => m.sender === 'PLAYER' &&
-                  m.stakeholderId === activeStakeholder?.id &&
-                  m.content.trim().toLowerCase() === chip.text.trim().toLowerCase()
-                );
-                return (
-                  <button
-                    key={chip.id}
-                    disabled={used}
-                    onClick={() => handleQuickProposal(chip.text)}
-                    className={`px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-all flex items-center gap-1.5 ${
-                      used
-                        ? 'bg-slate-900 text-slate-500 border border-slate-800 line-through opacity-60 cursor-not-allowed'
-                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
-                    }`}
-                  >
-                    <span>{chip.label}</span>
-                    {used && <span className="text-[9px] font-mono text-amber-400 no-underline">(Already pledged)</span>}
-                  </button>
-                );
-              })}
-            </>
-          )}
+          <span className="text-slate-500 text-[11px] font-mono shrink-0">{isBoardroom ? t('war.pitches.board') : t('war.pitches.individual')}</span>
+          {quickPitches.map(chip => {
+            const used = messages.some(
+              m =>
+                m.sender === 'PLAYER' &&
+                m.stakeholderId === (isBoardroom ? 'BOARDROOM' : activeStakeholder?.id) &&
+                m.content.trim().toLowerCase() === chip.text.trim().toLowerCase()
+            );
+            return (
+              <button
+                key={chip.id}
+                disabled={used}
+                onClick={() => handleQuickProposal(chip.text)}
+                title={chip.text}
+                className={`px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-all flex items-center gap-1.5 ${
+                  used
+                    ? 'bg-slate-900 text-slate-500 border border-slate-800 line-through opacity-60 cursor-not-allowed'
+                    : isBoardroom
+                    ? 'bg-indigo-950/60 hover:bg-indigo-900/80 text-indigo-300 border border-indigo-500/40'
+                    : 'bg-dark-800 hover:bg-dark-750 text-cyan-300 border border-cyan-500/30'
+                }`}
+              >
+                <span>{chip.label}</span>
+                {used && <span className="text-[9px] font-mono text-amber-400 no-underline">({t('war.pitches.used')})</span>}
+              </button>
+            );
+          })}
         </div>
 
         {/* Anti-Cheat / Repetition Warning Banner */}
@@ -779,9 +718,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
           <div className="px-4 py-2 bg-rose-500/10 border-t border-rose-500/30 text-rose-300 text-xs font-mono flex items-center gap-2 animate-fadeIn">
             <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
             <span>
-              {/(?:[éàèùâêîôûëïç]|directeur|responsable|chef|président|mirage|assurance)/i.test((activeStakeholder?.title || '') + (activeStakeholder?.name || ''))
-                ? '⚠️ Répétition détectée : Répéter exactement la même proposition sans nouvel élément sera rejeté et pénalisera la confiance (-6 à -12 pts).'
-                : '⚠️ Duplicate proposal detected: Repeating identical pitches without new substance will be rejected and penalize executive trust (-6 to -12 pts).'}
+              ⚠️ {t('war.repeatWarning')}
             </span>
           </div>
         )}
@@ -793,11 +730,8 @@ export const StakeholderWarRoom: React.FC<Props> = ({
             value={inputText}
             onChange={e => setInputText(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-            placeholder={
-              isBoardroom
-                ? 'Présentez votre stratégie globale au Conseil d\'Administration (CFO, CPO, Lead Tech, CISO)...'
-                : `Negotiate governance, concessions, or deadlines with ${activeStakeholder.name}...`
-            }
+            aria-label={isBoardroom ? t('war.input.board') : t('war.input.individual', { name: activeStakeholder.name })}
+            placeholder={isBoardroom ? t('war.input.board') : t('war.input.individual', { name: activeStakeholder.name })}
             className="flex-1 bg-dark-800 text-slate-100 text-sm px-4 py-3 rounded-xl border border-slate-700 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500"
             disabled={isEvaluating}
           />
@@ -810,8 +744,8 @@ export const StakeholderWarRoom: React.FC<Props> = ({
                 : 'bg-cyan-500 hover:bg-cyan-400 text-black shadow-[0_0_15px_rgba(0,240,255,0.3)]'
             } disabled:opacity-50`}
           >
-            <Send className="w-4 h-4" />
-            <span>{isBoardroom ? 'Délibérer' : 'Send'}</span>
+            <Send className="w-4 h-4" aria-hidden="true" />
+            <span>{isBoardroom ? t('war.send.board') : t('war.send.individual')}</span>
           </button>
         </div>
       </div>

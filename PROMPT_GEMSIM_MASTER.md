@@ -11,6 +11,7 @@ GemSim is a flight simulator for CTOs, CIOs, Lead Architects, and C-suite leader
 - **Round Cycle**: 4 sequential quarterly rounds (Q1 to Q4).
 - **Core Dilemma**: Balance technical debt reduction, delivery velocity, OpEx run-rates, regulatory compliance (DORA, NIS2, HIPAA/GDPR), and sovereign architectural control while maintaining C-suite stakeholder trust.
 - **Decision Loop**: Each quarter, players inspect the 3D digital twin, negotiate 1-on-1 with autonomous AI executives, pitch strategy in an all-hands Boardroom Meeting, select architectural initiatives, and weather unexpected governance crises and black swans.
+- **Audience**: The same engine serves non-technical cases (plant acquisition, market expansion, offshore transfer) for executives and MBA students. Each scenario has a **domain** and a **vocabulary** that rename metrics, layers and postures (see section 14).
 
 ---
 
@@ -41,7 +42,14 @@ gemsim/
 │       │   ├── warroom/FacilitatorCockpit.tsx     # Multi-squad telemetry, crisis injector, debrief
 │       │   ├── warroom/TeamRadarChart.tsx         # Comparative radar
 │       │   └── studio/GameStudio.tsx              # Prompt-to-Scenario authoring UI (streamed)
+│       │   ├── briefing/ExecutiveBriefingModal.tsx # Case file: context, map, people, 7 objectives, all rules
+│       │   ├── help/TutorialTour.tsx              # 13-step guided tour (data-tour anchors)
+│       │   ├── help/GlossaryPanel.tsx, InfoTip.tsx # Searchable glossary & accessible tooltips
+│       │   ├── help/DemoPlayer.tsx                # Commented replay: disciplined vs shortcut strategy
+│       │   └── warroom/crisisTemplates.ts         # Generic injectable crises bound to the scenario
+│       ├── i18n/                                  # fr.ts (source), en.ts, game.ts (codes, vocabulary), glossary.ts
 │       ├── stores/useSimulationStore.ts           # Zustand global store fed by WebSocket messages
+│       ├── stores/useHelpStore.ts                 # Glossary, demo and tutorial visibility
 │       ├── engine.ts                              # Re-exports the server's pure rule functions
 │       ├── services/api.ts                        # REST/SSE client (facilitator PIN header) + WebSocket
 │       └── types/index.ts                         # Re-exports server/src/types (shared types)
@@ -63,7 +71,8 @@ gemsim/
 │   │   │   ├── resolver.ts                        # Quarter resolution state machine
 │   │   │   ├── rules.ts                           # Budget, capacity, one-time initiatives (shared with client)
 │   │   │   ├── outcome.ts                         # Win/loss evaluation (shared with client)
-│   │   │   ├── balance.ts                         # Bot strategies + beam search playability check
+│   │   │   ├── balance.ts                         # Bot strategies, beam search, replayStrategy (demo)
+│   │   │   ├── vocabulary.ts                      # Per-domain FR/EN labels for metrics, layers, postures
 │   │   │   └── session-service.ts                 # Advance a session (patience recovery, final outcomes)
 │   │   ├── services/round-service.ts              # Single round path for REST, WebSocket, BullMQ
 │   │   ├── queue/index.ts                         # BullMQ queues & workers
@@ -74,6 +83,7 @@ gemsim/
 │   │   ├── validation.ts                          # Zod request schemas
 │   │   └── index.ts
 │   └── test/                                      # Vitest suites (math, game rules, balance, generation)
+├── docs/kit/{fr,en}/                              # Facilitator kit & player manual (served by /api/docs?lang=)
 └── Dockerfile, Containerfile & podman-compose.yml
 ```
 
@@ -312,6 +322,32 @@ Pre-seed the database with the flagship enterprise scenario:
 - SQLite is the local synchronous store. When `DATABASE_URL` is set, PostgreSQL is the system of record: seeds are pushed to it at startup, its content is loaded into SQLite, and every write and delete is mirrored with per-record ordering.
 - When Redis is reachable, quarter resolution runs as a BullMQ job (concurrency 1) awaited by the caller; jobs are logged to `job_logs`. Without Redis the same handler runs inline.
 - All mutating endpoints validate their body with Zod (HTTP 400 with issues). Client state lives in a Zustand store fed by WebSocket messages.
+
+---
+
+## 14. LEARNING DESIGN, LANGUAGES & NON-TECHNICAL CASES
+
+### Domains & vocabulary
+- `Scenario.domain`: `IT | INDUSTRIAL | MARKET_EXPANSION | SOURCING | GENERIC`. `Scenario.language`: `fr | en`. `Scenario.vocabulary` (optional): labels and descriptions for every metric, the four layers, the four postures and the element noun.
+- `resolveVocabulary(scenario, lang)` returns the scenario's own wording when `scenario.language === lang`, otherwise the domain defaults in `lang`. The engine is unchanged: only words change. Nodes may carry an `archetype` (plant, line, warehouse, supplier, site...).
+- Initiative categories include neutral ones: `CAPACITY_EXPANSION, OPERATIONS_EXCELLENCE, SOURCING_PARTNERSHIP, MARKET_EXPANSION, RISK_MITIGATION, PEOPLE_CHANGE, QUICK_WIN`. The Studio prompt receives domain guidance and may only use `INITIATIVE_CATEGORIES`; normalization keeps the domain, detects the language and sanitizes the vocabulary.
+- Prompts to the stakeholder LLM and the System One judge receive the metric labels, so executives speak the case's language.
+- Seed scenario **"Usine de Vénissieux : acquisition et intégration industrielle"** (`scen-industrial-lyon`, INDUSTRIAL, French, EXECUTIVE): 8 elements (line A from 1998, assembly line B, single-source foundry, regional warehouse, site MES/ERP, effluent plant, key accounts, group ERP), 4 executives (CFO, COO, HR director, HSE director), 4 crises, 6 initiatives including a 2-quarter retrofit and a 3x8 EXTREME trap. Balance: best path VICTORY A, Architect bot PARTIAL B, Cowboy DEFEAT F.
+
+### Translatable engine output
+- The engine and server never emit display sentences for game facts: quarter notes, stakeholder reactions, rule violations and announcements are `MessageCode { code, params }` and the client translates them (`translateCode`). Incidents carry `nodeName`, `nodeDebt`, `failureProbability`.
+- The client has flat FR/EN dictionaries with `{placeholder}` interpolation; a navbar toggle switches the language (persisted in `localStorage`). A test enforces key and placeholder parity and that every code emitted by the server has a translation.
+
+### Help surfaces
+- **Case file**: context, map, decision-makers, the 7 victory conditions with starting values (computed by `evaluateOutcome` on the baseline), 13 rules computed from the scenario (run budget, multi-quarter initiatives, posture names...), and a 7-step quarter using the scenario's initiatives as examples.
+- **Glossary** (22 concepts + the scenario's metrics) and ⓘ tooltips on the HUD, objectives, postures and patience.
+- **Guided tutorial** (13 steps, auto-starts on the first visit) and **practice game** (solo session on the current scenario + tutorial).
+- **Commented demo**: `replayStrategy` replays ARCHITECT vs COWBOY on any scenario; the commentary is computed from the real gaps each quarter.
+- **Generic crises**: injectable crises (security, outage, investor, audit) target the scenario's most fragile critical element and the executives whose decision weights they touch.
+- **Accessibility**: dialogs with `role=dialog`, tabs with `role=tablist`, posture and crisis choices as radio groups, keyboard-operable canvas element list, labelled icon buttons.
+
+### Facilitator kit (`docs/kit/{fr,en}/`)
+Player manual, learning objectives with references, workshop agenda (3h30 and 2h), debrief guide, assessment rubric, pilot protocol with a 7-question pre/post quiz, and a guide to adapting a case. Shipped in the container image and served by `GET /api/docs?lang=fr|en`.
 
 ---
 

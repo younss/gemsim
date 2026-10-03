@@ -12,6 +12,15 @@ import {
 } from './types.js';
 import { AIProviderType, ProposalEvaluation, Scenario } from '../types/index.js';
 import { executeWithRepairLoop, sanitizeAndParseJSON } from './repair-loop.js';
+import { INITIATIVE_CATEGORIES } from '../types/index.js';
+
+const DOMAIN_GUIDANCE: Record<string, string> = {
+  IT: 'Nodes are IT systems (applications, data stores, infrastructure). The debt metric is technical debt.',
+  INDUSTRIAL: 'Nodes are plants, production lines, warehouses, suppliers and control systems. The debt metric is asset ageing / maintenance backlog, velocity is production capacity, resilience is supply chain resilience, compliance is HSE/ESG. Prefer categories CAPACITY_EXPANSION, OPERATIONS_EXCELLENCE, SOURCING_PARTNERSHIP, RISK_MITIGATION, PEOPLE_CHANGE, QUICK_WIN.',
+  MARKET_EXPANSION: 'Nodes are markets, subsidiaries, stores or offices, and shared services. The debt metric is integration debt (gap to the target operating model), velocity is growth pace, compliance is local regulatory compliance. Prefer categories MARKET_EXPANSION, OPERATIONS_EXCELLENCE, PEOPLE_CHANGE, RISK_MITIGATION, QUICK_WIN.',
+  SOURCING: 'Nodes are internal teams, offshore/nearshore delivery centres, vendors and governance bodies. The debt metric is dependency debt (lost know-how, lock-in), compliance covers data sovereignty and contracts. Prefer categories SOURCING_PARTNERSHIP, PEOPLE_CHANGE, RISK_MITIGATION, OPERATIONS_EXCELLENCE, QUICK_WIN.',
+  GENERIC: 'Nodes are the main components of the organisation (units, assets, processes). The debt metric is structural debt / underinvestment.',
+};
 import { getAITimeout } from './timeout.js';
 
 export abstract class BaseAIProvider implements AIProvider {
@@ -58,15 +67,15 @@ export abstract class BaseAIProvider implements AIProvider {
 Your Personality: ${context.stakeholder.personality}
 Your Core Bias: ${context.stakeholder.bias}
 Your Hidden Agenda: ${context.stakeholder.hiddenAgenda}
-Your Current Trust in the Architecture/Leadership Team: ${context.currentTrust}/100.
+Your Current Trust in the Player's Leadership Team: ${context.currentTrust}/100.
 Your Negotiation Tolerance: ${context.stakeholder.negotiationTolerance}/100.
 Your Remaining Patience With the Player This Quarter: ${context.patience ?? 100}/100.${(context.patience ?? 100) < 35 ? ' You are close to ending this conversation: be curt and warn the player explicitly.' : ''}
 
 Current Corporate Context:
 - Round: ${context.currentRound}
-- Technical Debt Index: ${context.teamMetrics.technicalDebtIndex}/100
-- Delivery Velocity: ${context.teamMetrics.deliveryVelocity}/100
-- Cash Remaining: $${context.teamMetrics.budgetRemaining}K
+- ${context.metricLabels?.debt ?? 'Technical Debt Index'}: ${context.teamMetrics.technicalDebtIndex}/100
+- ${context.metricLabels?.velocity ?? 'Delivery Velocity'}: ${context.teamMetrics.deliveryVelocity}/100
+- ${context.metricLabels?.cash ?? 'Cash Remaining'}: $${context.teamMetrics.budgetRemaining}K
 ${context.teamDecisions?.length ? `
 The player's team decisions this quarter (react to these concretely when relevant):
 ${context.teamDecisions.map(d => `- ${d}`).join('\n')}
@@ -288,13 +297,24 @@ CRITICAL DESIGN DIRECTIVES:
    - Assign realistic positions: layer ('BUSINESS', 'APPLICATION', 'DATA', 'INFRASTRUCTURE'), health (10-100), technicalDebt (0-100), telemetry.
 4. AUTONOMOUS PERSONAS: Generate 3 to 4 executive NPCs directly matching the factions in the prompt (e.g. CFO / Finance, Vendor / ESN Account Director, Onshore Operations Delivery Lead). Include their distinct personality, hidden agenda, biases, decision weights, and reactive dialogue.
 5. 4-QUARTER CHRONOLOGICAL TIMELINE: Generate exactly 4 round events (Q1, Q2, Q3, Q4) with meaningful strategic dilemmas and selectable remediation choices matching the story arc.
-6. STRATEGIC INITIATIVES CATALOG: Generate 4 to 6 strategic initiatives directly addressing the trade-offs described in the prompt.
+6. STRATEGIC INITIATIVES CATALOG: Generate 4 to 6 strategic initiatives directly addressing the trade-offs described in the prompt. Include at least 3 that reduce the debt metric, one 2-quarter initiative (durationRounds: 2), and one tempting quick win that adds debt (riskLevel "EXTREME").
+7. BUSINESS DOMAIN = ${prompt.domain || 'IT'}. ${DOMAIN_GUIDANCE[prompt.domain || 'IT']}
+   Initiative "category" must be one of: ${INITIATIVE_CATEGORIES.join(', ')}.
+   Provide a "vocabulary" object, written in the scenario language, naming each engine metric in this business's terms (keys: technicalDebtIndex, deliveryVelocity, stakeholderTrust, resilienceIndex, complianceScore, budgetRemaining, opEx, tco, modernizedNodesCount), the four layers (BUSINESS, APPLICATION, DATA, INFRASTRUCTURE), the four governance postures (BYPASS_ARCH, BALANCED_AGILE, STRICT_GOVERNANCE, ACCELERATED_MODERN) and the "nodeNoun".
 
 Output ONLY valid JSON matching this structure:
 {
   "title": "<Specific, evocative scenario title, e.g. from prompt>",
   "industry": "${prompt.industry}",
   "difficulty": "${prompt.difficulty || 'INTERMEDIATE'}",
+  "domain": "${prompt.domain || 'IT'}",
+  "language": "<fr or en, the language of the user's prompt>",
+  "vocabulary": {
+    "nodeNoun": "<what a topology node is in this business>",
+    "metrics": { "technicalDebtIndex": { "label": "<business name of the debt metric>", "description": "<one sentence>" }, "deliveryVelocity": { "label": "<...>", "description": "<...>" } },
+    "layers": { "BUSINESS": "<...>", "APPLICATION": "<...>", "DATA": "<...>", "INFRASTRUCTURE": "<...>" },
+    "postures": { "BYPASS_ARCH": { "name": "<risky shortcut posture>", "description": "<...>" }, "STRICT_GOVERNANCE": { "name": "<...>", "description": "<...>" } }
+  },
   "description": "<Executive overview in 2 paragraphs tailored to the prompt>",
   "businessContext": "<Detailed corporate context and crisis triggers from the prompt>",
   "baselineMetrics": {

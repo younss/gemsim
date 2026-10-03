@@ -13,6 +13,7 @@ import { SystemOneClient } from '../ai/systemone.js';
 import { boardroomSchema, negotiateSchema, validateBody } from '../validation.js';
 import { requireFacilitator } from '../auth.js';
 import { describeBoardMandate } from '../engine/rules.js';
+import { resolveVocabulary } from '../engine/vocabulary.js';
 
 // Patience spent per exchange (negative = recovered). At 0 the stakeholder closes the door until next quarter.
 const PATIENCE_COST = { LOW_EFFORT: 30, REPETITION: 35, REJECTED: 20, CONDITIONAL_ACCEPTANCE: 8, ACCEPTED: -5 } as const;
@@ -88,21 +89,28 @@ ${isFrench ? 'Answer in elegant professional French.' : 'Answer in English.'}`;
   };
 }
 
+/** Prompt wording for the engine metrics in this scenario's business domain. */
+function promptMetricLabels(scenario: Scenario) {
+  const v = resolveVocabulary(scenario, 'en');
+  return { debt: v.metrics.technicalDebtIndex.label, velocity: v.metrics.deliveryVelocity.label, cash: v.metrics.budgetRemaining.label };
+}
+
 /**
  * Describes the team's submitted quarter decisions and last round outcome so
  * stakeholders can judge actual actions, not only the chat message.
  */
 export function describeTeamDecisions(scenario: Scenario, session: SimulationSession, team: Team): string[] {
   const lines: string[] = [];
+  const vocab = resolveVocabulary(scenario, 'en');
   const d = team.currentRoundDecisions;
   if (d) {
     for (const id of d.selectedInitiativeIds) {
       const init = scenario.initiativesCatalog.find(i => i.id === id);
       if (init) {
-        lines.push(`Initiative "${init.name}" (${init.category}, CapEx $${init.capExCost}K, OpEx ${init.opExDelta >= 0 ? '+' : ''}${init.opExDelta}K, tech debt ${init.tdiDelta >= 0 ? '+' : ''}${init.tdiDelta}, velocity ${init.velocityDelta >= 0 ? '+' : ''}${init.velocityDelta}, risk ${init.riskLevel})`);
+        lines.push(`Initiative "${init.name}" (${init.category}, CapEx $${init.capExCost}K, OpEx ${init.opExDelta >= 0 ? '+' : ''}${init.opExDelta}K, ${vocab.metrics.technicalDebtIndex.label.toLowerCase()} ${init.tdiDelta >= 0 ? '+' : ''}${init.tdiDelta}, ${vocab.metrics.deliveryVelocity.label.toLowerCase()} ${init.velocityDelta >= 0 ? '+' : ''}${init.velocityDelta}, risk ${init.riskLevel})`);
       }
     }
-    lines.push(`Governance posture: ${d.governancePosture}`);
+    lines.push(`Governance posture: ${vocab.postures[d.governancePosture].name} (${d.governancePosture})`);
     if (d.eventChoiceId) {
       const events = [...(session.injectedEvents ?? []), ...scenario.roundEvents];
       const choice = events.flatMap(e => e.choices).find(c => c.id === d.eventChoiceId);
@@ -116,7 +124,7 @@ export function describeTeamDecisions(scenario: Scenario, session: SimulationSes
   const last = team.history[team.history.length - 1];
   if (last) {
     const md = last.metricDeltas;
-    lines.push(`Last quarter (Q${last.roundNumber}) results: tech debt ${md.technicalDebtIndex >= 0 ? '+' : ''}${md.technicalDebtIndex}, velocity ${md.deliveryVelocity >= 0 ? '+' : ''}${md.deliveryVelocity}, budget ${md.budgetRemaining}K, ${last.incidentsTriggered.length} incident(s)`);
+    lines.push(`Last quarter (Q${last.roundNumber}) results: ${vocab.metrics.technicalDebtIndex.label.toLowerCase()} ${md.technicalDebtIndex >= 0 ? '+' : ''}${md.technicalDebtIndex}, ${vocab.metrics.deliveryVelocity.label.toLowerCase()} ${md.deliveryVelocity >= 0 ? '+' : ''}${md.deliveryVelocity}, budget ${md.budgetRemaining}K, ${last.incidentsTriggered.length} incident(s)`);
   }
   return lines;
 }
@@ -452,6 +460,7 @@ aiRouter.post('/negotiate', validateBody(negotiateSchema), async (req, res) => {
       deliveryVelocity: team.metrics.deliveryVelocity,
     };
     const teamDecisions = describeTeamDecisions(scenario, session, team);
+    const metricLabels = promptMetricLabels(scenario);
 
     // System 1: fast typed decision. System 2 (LLM) then only voices it.
     const decision = await judgeProposal({
@@ -462,6 +471,7 @@ aiRouter.post('/negotiate', validateBody(negotiateSchema), async (req, res) => {
       currentRound: session.currentRound,
       teamMetrics,
       teamDecisions,
+      metricLabels,
       patience: getPatience(team, stakeholderId),
       isFrench,
     });
@@ -475,6 +485,7 @@ aiRouter.post('/negotiate', validateBody(negotiateSchema), async (req, res) => {
         currentRound: session.currentRound,
         teamMetrics,
         teamDecisions,
+        metricLabels,
         patience: getPatience(team, stakeholderId),
         decision: decision ?? undefined,
       });
@@ -730,6 +741,7 @@ aiRouter.post('/negotiate/stream', validateBody(negotiateSchema), async (req, re
       deliveryVelocity: team.metrics.deliveryVelocity,
     };
     const teamDecisions = describeTeamDecisions(scenario, session, team);
+    const metricLabels = promptMetricLabels(scenario);
 
     // System 1 decides before the first dialogue token is streamed
     const decision = await judgeProposal({
@@ -740,6 +752,7 @@ aiRouter.post('/negotiate/stream', validateBody(negotiateSchema), async (req, re
       currentRound: session.currentRound,
       teamMetrics,
       teamDecisions,
+      metricLabels,
       patience: getPatience(team, stakeholderId),
       isFrench,
     });
@@ -756,6 +769,7 @@ aiRouter.post('/negotiate/stream', validateBody(negotiateSchema), async (req, re
         currentRound: session.currentRound,
         teamMetrics,
         teamDecisions,
+        metricLabels,
         patience: getPatience(team, stakeholderId),
         decision: decision ?? undefined,
       },
@@ -977,6 +991,7 @@ aiRouter.post('/boardroom', validateBody(boardroomSchema), async (req, res) => {
       deliveryVelocity: team.metrics.deliveryVelocity,
     };
     const teamDecisions = describeTeamDecisions(scenario, session, team);
+    const metricLabels = promptMetricLabels(scenario);
 
     // System 1: every board vote in a single forward pass
     const boardDecisions = await judgeBoard(stakeholders, team.stakeholderTrustMap, {
@@ -985,6 +1000,7 @@ aiRouter.post('/boardroom', validateBody(boardroomSchema), async (req, res) => {
       currentRound: session.currentRound,
       teamMetrics,
       teamDecisions,
+      metricLabels,
       isFrench,
     });
 
@@ -1017,6 +1033,7 @@ aiRouter.post('/boardroom', validateBody(boardroomSchema), async (req, res) => {
             currentRound: session.currentRound,
             teamMetrics,
             teamDecisions,
+            metricLabels,
             patience: getPatience(team, sh.id),
             decision,
           });

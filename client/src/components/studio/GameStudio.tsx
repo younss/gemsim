@@ -7,6 +7,18 @@
 import React, { useState, useEffect } from 'react';
 import { Scenario, AISettingsState, AIProviderType } from '../../types/index';
 import { api, ScenarioBalanceSummary } from '../../services/api';
+import { useGameText } from '../../i18n/game';
+import type { TranslationKey } from '../../i18n';
+import type { ScenarioDomain } from '../../types/index';
+
+const PRESETS: Array<{ id: string; icon: string; domain: ScenarioDomain }> = [
+  { id: 'banking', icon: '💳', domain: 'IT' },
+  { id: 'health', icon: '🏥', domain: 'IT' },
+  { id: 'plant', icon: '🏭', domain: 'INDUSTRIAL' },
+  { id: 'expansion', icon: '🌎', domain: 'MARKET_EXPANSION' },
+  { id: 'offshore', icon: '🌍', domain: 'SOURCING' },
+];
+const DOMAINS: ScenarioDomain[] = ['IT', 'INDUSTRIAL', 'MARKET_EXPANSION', 'SOURCING', 'GENERIC'];
 import { EnterpriseCanvas } from '../3d/EnterpriseCanvas';
 import {
   Wand2,
@@ -34,12 +46,12 @@ interface Props {
 }
 
 export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
-  const [industry, setIndustry] = useState('FinTech & Digital Banking');
-  const [businessChallenge, setBusinessChallenge] = useState(
-    'A Tier-1 bank scaling to 15M accounts struggles with a 25-year-old COBOL mainframe monolith causing batch-processing bottlenecks, escalating OpEx maintenance, and regulatory open-banking audit pressures.'
-  );
+  const { t, category, severity } = useGameText(null);
+  const [industry, setIndustry] = useState(() => t('studio.preset.banking.industry'));
+  const [businessChallenge, setBusinessChallenge] = useState(() => t('studio.preset.banking.challenge'));
+  const [domain, setDomain] = useState<ScenarioDomain>('IT');
   const [difficulty, setDifficulty] = useState<'ENTRY' | 'INTERMEDIATE' | 'EXECUTIVE' | 'CRISIS_CHIEF'>('INTERMEDIATE');
-  const [customDirectives, setCustomDirectives] = useState('Include realistic friction between CFO margin targets and VP Product feature release velocity.');
+  const [customDirectives, setCustomDirectives] = useState(() => t('studio.defaultDirectives'));
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState<number>(0);
@@ -78,9 +90,10 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
   }, []);
 
   // Quick Prompt Presets
-  const applyPreset = (presetIndustry: string, presetChallenge: string) => {
-    setIndustry(presetIndustry);
-    setBusinessChallenge(presetChallenge);
+  const applyPreset = (preset: (typeof PRESETS)[number]) => {
+    setIndustry(t(`studio.preset.${preset.id}.industry` as TranslationKey));
+    setBusinessChallenge(t(`studio.preset.${preset.id}.challenge` as TranslationKey));
+    setDomain(preset.domain);
   };
 
   const handleProviderSwitch = async (provider: AIProviderType) => {
@@ -116,7 +129,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
       setAiTestResult(res);
       await refreshAISettings();
     } catch (err: any) {
-      setAiTestResult({ ok: false, message: err.message || 'Connection failed', latencyMs: 0 });
+      setAiTestResult({ ok: false, message: err.message || t('studio.ai.failed'), latencyMs: 0 });
     } finally {
       setTestingAI(false);
     }
@@ -134,7 +147,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
       setStreamPreview('');
       let received = 0;
       const { scenario } = await api.generateStudioScenarioStream(
-        { industry, businessChallenge, difficulty, customDirectives },
+        { industry, businessChallenge, difficulty, customDirectives, domain },
         chunk => {
           received += chunk.length;
           // Keep the tail of the stream visible and move the phase bar with real progress
@@ -152,7 +165,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
       setValidationResult(validation);
     } catch (err: any) {
       console.error('Scenario generation failed:', err);
-      setValidationResult({ valid: false, errors: [err.message || 'Generation error'] });
+      setValidationResult({ valid: false, errors: [err.message || t('studio.generationError')] });
     } finally {
       setIsGenerating(false);
     }
@@ -183,11 +196,11 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
 
   const stepLabels = [
     '',
-    `Interrogating ${activeProvider === 'ollama' ? `Local Ollama (${activeOllamaModel})` : activeProvider.toUpperCase()}...`,
-    'Synthesizing 4-Tier Topology (Business, App, Data, Infra)...',
-    'Engineering Competing Stakeholder Agendas & Dialectics...',
-    'Simulating 4 Quarters of Crisis Events & Remediation Curves...',
-    'Validating Mathematical Constraints & Compiling 3D Arena...',
+    t('studio.step.1', { engine: activeProvider === 'ollama' ? `Ollama (${activeOllamaModel})` : activeProvider.toUpperCase() }),
+    t('studio.step.2'),
+    t('studio.step.3'),
+    t('studio.step.4'),
+    t('studio.step.5'),
   ];
 
   return (
@@ -200,21 +213,23 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-slate-400 font-mono text-[11px]">ACTIVE AI ENGINE:</span>
+              <span className="text-slate-400 font-mono text-[11px]">{t('studio.ai.active')}</span>
               <span className="font-bold text-slate-100 flex items-center gap-1.5">
                 {activeProvider === 'ollama' && <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />}
                 {activeProvider === 'gemini' && <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />}
                 {activeProvider === 'fallback' && <span className="w-2 h-2 rounded-full bg-amber-400" />}
-                {activeProvider === 'ollama' ? 'Ollama (Local Private AI)' : activeProvider === 'gemini' ? 'Google Gemini Cloud' : 'Zero-Dependency Heuristic'}
+                {activeProvider === 'ollama' ? t('studio.ai.ollama') : activeProvider === 'gemini' ? 'Google Gemini' : activeProvider === 'fallback' ? t('studio.ai.fallback') : activeProvider.toUpperCase()}
               </span>
             </div>
             <div className="text-[11px] text-slate-400">
               {activeProvider === 'ollama' ? (
-                <span>Host endpoint: <code className="text-cyan-300 font-mono">{aiSettings?.providers?.ollama?.baseUrl || 'http://localhost:11434'}</code></span>
+                <span>
+                  {t('studio.ai.endpoint')} <code className="text-cyan-300 font-mono">{aiSettings?.providers?.ollama?.baseUrl || 'http://localhost:11434'}</code>
+                </span>
               ) : activeProvider === 'gemini' ? (
-                <span>High-throughput Google BYOK Cloud Gateway</span>
+                <span>{t('studio.ai.geminiDesc')}</span>
               ) : (
-                <span>Deterministic domain heuristic engine</span>
+                <span>{t('studio.ai.fallbackDesc')}</span>
               )}
             </div>
           </div>
@@ -224,8 +239,9 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
           {/* Ollama Model Selector if Ollama is active */}
           {activeProvider === 'ollama' && (
             <div className="flex items-center gap-1.5 bg-dark-900 border border-slate-700 px-2 py-1 rounded-lg">
-              <span className="text-[10px] text-slate-400 font-mono">MODEL:</span>
+              <span className="text-[10px] text-slate-400 font-mono">{t('studio.ai.model')}</span>
               <select
+                aria-label={t('studio.ai.model')}
                 value={activeOllamaModel}
                 onChange={e => handleModelChange(e.target.value)}
                 className="bg-transparent text-cyan-400 font-mono text-xs focus:outline-none cursor-pointer"
@@ -263,7 +279,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                 activeProvider === 'fallback' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Offline
+              {t('studio.ai.offline')}
             </button>
           </div>
 
@@ -272,10 +288,10 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
             onClick={handleTestAICall}
             disabled={testingAI}
             className="px-2.5 py-1.5 rounded-lg bg-dark-800 hover:bg-dark-750 text-slate-300 border border-slate-700 text-xs font-mono flex items-center gap-1.5 transition-all"
-            title="Test AI connection and measure roundtrip latency"
+            title={t('studio.ai.ping')}
           >
             {testingAI ? <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-400" /> : <Activity className="w-3.5 h-3.5 text-slate-400" />}
-            <span>{testingAI ? 'Testing...' : 'Ping'}</span>
+            <span>{testingAI ? t('studio.ai.testing') : 'Ping'}</span>
           </button>
 
           {aiTestResult && (
@@ -285,7 +301,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
               }`}
             >
               {aiTestResult.ok ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-              <span>{aiTestResult.ok ? `${aiTestResult.latencyMs}ms` : 'Offline'}</span>
+              <span>{aiTestResult.ok ? `${aiTestResult.latencyMs} ms` : t('studio.ai.unreachable')}</span>
             </span>
           )}
         </div>
@@ -300,106 +316,121 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                 <Wand2 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="font-bold text-slate-100 text-base font-mono">AI Scenario Studio</h3>
-                <p className="text-xs text-slate-400">Synthesize validated playable arenas from plain text.</p>
+                <h3 className="font-bold text-slate-100 text-base font-mono">{t('studio.title')}</h3>
+                <p className="text-xs text-slate-400">{t('studio.subtitle')}</p>
               </div>
             </div>
 
             {/* Quick Preset Buttons */}
             <div className="space-y-1.5 pt-2 border-t border-slate-800">
-              <span className="text-[10px] text-slate-500 font-mono block">INDUSTRY TEMPLATES:</span>
+              <span className="text-[10px] text-slate-500 font-mono block">{t('studio.templates')}</span>
               <div className="flex flex-wrap gap-1.5 text-[11px]">
-                <button
-                  onClick={() => applyPreset('FinTech & Neobanking', 'Systemic Bank Corporate Services Remodernization: high-frequency payment gateway and core mainframe settlement suffering database deadlocks under surge volume.')}
-                  className="px-2 py-1 rounded bg-dark-800 hover:bg-dark-750 text-slate-300 border border-slate-700 transition-all text-left"
-                >
-                  💳 Systemic Banking
-                </button>
-                <button
-                  onClick={() => applyPreset('Healthcare & Life Sciences', 'Hospital network migrating on-premise clinical EHR to cloud under HIPAA enforcement.')}
-                  className="px-2 py-1 rounded bg-dark-800 hover:bg-dark-750 text-slate-300 border border-slate-700 transition-all text-left"
-                >
-                  🏥 Healthcare EHR
-                </button>
-                <button
-                  onClick={() => applyPreset('Global E-Commerce', 'Flash-sale retail ERP monolith suffering from database thread starvation on Black Friday.')}
-                  className="px-2 py-1 rounded bg-dark-800 hover:bg-dark-750 text-slate-300 border border-slate-700 transition-all text-left"
-                >
-                  🛍️ E-Commerce ERP
-                </button>
-                <button
-                  onClick={() => applyPreset('Grande Entreprise de Services / Assurance et Fintech', 'Titre du Scénario : Mirage Offshore : Arbitrage Coûts, Souveraineté et Dette Technique\nSecteur : Grande Entreprise de Services / Assurance et Fintech\nFormat : 4 Tours (Q1 à Q4)\nRôle des Joueurs : Direction de l\'Architecture d\'Entreprise\nNiveau de Difficulté : Élevé (pression budgétaire agressive du CFO, conflit social interne)\nTopologie spatiale : Onshore vs Offshore avec passerelle transfrontalière')}
-                  className="px-2 py-1 rounded bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-all text-left font-medium"
-                >
-                  🌍 Mirage Offshore & Sourcing
-                </button>
+                {PRESETS.map(preset => (
+                  <button
+                    key={preset.id}
+                    onClick={() => applyPreset(preset)}
+                    className="px-2 py-1 rounded bg-dark-800 hover:bg-dark-750 text-slate-300 border border-slate-700 transition-all text-left"
+                  >
+                    {preset.icon} {t(`studio.preset.${preset.id}.label` as TranslationKey)}
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* Input Fields */}
             <div className="space-y-3 pt-2 border-t border-slate-800 text-xs">
               <div>
-                <label className="text-slate-400 font-semibold block mb-1">Industry / Business Vertical:</label>
+                <label htmlFor="studio-domain" className="text-slate-400 font-semibold block mb-1">
+                  {t('studio.domain')}
+                </label>
+                <select
+                  id="studio-domain"
+                  value={domain}
+                  onChange={e => setDomain(e.target.value as ScenarioDomain)}
+                  className="w-full bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-2 text-slate-100 text-xs focus:outline-none focus:border-cyan-500 mb-1"
+                >
+                  {DOMAINS.map(d => (
+                    <option key={d} value={d}>
+                      {t(`studio.domain.${d}` as TranslationKey)}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500 mb-3">{t(`studio.domain.${domain}.hint` as TranslationKey)}</p>
+                <label htmlFor="studio-industry" className="text-slate-400 font-semibold block mb-1">
+                  {t('studio.industry')}
+                </label>
                 <input
+                  id="studio-industry"
                   type="text"
                   value={industry}
                   onChange={e => setIndustry(e.target.value)}
                   className="w-full bg-dark-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-cyan-500"
-                  placeholder="e.g. FinTech, Energy, Telecommunications..."
+                  placeholder={t('studio.industry.placeholder')}
                 />
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-slate-400 font-semibold block">Corporate Scenario & Challenge:</label>
-                  <span className="text-[10px] text-slate-500 font-mono">Full prompt briefs supported</span>
+                  <label htmlFor="studio-challenge" className="text-slate-400 font-semibold block">
+                    {t('studio.challenge')}
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-mono">{t('studio.challenge.badge')}</span>
                 </div>
                 <textarea
+                  id="studio-challenge"
                   value={businessChallenge}
                   onChange={e => setBusinessChallenge(e.target.value)}
                   rows={8}
                   className="w-full bg-dark-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-cyan-500 text-xs leading-relaxed min-h-[140px] resize-y font-mono"
-                  placeholder="Describe legacy architecture bottlenecks, competing stakeholder agendas, and target outcomes... You can paste multi-paragraph or structured briefs (French / English)."
+                  placeholder={t('studio.challenge.placeholder')}
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Supports plain text or structured prompts with custom 3D topologies (Onshore vs Offshore), personas (CFO, ESN, Lead Tech), Q1-Q4 quarters, and metrics.
+                  {t('studio.challenge.help')}
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-slate-400 font-semibold block mb-1">Difficulty:</label>
+                  <label htmlFor="studio-difficulty" className="text-slate-400 font-semibold block mb-1">
+                    {t('studio.difficulty')}
+                  </label>
                   <select
+                    id="studio-difficulty"
                     value={difficulty}
                     onChange={e => setDifficulty(e.target.value as any)}
                     className="w-full bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-2 text-slate-100 text-xs focus:outline-none focus:border-cyan-500"
                   >
-                    <option value="ENTRY">Entry Level</option>
-                    <option value="INTERMEDIATE">Intermediate</option>
-                    <option value="EXECUTIVE">Executive Tier</option>
-                    <option value="CRISIS_CHIEF">Crisis Chief</option>
+                    {(['ENTRY', 'INTERMEDIATE', 'EXECUTIVE', 'CRISIS_CHIEF'] as const).map(d => (
+                      <option key={d} value={d}>
+                        {t(`brief.difficulty.${d}` as TranslationKey)}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-slate-400 font-semibold block mb-1">Rounds:</label>
+                  <label className="text-slate-400 font-semibold block mb-1">{t('studio.rounds')}</label>
                   <input
                     type="text"
                     disabled
-                    value="4 Quarters (Q1-Q4)"
+                    aria-label={t('studio.rounds')}
+                    value={t('studio.rounds.value')}
                     className="w-full bg-dark-900 border border-slate-800 rounded-lg px-2.5 py-2 text-slate-500 text-xs font-mono"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-slate-400 font-semibold block mb-1">Custom Political Directives:</label>
+                <label htmlFor="studio-directives" className="text-slate-400 font-semibold block mb-1">
+                  {t('studio.directives')}
+                </label>
                 <input
+                  id="studio-directives"
                   type="text"
                   value={customDirectives}
                   onChange={e => setCustomDirectives(e.target.value)}
                   className="w-full bg-dark-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 text-xs focus:outline-none focus:border-cyan-500"
-                  placeholder="e.g. CFO bonus is tied to margin; CPO is aggressive..."
+                  placeholder={t('studio.directives.placeholder')}
                 />
               </div>
             </div>
@@ -413,12 +444,12 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
               {isGenerating ? (
                 <>
                   <Sparkles className="w-4 h-4 animate-spin text-white" />
-                  <span>Synthesizing Enterprise Schema...</span>
+                  <span>{t('studio.generating')}</span>
                 </>
               ) : (
                 <>
                   <Wand2 className="w-4 h-4" />
-                  <span>Generate Scenario Schema</span>
+                  <span>{t('studio.generate')}</span>
                 </>
               )}
             </button>
@@ -429,7 +460,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                 <div className="flex items-center justify-between text-xs font-mono">
                   <span className="text-cyan-400 font-bold flex items-center gap-1.5">
                     <Zap className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-                    <span>SYNTHESIZING [PHASE {generationStep}/5]</span>
+                    <span>{t('studio.phase', { n: generationStep })}</span>
                   </span>
                   <span className="text-slate-400">{Math.round(generationStep * 20)}%</span>
                 </div>
@@ -442,7 +473,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                 </div>
 
                 <p className="text-[11px] text-slate-300 font-mono leading-relaxed">
-                  {stepLabels[generationStep] || 'Generating enterprise architecture blueprint...'}
+                  {stepLabels[generationStep] || t('studio.step.2')}
                 </p>
                 {streamPreview && (
                   <pre className="text-[10px] text-cyan-200/80 font-mono bg-dark-950 border border-slate-800 rounded p-2 max-h-40 overflow-hidden whitespace-pre-wrap break-all">
@@ -461,19 +492,22 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
               }`}>
                 <div className="flex items-center gap-2 font-bold mb-1">
                   {validationResult.valid ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <AlertCircle className="w-4 h-4 text-rose-400" />}
-                  <span>{validationResult.valid ? 'SCHEMA VALIDATED' : 'VALIDATION ISSUES'}</span>
+                  <span>{validationResult.valid ? t('studio.valid') : t('studio.invalid')}</span>
                 </div>
                 <p className="text-[11px] text-slate-300">{validationResult.message || validationResult.errors?.join(', ')}</p>
                 {validationResult.balance?.strategies && (
                   <div className={`mt-2 text-[11px] ${validationResult.balance.playable ? 'text-emerald-300' : 'text-amber-300'}`}>
                     <div className="font-bold">
-                      {validationResult.balance.playable ? '⚖️ BALANCE CHECK PASSED' : '⚠️ BALANCE ISSUES'}
+                      {validationResult.balance.playable ? `⚖️ ${t('studio.balance.ok')}` : `⚠️ ${t('studio.balance.issues')}`}
                       {validationResult.balance.bestAchievable &&
-                        ` — best path: ${validationResult.balance.bestAchievable.verdict} (${validationResult.balance.bestAchievable.grade})`}
+                        ` — ${t('studio.balance.best', {
+                          verdict: t(`outcome.verdict.${validationResult.balance.bestAchievable.verdict}` as TranslationKey),
+                          grade: validationResult.balance.bestAchievable.grade,
+                        })}`}
                     </div>
                     <div className="text-slate-400">
                       {Object.entries(validationResult.balance.strategies)
-                        .map(([name, r]) => `${name}: ${r.verdict} ${r.grade}`)
+                        .map(([name, r]) => `${t(`demo.strategy.${name}` as TranslationKey)} : ${t(`outcome.verdict.${r.verdict}` as TranslationKey)} ${r.grade}`)
                         .join(' · ')}
                     </div>
                   </div>
@@ -492,8 +526,13 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                 <div>
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="text-xs px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-mono">
-                      {synthesizedScenario.difficulty}
+                      {t(`brief.difficulty.${synthesizedScenario.difficulty}` as TranslationKey)}
                     </span>
+                    {synthesizedScenario.domain && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 font-mono">
+                        {t(`studio.domain.${synthesizedScenario.domain}` as TranslationKey)}
+                      </span>
+                    )}
                     <span className="text-xs text-slate-400 font-mono">{synthesizedScenario.industry}</span>
                     {generationDuration && (
                       <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-mono flex items-center gap-1">
@@ -514,7 +553,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                     className="px-3 py-1.5 rounded-lg bg-dark-800 hover:bg-dark-750 text-slate-300 border border-slate-700 text-xs font-mono flex items-center gap-1.5"
                   >
                     {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copied ? 'Copied' : 'Copy JSON'}</span>
+                    <span>{copied ? t('studio.copied') : t('studio.copy')}</span>
                   </button>
 
                   <button
@@ -522,7 +561,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                     className="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-xs flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.3)] transition-all"
                   >
                     <Save className="w-3.5 h-3.5" />
-                    <span>Publish to Scenario Library</span>
+                    <span>{t('studio.publish')}</span>
                   </button>
                 </div>
               </div>
@@ -530,7 +569,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
               {publishSuccess && (
                 <div className="p-3 bg-emerald-500/20 border border-emerald-500 text-emerald-300 text-xs rounded-lg flex items-center gap-2 animate-fadeIn">
                   <CheckCircle className="w-4 h-4" />
-                  <span>Scenario published successfully to the simulation arena library! Ready to launch sessions.</span>
+                  <span>{t('studio.published')}</span>
                 </div>
               )}
 
@@ -543,7 +582,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                   }`}
                 >
                   <Compass className="w-3.5 h-3.5" />
-                  <span>3D Topology ({synthesizedScenario.topology.nodes.length} Nodes)</span>
+                  <span>{t('studio.tab.map', { n: synthesizedScenario.topology.nodes.length })}</span>
                 </button>
 
                 <button
@@ -553,7 +592,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                   }`}
                 >
                   <Users className="w-3.5 h-3.5" />
-                  <span>Stakeholders ({synthesizedScenario.stakeholders.length})</span>
+                  <span>{t('brief.tab.people', { n: synthesizedScenario.stakeholders.length })}</span>
                 </button>
 
                 <button
@@ -563,7 +602,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                   }`}
                 >
                   <Calendar className="w-3.5 h-3.5" />
-                  <span>Timeline ({synthesizedScenario.roundEvents.length} Crises)</span>
+                  <span>{t('studio.tab.timeline', { n: synthesizedScenario.roundEvents.length })}</span>
                 </button>
 
                 <button
@@ -573,7 +612,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                   }`}
                 >
                   <Layers className="w-3.5 h-3.5" />
-                  <span>Initiatives ({synthesizedScenario.initiativesCatalog.length})</span>
+                  <span>{t('studio.tab.initiatives', { n: synthesizedScenario.initiativesCatalog.length })}</span>
                 </button>
 
                 <button
@@ -583,14 +622,14 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                   }`}
                 >
                   <Code className="w-3.5 h-3.5" />
-                  <span>Raw JSON</span>
+                  <span>JSON</span>
                 </button>
               </div>
 
               {/* TAB CONTENT: 3D Topology Preview */}
               {activeInspectorTab === 'TOPOLOGY' && (
                 <div className="h-[480px] w-full rounded-xl overflow-hidden border border-slate-800">
-                  <EnterpriseCanvas topology={synthesizedScenario.topology} />
+                  <EnterpriseCanvas topology={synthesizedScenario.topology} layerLabels={synthesizedScenario.vocabulary?.layers} />
                 </div>
               )}
 
@@ -607,10 +646,10 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                         </div>
                       </div>
                       <div className="text-xs text-slate-300">
-                        <strong className="text-slate-400">Bias:</strong> {sh.bias}
+                        <strong className="text-slate-400">{t('brief.people.bias')}</strong> {sh.bias}
                       </div>
                       <div className="text-xs text-slate-300">
-                        <strong className="text-slate-400">Hidden Agenda:</strong> {sh.hiddenAgenda}
+                        <strong className="text-slate-400">{t('brief.people.agenda')}</strong> {sh.hiddenAgenda}
                       </div>
                     </div>
                   ))}
@@ -625,7 +664,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <span className="font-bold text-indigo-300 flex items-center gap-1.5">
                         <Lock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                        <span>Mécanique de Surprise & Brouillard de Guerre Stratégique</span>
+                        <span>{t('studio.fog.title')}</span>
                       </span>
                       <div className="flex items-center gap-1 bg-dark-900/80 p-0.5 rounded-lg border border-slate-700 shrink-0">
                         <button
@@ -636,7 +675,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                               : 'text-slate-400 hover:text-slate-200'
                           }`}
                         >
-                          Vue Master (Auteur)
+                          {t('studio.fog.author')}
                         </button>
                         <button
                           onClick={() => setTimelineViewMode('PLAYER_FOG')}
@@ -646,12 +685,12 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                               : 'text-slate-400 hover:text-slate-200'
                           }`}
                         >
-                          Vue Joueur (Brouillard T1)
+                          {t('studio.fog.player')}
                         </button>
                       </div>
                     </div>
                     <p className="text-[11px] text-slate-300 leading-relaxed">
-                      En tant qu'auteur dans le Studio, vous configurez l'intégralité des 4 trimestres. En cours de simulation dans l'Arène, <strong>les joueurs ne voient que la crise du trimestre en cours</strong>. Les trimestres futurs sont verrouillés sous brouillard de guerre avec de simples signaux faibles, préservant l'effet de surprise.
+                      {t('studio.fog.body')}
                     </p>
                   </div>
 
@@ -665,16 +704,14 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                             <div className="flex items-center justify-between">
                               <span className="text-xs font-mono font-bold text-indigo-400 flex items-center gap-1.5">
                                 <Lock className="w-3.5 h-3.5" />
-                                <span>TRIMESTRE {event.roundNumber} : BROUILLARD DE GUERRE</span>
+                                <span>{t('studio.fog.quarter', { n: event.roundNumber })}</span>
                               </span>
                               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
-                                VERROUILLÉ POUR LE JOUEUR
+                                {t('studio.fog.locked')}
                               </span>
                             </div>
-                            <h4 className="font-bold text-slate-400 text-sm italic">Vecteur de perturbation classifié (inconnu du joueur)</h4>
-                            <p className="text-xs text-slate-500">
-                              Le joueur perçoit uniquement des sondes prédictives (dette technique, signaux faibles) mais découvrira l'impact réel et les choix au début de ce trimestre.
-                            </p>
+                            <h4 className="font-bold text-slate-400 text-sm italic">{t('studio.fog.hiddenTitle')}</h4>
+                            <p className="text-xs text-slate-500">{t('studio.fog.hiddenBody')}</p>
                           </div>
                         );
                       }
@@ -682,15 +719,15 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                       return (
                         <div key={event.roundNumber} className="bg-dark-900 p-4 rounded-xl border border-slate-800 space-y-2">
                           <div className="flex items-center justify-between">
-                            <span className="text-xs font-mono font-bold text-cyan-400">QUARTER {event.roundNumber} CRISIS</span>
+                            <span className="text-xs font-mono font-bold text-cyan-400">{t('studio.fog.crisis', { n: event.roundNumber })}</span>
                             <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30">
-                              {event.severity}
+                              {severity(event.severity)}
                             </span>
                           </div>
                           <h4 className="font-bold text-slate-100 text-sm">{event.title}</h4>
                           <p className="text-xs text-slate-300">{event.description}</p>
                           <div className="text-[11px] text-slate-400 font-mono">
-                            {event.choices.length} Remediation Choices Configured
+                            {t('cockpit.crisis.choices', { n: event.choices.length })}
                           </div>
                         </div>
                       );
@@ -706,12 +743,14 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                     <div key={init.id} className="bg-dark-900 p-3.5 rounded-xl border border-slate-800 space-y-2 text-xs">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-slate-100 text-xs">{init.name}</span>
-                        <span className="text-[10px] font-mono text-cyan-400">${init.capExCost}K</span>
+                        <span className="text-[10px] font-mono text-cyan-400">{init.capExCost}K$</span>
                       </div>
                       <p className="text-slate-400 text-[11px] line-clamp-2">{init.description}</p>
-                      <div className="flex items-center gap-3 font-mono text-[10px] text-slate-300">
-                        <span>TDI: {init.tdiDelta}%</span>
-                        <span>Velocity: +{init.velocityDelta}%</span>
+                      <div className="flex flex-wrap items-center gap-3 font-mono text-[10px] text-slate-300">
+                        <span>{category(init.category)}</span>
+                        <span>{t('studio.init.debt', { n: `${init.tdiDelta > 0 ? '+' : ''}${init.tdiDelta}` })}</span>
+                        <span>{t('studio.init.velocity', { n: `${init.velocityDelta > 0 ? '+' : ''}${init.velocityDelta}` })}</span>
+                        {(init.durationRounds ?? 1) > 1 && <span>⏱ {t('arena.init.duration', { n: init.durationRounds })}</span>}
                       </div>
                     </div>
                   ))}
@@ -730,10 +769,8 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
               <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
                 <Sparkles className="w-7 h-7" />
               </div>
-              <h4 className="text-base font-bold text-slate-200">No Scenario Synthesized Yet</h4>
-              <p className="text-xs text-slate-400 max-w-md">
-                Configure your industry challenge directives on the left and click <strong>Generate Scenario Schema</strong> to synthesize a playable multi-round enterprise arena.
-              </p>
+              <h4 className="text-base font-bold text-slate-200">{t('studio.empty.title')}</h4>
+              <p className="text-xs text-slate-400 max-w-md">{t('studio.empty.body')}</p>
             </div>
           )}
         </div>
