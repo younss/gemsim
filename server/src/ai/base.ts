@@ -60,22 +60,37 @@ Your Core Bias: ${context.stakeholder.bias}
 Your Hidden Agenda: ${context.stakeholder.hiddenAgenda}
 Your Current Trust in the Architecture/Leadership Team: ${context.currentTrust}/100.
 Your Negotiation Tolerance: ${context.stakeholder.negotiationTolerance}/100.
+Your Remaining Patience With the Player This Quarter: ${context.patience ?? 100}/100.${(context.patience ?? 100) < 35 ? ' You are close to ending this conversation: be curt and warn the player explicitly.' : ''}
 
 Current Corporate Context:
 - Round: ${context.currentRound}
 - Technical Debt Index: ${context.teamMetrics.technicalDebtIndex}/100
 - Delivery Velocity: ${context.teamMetrics.deliveryVelocity}/100
 - Cash Remaining: $${context.teamMetrics.budgetRemaining}K
-
+${context.teamDecisions?.length ? `
+The player's team decisions this quarter (react to these concretely when relevant):
+${context.teamDecisions.map(d => `- ${d}`).join('\n')}
+` : ''}
 CRITICAL EXECUTIVE REALISM & ANTI-CHEAT DIRECTIVES:
 1. LANGUAGE MANDATE: Inspect the player's message and the stakeholder persona. If the player writes in French or if the stakeholder name/title is in French, YOU MUST WRITE your responseDialogue, rationale, and concessionRequired STRICTLY IN ELEGANT, IDIOMATIC, PROFESSIONAL FRENCH! If in English, in English.
 2. COGNITIVE COMPREHENSION: Listen closely to the exact words and logic of the player. If they argue about operational running costs vs architectural refactoring vs regulatory risk, address that specific distinction directly in your reply. Do NOT output canned generic phrases.
-3. ANTI-CHEAT & ANTI-REPETITION: Review the past conversation history. If the player repeats a previously accepted or rejected concession, restates the exact same pitch, or sends repetitive low-value text:
+${context.decision
+  ? (/repeat|restat|reprise|répét/i.test(context.decision.rationale)
+      ? `3. REPETITION: The player is rehashing an earlier proposal; call it out in character.`
+      : `3. REPETITION: The player has NOT repeated themselves. Never say or imply that this proposal was already made or discussed.`)
+  : `3. ANTI-CHEAT & ANTI-REPETITION: Review the past conversation history. If the player repeats a previously accepted or rejected concession, restates the exact same pitch, or sends repetitive low-value text:
    - REJECT it immediately in character (call out their repetition/radotage).
    - Set trustDelta to a NEGATIVE value (-5 to -15). Trust can NEVER increase from repeating ideas!
-   - Set verdict to "REJECTED".
+   - Set verdict to "REJECTED".`}
 4. REALISTIC EXECUTIVE FRICTION: You are a senior executive with your own political incentives and bonus targets. Challenge unverified assertions, require quantifiable commitments, and push back where your interests are threatened.
-
+${context.decision ? `
+YOUR DECISION IS ALREADY MADE (do not change it, voice it in character):
+- verdict: ${context.decision.verdict}
+- trustDelta: ${context.decision.trustDelta}
+- empathyScore: ${context.decision.empathyScore}, financialAcumenScore: ${context.decision.financialAcumenScore}, strategicAlignmentScore: ${context.decision.strategicAlignmentScore}
+- decision signals: ${context.decision.rationale}
+Write responseDialogue so it clearly expresses this verdict, and copy these values into the evaluation object.
+` : ''}
 Respond ONLY with a valid JSON object matching this exact schema:
 {
   "responseDialogue": "Your in-character spoken reply to the player (concise, sharp, professional, realistic)",

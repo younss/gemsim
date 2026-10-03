@@ -20,6 +20,7 @@ The platform features:
 - **AI-Powered Game Studio**: Plain-text generative scenario authoring module capable of synthesizing validated arenas, stakeholders, topology graphs, and round timelines on demand.
 - **Facilitator War Room Cockpit**: Real-time telemetry monitoring all competing teams, master timer controls, black swan crisis injection, and post-simulation debriefing radar scorecards.
 - **Pluggable AI Abstraction Layer ("Bring Your Own AI")**: Seamless runtime switching between Local Ollama (Gemma 4/2), Google Gemini, Anthropic Claude, OpenAI, and a zero-dependency heuristic fallback engine.
+- **Hybrid System 1 / System 2 Decisions**: A non-autoregressive decision model (Clef-flash, Jev-compatible) decides stakeholder verdicts, trust shifts and board votes as calibrated probabilities; the LLM only writes the dialogue.
 - **Rootless Podman Containerization**: Fully unprivileged multi-container compose architecture running under UID `10001`.
 
 ---
@@ -62,6 +63,10 @@ Interact with autonomous C-suite executive personas driven by local or cloud LLM
 
 - **Persona Depth**: **Dr. Sarah Lin (CMO)** prioritizes zero clinician disruption; **David Thornton (CIO)** balances legacy mainframe stability with cloud agility; **Victoria Sterling (CFO)** enforces budget runways.
 - **Anti-Cheat Semantic Scoring**: AI stakeholders detect repetitive copy-paste arguments, superficial buzzwords, and budget shortfalls, requiring genuine architectural trade-offs.
+- **Patience Meters**: Each executive has a per-quarter patience gauge. Empty pitches (-30), repeats (-35), rejections (-20) and conditional answers (-8) drain it; acceptances restore it (+5). At 0 the executive closes the door until next quarter and votes against in the boardroom. Patience recovers by 50 each quarter.
+- **Binding Pacts**: When an executive demands a concession, the player can sign it as a pact with a committed budget. Pacts share the quarter's budget envelope and are honored at resolution (cost charged, trust +5 to +15).
+- **Boardroom Debates**: After the vote, the most opposed member rebuts the most supportive one in character.
+- **System One Verdicts**: When a System One model is available, verdicts, trust deltas and scores come from typed judgments (with per-verdict probabilities) instead of LLM-generated JSON. See [System One Decision Layer](#-system-one-decision-layer-clef--jev).
 
 ---
 
@@ -130,7 +135,10 @@ graph TD
         Server --> Engine["Deterministic Simulation Engine"]
         Server --> Studio["Game Studio Synthesizer"]
         Server --> AIRegistry["Pluggable AI Abstraction Gateway"]
-        Server --> DB["SQLite (WAL Mode) Persistent Store"]
+        Server --> DB["SQLite (WAL) local store"]
+        Server --> Queue["BullMQ round queue (Redis, optional)"]
+        Queue --> Engine
+        DB -->|"write-through + startup sync"| PG["PostgreSQL via Prisma (optional, system of record)"]
         WSServer --> Engine
         WSServer --> DB
     end
@@ -142,6 +150,11 @@ graph TD
         AIRegistry --> OpenAI["OpenAI GPT-4o (BYOK)"]
         AIRegistry --> Fallback["Deterministic Heuristic Engine"]
     end
+
+    subgraph SystemOne["System 1: Typed Decisions"]
+        Server --> Judge["Stakeholder Judge"]
+        Judge --> Clef["Clef-flash via Ollama /v1/systemone"]
+    end
 ```
 
 ### Decoupled Subsystems
@@ -151,12 +164,55 @@ graph TD
 2. **Pluggable AI Gateway (`server/src/ai/`)**:
    - Strategy/Adapter pattern with unified interfaces for structured JSON generation, streaming dialogues, and proposal evaluations.
    - Built-in automatic fallback cascade ensuring 100% operational resilience.
-3. **AI Game Studio (`server/src/ai/studio-generator.ts`)**:
+3. **System One Decision Layer (`server/src/ai/systemone.ts`, `server/src/ai/stakeholder-judge.ts`)**:
+   - Typed `noul` / `choice` / `score` judgments from a non-autoregressive model; decides negotiation outcomes before the LLM writes dialogue.
+4. **AI Game Studio (`server/src/ai/studio-generator.ts`)**:
    - Synthesizes validated, playable scenario schemas from natural language prompts.
-4. **Interactive 3D Topology Canvas (`client/src/components/3d/`)**:
+5. **Interactive 3D Topology Canvas (`client/src/components/3d/`)**:
    - High-performance Three.js spatial graph with raycast node inspection, isometric layering, and animated particle data pipelines.
-5. **Facilitator Telemetry Cockpit (`client/src/components/warroom/`)**:
-   - Multi-team synchronization, timer controls, live event injection, and exportable post-simulation radar rankings.
+6. **Facilitator Telemetry Cockpit (`client/src/components/warroom/`)**:
+   - Multi-team synchronization, timer controls, live event injection, comparative radar chart, rankings by win-condition score, and JSON / Markdown debrief exports.
+7. **Client State (`client/src/stores/useSimulationStore.ts`)**:
+   - Zustand store holding scenarios, sessions, the active session and team, and applying every WebSocket server message.
+8. **Request Validation (`server/src/validation.ts`)**:
+   - Zod schemas on every mutating endpoint (sessions, decisions, pacts, crisis injection, broadcasts, negotiation, boardroom, studio generation); invalid payloads get HTTP 400 with the issues.
+
+---
+
+## 🎯 Game Rules: Budget, Capacity, Win & Loss
+
+Each quarter's choices are checked by the same pure rule function on the server (`server/src/engine/rules.ts`) and in the UI (`client/src/engine.ts` re-exports it), so the UI shows exactly what the server will accept.
+
+| Rule | Effect |
+| :--- | :--- |
+| **Budget envelope** | CapEx of started initiatives + crisis response cost + pacts must fit in the cash available. A submission over budget is rejected (HTTP 422). |
+| **Delivery capacity** | At most `maxInitiativesPerRound` initiatives per quarter (default 2). |
+| **One-time initiatives** | A completed or in-progress initiative cannot be bought again. |
+| **Multi-quarter delivery** | CapEx is paid when an initiative starts; its effects land when it completes (`durationRounds`). |
+| **Run vs change budget** | The business funds a quarterly run budget equal to the starting estate's OpEx. OpEx above it is charged to the change budget; half of any savings is returned. |
+| **Persistent capabilities** | Half of a completed initiative's velocity gain persists in later quarters; OpEx deltas are permanent run-rate changes. |
+| **Regulatory fines** | Compliance under 50% costs $6K per point below the threshold, and compliance-minded executives lose trust. |
+| **Insolvency** | Negative cash costs every executive trust (weighted by financial focus). The team can still submit an empty quarter. |
+| **Incidents** | At-risk nodes (P(Fail) > 0.45) fail on a seeded roll against P(Fail): reproducible per session/team/quarter, not deterministic. Each incident also costs velocity. |
+| **Crisis injection** | An injected crisis hits immediately and is not charged again at resolution; teams that answered the old dilemma must choose again. |
+
+### Win / loss evaluation (`server/src/engine/outcome.ts`)
+
+After the final quarter every team gets a verdict against the scenario's `winLossConditions`, plus solvency:
+
+| Verdict | Condition |
+| :--- | :--- |
+| **VICTORY** (A+/A) | All 7 objectives met (TDI, trust, velocity, resilience, TCO, capabilities modernized, cash ≥ 0). |
+| **PARTIAL** (B/C) | Solvent and at least 4 objectives met. |
+| **DEFEAT** (D/F) | Otherwise. |
+
+The score (0–100) gives partial credit by distance to each target and ranks teams in the facilitator debrief. Players see a live objectives tracker each quarter and a final verdict screen at the end. A node counts as a modernized capability when a completed modernization initiative brings its debt to 50 or below.
+
+**Balance check (3 strategies × 3 seeded scenarios, scripted through the API):** "Architect" (accelerated modernization, best debt-reducing initiatives) wins A+ in all three; "Prudent" (strict governance, one cheap initiative per quarter) reaches PARTIAL B; "Cowboy" (bypass architecture, feature blitz) ends insolvent with a DEFEAT F.
+
+### Solo play
+
+When a session has a single team, the player can resolve the quarter from the arena after submitting; no facilitator PIN is needed.
 
 ---
 
@@ -195,7 +251,7 @@ Each node's failure probability is modeled as:
 
 $$P(\text{Fail}) = \left(\frac{\text{Node TDI}}{100}\right)^{2.2} \times (\text{isCritical} ? 1.6 : 0.9) \times \left(1 - \frac{\text{ResilienceIndex}}{160}\right)$$
 
-When $P(\text{Fail}) > 0.45$, production outages trigger emergency recovery expenses ($$75K - $$350K), temporary velocity penalties, and customer churn.
+When $P(\text{Fail}) > 0.45$, the node is at risk and fails if a seeded roll falls under $P(\text{Fail})$. Outages trigger emergency recovery expenses ($$75K - $$350K) and velocity penalties (-4, or -8 when critical).
 
 ### 5. Stakeholder Sentiment Function
 Executive trust updates dynamically using weighted vector evaluation:
@@ -236,6 +292,54 @@ export interface AIProvider {
 
 ---
 
+## 🧠 System One Decision Layer (Clef / Jev)
+
+Stakeholder negotiations split the work between two kinds of model:
+
+| | System 1: decision model | System 2: LLM |
+| :--- | :--- | :--- |
+| **Model** | Clef-flash (or any Jev/SystemOne-compatible model) | Ollama, Gemini, Claude, OpenAI, or the heuristic fallback |
+| **Output** | Probabilities per option, zero generated tokens | Free text |
+| **Decides** | Verdict, trust delta, empathy / financial / strategic scores, low-effort and rehash detection | Nothing. It voices the decision in character (dialogue, rationale, concession) |
+
+### How a negotiation is resolved
+
+1. The anti-cheat sentinel filters empty and verbatim-repeated messages (unchanged).
+2. `judgeProposal` sends the persona (bias, hidden agenda, decision weights, current trust), company metrics, the last player proposals and the new message to `POST /v1/systemone` with typed questions:
+   - `verdict` (`choice`: `ACCEPTED` / `CONDITIONAL_ACCEPTANCE` / `REJECTED`)
+   - `trust_shift`, `empathy`, `financial_acumen`, `strategic_alignment` (`score`)
+   - `low_effort`, `rehash` (`noul`)
+3. The answers map to a `ProposalEvaluation`: trust delta = `(trust_shift − 2) × 10`, minus up to 10 for empty or rehashed pitches, clamped to ±20. Those same signals shift probability toward `REJECTED`.
+4. The LLM receives the decision in its prompt and only writes the reply. System One keeps the verdict and the numbers; the LLM's rationale and concession wording are kept.
+5. On `/api/ai/negotiate/stream`, a `decision` SSE event is sent before the first dialogue token.
+6. In the boardroom, `judgeBoard` scores every board member in **one** System One call.
+
+If the decision model is unreachable or disabled, GemSim falls back to the LLM-only evaluation automatically. A circuit breaker opens after 3 failures, with a 60 s cooldown.
+
+`ProposalEvaluation` gains two optional fields: `verdictProbabilities` (the distribution) and `decisionEngine` (the model that decided).
+
+### Setup
+
+```bash
+# The model must expose the "decision" capability in Ollama
+ollama list            # clef-flash:latest should be listed
+curl -s http://localhost:8089/api/ai/systemone/health
+```
+
+| Variable | Default | Purpose |
+| :--- | :--- | :--- |
+| `SYSTEMONE_ENABLED` | `true` | Set to `false` to force LLM-only evaluation |
+| `SYSTEMONE_BASE_URL` | `OLLAMA_BASE_URL` | Endpoint serving `/v1/systemone` |
+| `SYSTEMONE_MODEL` | `clef-flash` | Decision model name |
+| `SYSTEMONE_TIMEOUT_MS` | `20000` | Per-call timeout (covers a cold model load when Ollama swaps models) |
+| `SYSTEMONE_STOCHASTIC` | `false` | `true` samples the verdict from its distribution (roulette wheel) for less predictable stakeholders |
+
+**Latency note:** published Clef-flash latencies (~40 ms median) are measured on an H200. On a local Apple Silicon Mac, expect ~0.3 s for a single question, ~1.2 s for a single stakeholder judgment (7 questions) and ~4 s for a 4-member board (22 questions in one call). That is still well below sequential LLM evaluations with JSON repair.
+
+**Memory note:** Clef-flash (Q8) uses ~14 GB. If the decision model and the dialogue LLM cannot both stay loaded, Ollama unloads one to load the other on every negotiation, which adds 10–30 s. On a 24 GB machine, pair Clef-flash with a small dialogue model and set `OLLAMA_MAX_LOADED_MODELS=2`, or use a cloud provider (Gemini, Claude, OpenAI) for System 2.
+
+---
+
 ## 🐳 Podman Rootless Deployment Guide
 
 GemSim is purpose-built for rootless, unprivileged container execution adhering to enterprise security standards.
@@ -263,6 +367,13 @@ podman-compose ps
 # 5. Access the SaaS application
 open http://localhost:8089
 ```
+
+### Optional: PostgreSQL and Redis
+
+- **PostgreSQL** (`DATABASE_URL`): becomes the system of record. At startup the seed scenarios are pushed to it, then all scenarios, sessions, chat and archived runs are loaded into the local SQLite store, which serves reads and writes through to PostgreSQL (per-record ordered writes, deletes mirrored). Create the schema with `npx prisma db push` in `server/`.
+- **Redis** (`REDIS_URL`): quarter resolution runs as a BullMQ job (`simulation-operations`, concurrency 1) whether triggered by REST or WebSocket; jobs are logged to `job_logs` when PostgreSQL is available. Without Redis the same handler runs inline.
+
+`GET /api/health` reports `database` (`sqlite` or `postgresql+sqlite`) and the queue status.
 
 ### Running with Dedicated Local Gemma Container
 
@@ -316,18 +427,17 @@ npm test
 
 Test Results:
 ```
- ✓ server/test/math.test.ts (7 tests) 2ms
-   ✓ Compounds technical debt drastically faster when bypassing architecture
-   ✓ Imposes non-linear delivery velocity drag as technical debt climbs
-   ✓ Calculates OpEx factoring in node upkeep and debt penalty
-   ✓ Evaluates stakeholder sentiment according to executive role weights
-   ✓ Resolves a round deterministically and updates metrics, history, and debt
-   ✓ Generates a full validated scenario from plain text prompt
-   ✓ Evaluates stakeholder negotiations with responsive score and dialogue
+ ✓ server/src/ai/stakeholder-judge.test.ts (5 tests)
+ ✓ server/test/math.test.ts (8 tests)
+ ✓ server/test/game-rules.test.ts (16 tests)
+ ✓ server/test/scenario-generation.test.ts (3 tests)
+ ✓ server/src/ai/production-enhancements.test.ts (4 tests)
 
- Test Files  1 passed (1)
-      Tests  7 passed (7)
+ Test Files  5 passed (5)
+      Tests  36 passed (36)
 ```
+
+`game-rules.test.ts` covers the budget and capacity rules, one-time and multi-quarter initiatives, run-budget economics, insolvency, pacts, crisis injection, seeded incidents, win/loss verdicts and request validation (Zod).
 
 ---
 

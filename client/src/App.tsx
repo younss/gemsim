@@ -11,6 +11,7 @@ import {
   WSServerMessage,
 } from './types/index';
 import { api, wsService } from './services/api';
+import { useSimulationStore } from './stores/useSimulationStore';
 import { Navbar } from './components/navbar/Navbar';
 import { PlayerArena } from './components/arena/PlayerArena';
 import { FacilitatorCockpit } from './components/warroom/FacilitatorCockpit';
@@ -21,17 +22,31 @@ import { NewSessionModal } from './components/common/NewSessionModal';
 import { Radio, AlertCircle, Sparkles, Lock, KeyRound, X, CheckCircle2 } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [scenarios, setScenarios] = useState<Scenario[]>([]);
-  const [sessions, setSessions] = useState<SimulationSession[]>([]);
-  const [currentSession, setCurrentSession] = useState<SimulationSession | null>(null);
-  const [currentScenario, setCurrentScenario] = useState<Scenario | null>(null);
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const {
+    scenarios,
+    sessions,
+    currentSession,
+    currentScenario,
+    selectedTeamId,
+    isWsConnected,
+    liveAnnouncement,
+    setScenarios,
+    setSessions,
+    setCurrentSession,
+    setCurrentScenario,
+    setSelectedTeamId,
+    setWsConnected,
+    activateSession,
+    selectSession,
+    updateTeam,
+    addScenario,
+    announce,
+    applyServerMessage,
+  } = useSimulationStore();
 
   const [activeView, setActiveView] = useState<'ARENA' | 'FACILITATOR' | 'STUDIO' | 'DOCS'>('ARENA');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNewSessionOpen, setIsNewSessionOpen] = useState(false);
-  const [isWsConnected, setIsWsConnected] = useState(false);
-  const [liveAnnouncement, setLiveAnnouncement] = useState<string | null>(null);
 
   // Role isolation and team locking states
   const [userRole, setUserRole] = useState<'PLAYER' | 'FACILITATOR' | 'ADMIN'>('ADMIN');
@@ -118,8 +133,7 @@ export const App: React.FC = () => {
       setIsUnlockModalOpen(false);
       setUnlockPasscode('');
       setUnlockError(null);
-      setLiveAnnouncement('🔓 Facilitator Operations Unlocked');
-      setTimeout(() => setLiveAnnouncement(null), 4000);
+      announce('🔓 Facilitator Operations Unlocked', 4000);
     } else {
       setUnlockError('Incorrect Passcode. Contact your session facilitator.');
     }
@@ -134,78 +148,19 @@ export const App: React.FC = () => {
       selectedTeamId || undefined,
       activeView === 'FACILITATOR' ? 'FACILITATOR' : 'PLAYER'
     );
-    setIsWsConnected(true);
+    setWsConnected(true);
 
-    const unsubscribe = wsService.subscribe((msg: WSServerMessage) => {
-      if (msg.type === 'SESSION_STATE') {
-        setCurrentSession(msg.session);
-      } else if (msg.type === 'TIMER_TICK') {
-        setCurrentSession(prev =>
-          prev ? { ...prev, timerSecondsRemaining: msg.secondsRemaining, isTimerRunning: msg.isRunning } : null
-        );
-      } else if (msg.type === 'TEAM_UPDATED') {
-        setCurrentSession(prev => {
-          if (!prev) return null;
-          const updatedTeams = prev.teams.map(t => (t.id === msg.team.id ? msg.team : t));
-          return { ...prev, teams: updatedTeams };
-        });
-      } else if (msg.type === 'ROUND_RESOLVED') {
-        setCurrentSession(msg.session);
-        setLiveAnnouncement(`🎉 Round ${msg.session.currentRound - 1} results resolved!`);
-        setTimeout(() => setLiveAnnouncement(null), 6000);
-      } else if (msg.type === 'SESSION_RESET') {
-        setCurrentSession(msg.session);
-        setLiveAnnouncement('🔄 Simulation reset to Quarter 1. Past run results archived in Debrief.');
-        setTimeout(() => setLiveAnnouncement(null), 6000);
-      } else if (msg.type === 'CRISIS_INJECTED') {
-        setCurrentSession(msg.session);
-        setLiveAnnouncement(`🚨 BLACK SWAN CRISIS INJECTED: ${msg.event.title}! Immediate impact applied.`);
-        setTimeout(() => setLiveAnnouncement(null), 8000);
-      } else if (msg.type === 'ANNOUNCEMENT') {
-        setLiveAnnouncement(msg.message);
-        setTimeout(() => setLiveAnnouncement(null), 7000);
-      }
-    });
+    const unsubscribe = wsService.subscribe((msg: WSServerMessage) => applyServerMessage(msg));
 
     return () => {
       unsubscribe();
     };
   }, [currentSession?.id, selectedTeamId, activeView]);
 
-  // Session selector handler
-  const handleSelectSession = async (sessionId: string) => {
-    try {
-      const { session, scenario } = await api.getSession(sessionId);
-      setCurrentSession(session);
-      setCurrentScenario(scenario);
-      setSelectedTeamId(session.teams[0]?.id || null);
-    } catch (err) {
-      console.error('Select session error:', err);
-    }
-  };
-
-  const handleSessionCreated = (newSession: SimulationSession) => {
-    setSessions(prev => [newSession, ...prev]);
-    setCurrentSession(newSession);
-    setSelectedTeamId(newSession.teams[0]?.id || null);
-
-    const matchingScen = scenarios.find(s => s.id === newSession.scenarioId);
-    if (matchingScen) setCurrentScenario(matchingScen);
-  };
-
-  const handleScenarioPublished = (newScenario: Scenario) => {
-    setScenarios(prev => [newScenario, ...prev]);
-  };
+  const handleSessionCreated = (newSession: SimulationSession) => activateSession(newSession);
+  const handleScenarioPublished = (newScenario: Scenario) => addScenario(newScenario);
 
   const currentTeam = currentSession?.teams.find(t => t.id === selectedTeamId) || currentSession?.teams[0];
-
-  const handleTeamUpdated = (updatedTeam: Team) => {
-    setCurrentSession(prev => {
-      if (!prev) return null;
-      const updatedTeams = prev.teams.map(t => (t.id === updatedTeam.id ? updatedTeam : t));
-      return { ...prev, teams: updatedTeams };
-    });
-  };
 
   return (
     <div className="min-h-screen bg-dark-900 text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-black">
@@ -215,7 +170,7 @@ export const App: React.FC = () => {
         setActiveView={setActiveView}
         session={currentSession}
         sessions={sessions}
-        onSelectSession={handleSelectSession}
+        onSelectSession={selectSession}
         onOpenNewSessionModal={() => setIsNewSessionOpen(true)}
         selectedTeamId={selectedTeamId}
         onSelectTeam={setSelectedTeamId}
@@ -241,7 +196,7 @@ export const App: React.FC = () => {
             session={currentSession}
             team={currentTeam}
             scenario={currentScenario}
-            onTeamUpdated={handleTeamUpdated}
+            onTeamUpdated={updateTeam}
           />
         )}
 

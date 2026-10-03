@@ -8,11 +8,12 @@ import { StudioScenarioGenerator } from '../ai/studio-generator.js';
 import { ScenarioGenerationPrompt } from '../ai/types.js';
 import { DatabaseRepository } from '../db/index.js';
 import { Scenario } from '../types/index.js';
+import { studioGenerateSchema, validateBody } from '../validation.js';
 
 export const studioRouter = Router();
 
 // POST /api/studio/generate
-studioRouter.post('/generate', async (req, res) => {
+studioRouter.post('/generate', validateBody(studioGenerateSchema), async (req, res) => {
   try {
     const prompt = req.body as ScenarioGenerationPrompt;
     if (!prompt || !prompt.industry || !prompt.businessChallenge) {

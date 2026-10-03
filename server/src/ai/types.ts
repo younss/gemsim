@@ -36,6 +36,12 @@ export interface StakeholderNegotiationContext {
     technicalDebtIndex: number;
     deliveryVelocity: number;
   };
+  /** Human-readable summary of the team's submitted quarter decisions and last results. */
+  teamDecisions?: string[];
+  /** Remaining patience with the player this quarter (0-100). */
+  patience?: number;
+  /** Decision already made by System One; the LLM only voices it. */
+  decision?: ProposalEvaluation;
 }
 
 export interface ScenarioGenerationPrompt {

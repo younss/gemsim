@@ -116,6 +116,54 @@ export class DatabaseRepository {
     console.log(`[DatabaseRepository] Pre-seeded ${SEED_SCENARIOS.length} scenarios ready.`);
   }
 
+  /**
+   * When PostgreSQL is configured it is the system of record: seed scenarios are
+   * pushed to it, then its content is loaded into the local SQLite store, which
+   * serves reads synchronously and writes through to PostgreSQL.
+   */
+  public async syncWithPrimary(): Promise<void> {
+    const prisma = PrismaRepository.getInstance();
+    if (!(await prisma.whenReady())) return;
+
+    for (const s of SEED_SCENARIOS) await prisma.saveScenario(s);
+
+    const [scenarios, sessions, messages, runs] = await Promise.all([
+      prisma.getScenarios(),
+      prisma.getSessions(),
+      prisma.getChatMessages(),
+      prisma.getSimulationRuns(),
+    ]);
+
+    const tx = this.db.transaction(() => {
+      const now = new Date().toISOString();
+      const upsertScenario = this.db.prepare(`
+        INSERT INTO scenarios (id, title, industry, is_default, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET title = excluded.title, industry = excluded.industry, data = excluded.data, updated_at = excluded.updated_at`);
+      for (const sc of scenarios) {
+        upsertScenario.run(sc.id, sc.title, sc.industry, sc.isDefault ? 1 : 0, JSON.stringify(sc), sc.createdAt || now, now);
+      }
+      const upsertSession = this.db.prepare(`
+        INSERT INTO sessions (id, name, scenario_id, state, current_round, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET name = excluded.name, state = excluded.state, current_round = excluded.current_round, data = excluded.data, updated_at = excluded.updated_at`);
+      for (const se of sessions) {
+        upsertSession.run(se.id, se.name, se.scenarioId, se.state, se.currentRound, JSON.stringify(se), se.createdAt || now, se.updatedAt || now);
+      }
+      const insertMessage = this.db.prepare(`
+        INSERT OR IGNORE INTO chat_messages (id, session_id, team_id, stakeholder_id, sender, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`);
+      for (const { sessionId, teamId, message } of messages) {
+        insertMessage.run(message.id, sessionId, teamId, message.stakeholderId || null, message.sender, JSON.stringify(message), message.timestamp || now);
+      }
+      const upsertRun = this.db.prepare(`
+        INSERT INTO simulation_runs (id, session_id, scenario_id, run_number, title, winner_team_name, total_rounds, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET data = excluded.data`);
+      for (const r of runs) {
+        upsertRun.run(r.id, r.sessionId, r.scenarioId, r.runNumber, r.sessionName, r.winnerTeamName || null, r.totalRounds, JSON.stringify(r), r.completedAt || now);
+      }
+    });
+    tx();
+    console.log(`[DatabaseRepository] Synced from PostgreSQL: ${scenarios.length} scenarios, ${sessions.length} sessions, ${messages.length} messages, ${runs.length} runs.`);
+  }
+
   // --- Scenarios ---
 
   public getScenarios(): Scenario[] {
@@ -150,11 +198,12 @@ export class DatabaseRepository {
     );
 
     // Asynchronous write-through to PostgreSQL via Prisma
-    PrismaRepository.getInstance().saveScenario(scenario).catch(() => {});
+    void PrismaRepository.getInstance().saveScenario(scenario);
   }
 
   public deleteScenario(id: string): boolean {
     const res = this.db.prepare('DELETE FROM scenarios WHERE id = ? AND is_default = 0').run(id);
+    if (res.changes > 0) void PrismaRepository.getInstance().deleteScenario(id);
     return res.changes > 0;
   }
 
@@ -195,12 +244,13 @@ export class DatabaseRepository {
     );
 
     // Asynchronous write-through to PostgreSQL via Prisma
-    PrismaRepository.getInstance().saveSession(session).catch(() => {});
+    void PrismaRepository.getInstance().saveSession(session);
   }
 
   public deleteSession(id: string): boolean {
     this.db.prepare('DELETE FROM chat_messages WHERE session_id = ?').run(id);
     const res = this.db.prepare('DELETE FROM sessions WHERE id = ?').run(id);
+    void PrismaRepository.getInstance().deleteSession(id);
     return res.changes > 0;
   }
 
@@ -236,11 +286,12 @@ export class DatabaseRepository {
     );
 
     // Asynchronous write-through to PostgreSQL via Prisma
-    PrismaRepository.getInstance().saveChatMessage(sessionId, teamId, message).catch(() => {});
+    void PrismaRepository.getInstance().saveChatMessage(sessionId, teamId, message);
   }
 
   public deleteChatMessagesForSession(sessionId: string): void {
     this.db.prepare('DELETE FROM chat_messages WHERE session_id = ?').run(sessionId);
+    void PrismaRepository.getInstance().deleteChatMessagesForSession(sessionId);
   }
 
   public getChatMessageCountForSession(sessionId: string): number {
@@ -270,7 +321,7 @@ export class DatabaseRepository {
     );
 
     // Asynchronous write-through to PostgreSQL via Prisma
-    PrismaRepository.getInstance().saveSimulationRun(run).catch(() => {});
+    void PrismaRepository.getInstance().saveSimulationRun(run);
   }
 
   public getSimulationRuns(sessionId?: string): ArchivedSimulationRun[] {

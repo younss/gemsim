@@ -34,6 +34,9 @@ import {
   BookOpen,
 } from 'lucide-react';
 import { ExecutiveBriefingModal } from '../briefing/ExecutiveBriefingModal';
+import { ObjectivesTracker, FinalVerdict } from './OutcomePanels';
+import { checkDecisions, evaluateOutcome, lockedInitiativeIds } from '../../engine';
+import { useSimulationStore } from '../../stores/useSimulationStore';
 
 interface Props {
   session: SimulationSession;
@@ -59,6 +62,8 @@ export const PlayerArena: React.FC<Props> = ({
     team.currentRoundDecisions?.eventChoiceId
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [isResolving, setIsResolving] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
   const [selectedRadarQuarter, setSelectedRadarQuarter] = useState<number>(session.currentRound || 1);
@@ -95,20 +100,61 @@ export const PlayerArena: React.FC<Props> = ({
   const totalCapEx = selectedInitObjects.reduce((sum, i) => sum + i.capExCost, 0);
   const projectedNetTdi = selectedInitObjects.reduce((sum, i) => sum + i.tdiDelta, 0);
 
+  // Same rules the server enforces: budget envelope, delivery capacity, one-time initiatives
+  const pacts = team.currentRoundDecisions?.customPacts ?? [];
+  const decisionCheck = checkDecisions(
+    scenario,
+    team,
+    { selectedInitiativeIds: selectedInitiatives, governancePosture, eventChoiceId: selectedEventChoice, customPacts: pacts },
+    session.currentRound,
+    session.injectedEvents
+  );
+  const lockedIds = lockedInitiativeIds(team);
+  const activeById = new Map((team.activeInitiatives ?? []).map(a => [a.initiativeId, a.roundsRemaining]));
+  const isCompleted = session.state === 'COMPLETED';
+  const outcome = team.outcome ?? evaluateOutcome(scenario, team.metrics);
+  const isSolo = session.teams.length === 1;
+  const updateTeam = useSimulationStore(state => state.updateTeam);
+  const setCurrentSession = useSimulationStore(state => state.setCurrentSession);
+
+  const handleResolveQuarter = async () => {
+    setIsResolving(true);
+    setSubmitError(null);
+    try {
+      const { session: updated } = await api.advanceRound(session.id);
+      setCurrentSession(updated);
+    } catch (err: any) {
+      setSubmitError(err.message);
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
+  const handleWithdrawPact = async (stakeholderId: string) => {
+    try {
+      updateTeam(await api.withdrawPact(session.id, team.id, stakeholderId));
+    } catch (err: any) {
+      setSubmitError(err.message);
+    }
+  };
+
   // Velocity Drag calculation for display
   const tdi = team.metrics.technicalDebtIndex;
   const velocityDrag = Math.round(Math.pow(tdi / 100, 1.4) * 70);
 
   const handleToggleInitiative = (id: string) => {
-    if (team.decisionSubmitted) return;
-    setSelectedInitiatives(prev =>
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
+    if (team.decisionSubmitted || isCompleted || lockedIds.has(id)) return;
+    setSelectedInitiatives(prev => {
+      if (prev.includes(id)) return prev.filter(item => item !== id);
+      if (prev.length >= decisionCheck.capacity) return prev;
+      return [...prev, id];
+    });
   };
 
   const handleSubmitDecisions = async () => {
-    if (team.decisionSubmitted || isSubmitting) return;
+    if (team.decisionSubmitted || isSubmitting || !decisionCheck.ok) return;
     setIsSubmitting(true);
+    setSubmitError(null);
 
     try {
       const updatedTeam = await api.submitDecisions(session.id, team.id, {
@@ -121,8 +167,8 @@ export const PlayerArena: React.FC<Props> = ({
       onTeamUpdated(updatedTeam);
       setSubmissionSuccess(true);
       setTimeout(() => setSubmissionSuccess(false), 4000);
-    } catch (err) {
-      console.error('Failed to submit decisions:', err);
+    } catch (err: any) {
+      setSubmitError(err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -246,6 +292,13 @@ export const PlayerArena: React.FC<Props> = ({
         </div>
       </div>
 
+      {/* Win conditions: final verdict once the last quarter is resolved, live tracker before */}
+      {isCompleted ? (
+        <FinalVerdict session={session} team={team} outcome={outcome} />
+      ) : (
+        <ObjectivesTracker outcome={outcome} roundsLeft={session.totalRounds - session.currentRound + 1} />
+      )}
+
       {/* Emergency Crisis Alert Banner (When Injected by Facilitator) */}
       {isInjectedCrisis && currentEvent && (
         <div className="p-4 rounded-xl bg-gradient-to-r from-rose-950 via-rose-900/60 to-dark-850 border border-rose-500/70 shadow-[0_0_25px_rgba(244,63,94,0.3)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-pulse">
@@ -351,23 +404,51 @@ export const PlayerArena: React.FC<Props> = ({
 
         {/* Submit Strategic Decisions Button */}
         <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-          {team.decisionSubmitted ? (
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/40 text-emerald-400 text-xs font-mono">
-              <CheckCircle className="w-4 h-4" />
-              <span>Decisions Locked for Q{session.currentRound}</span>
+          {isCompleted ? (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-xs font-mono">
+              <Lock className="w-4 h-4" />
+              <span>Simulation complete</span>
+            </div>
+          ) : team.decisionSubmitted ? (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/40 text-emerald-400 text-xs font-mono">
+                <CheckCircle className="w-4 h-4" />
+                <span>Decisions Locked for Q{session.currentRound}</span>
+              </div>
+              {isSolo && (
+                // Solo play: no facilitator needed to close the quarter
+                <button
+                  onClick={handleResolveQuarter}
+                  disabled={isResolving}
+                  className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs font-mono disabled:opacity-50"
+                >
+                  {isResolving ? 'Resolving…' : session.currentRound >= session.totalRounds ? 'Resolve Final Quarter' : `Resolve Q${session.currentRound}`}
+                </button>
+              )}
             </div>
           ) : (
             <button
               onClick={handleSubmitDecisions}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !decisionCheck.ok}
+              title={decisionCheck.ok ? undefined : decisionCheck.errors.join(' ')}
               className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(0,240,255,0.25)] hover:shadow-[0_0_25px_rgba(0,240,255,0.4)] disabled:opacity-50"
             >
               <Lock className="w-3.5 h-3.5" />
-              <span>Submit Q{session.currentRound} Decisions ({totalCapEx > 0 ? `$${totalCapEx}K CapEx` : 'No CapEx'})</span>
+              <span>Submit Q{session.currentRound} Decisions ({decisionCheck.committedCost > 0 ? `$${decisionCheck.committedCost}K committed` : 'No spend'})</span>
             </button>
           )}
         </div>
       </div>
+
+      {!isCompleted && !team.decisionSubmitted && !decisionCheck.ok && (
+        <div className="p-3 bg-rose-500/10 border border-rose-500/50 text-rose-300 text-xs rounded-lg font-mono">
+          {decisionCheck.errors.map(e => <div key={e}>⛔ {e}</div>)}
+        </div>
+      )}
+
+      {submitError && (
+        <div className="p-3 bg-rose-500/10 border border-rose-500/50 text-rose-300 text-xs rounded-lg font-mono">⚠️ {submitError}</div>
+      )}
 
       {submissionSuccess && (
         <div className="p-3 bg-emerald-500/20 border border-emerald-500 text-emerald-300 text-xs rounded-lg flex items-center gap-2 animate-fadeIn">
@@ -395,16 +476,47 @@ export const PlayerArena: React.FC<Props> = ({
               <h3 className="text-base font-bold text-slate-100">Modernization & Strategic Portfolio</h3>
               <p className="text-xs text-slate-400">Select initiatives to fund this quarter. Watch CapEx limits and stakeholder preferences.</p>
             </div>
-            <div className="text-right font-mono text-xs">
-              <span className="text-slate-500">ALLOCATED CAPEX: </span>
-              <span className="text-cyan-400 font-bold">${totalCapEx}K</span>
-              <span className="text-slate-600"> / ${team.metrics.budgetRemaining}K</span>
+            <div className="text-right font-mono text-xs space-y-0.5">
+              <div>
+                <span className="text-slate-500">COMMITTED: </span>
+                <span className={decisionCheck.committedCost > decisionCheck.budgetAvailable ? 'text-rose-400 font-bold' : 'text-cyan-400 font-bold'}>
+                  ${decisionCheck.committedCost}K
+                </span>
+                <span className="text-slate-600"> / ${Math.max(0, team.metrics.budgetRemaining)}K cash</span>
+              </div>
+              <div>
+                <span className="text-slate-500">CAPACITY: </span>
+                <span className="text-cyan-400 font-bold">{selectedInitiatives.length}/{decisionCheck.capacity}</span>
+                <span className="text-slate-600"> initiatives this quarter</span>
+              </div>
             </div>
           </div>
+
+          {pacts.length > 0 && (
+            <div className="bg-indigo-500/5 border border-indigo-500/30 rounded-xl p-3 text-xs font-mono space-y-1.5">
+              <div className="text-indigo-300 font-bold">🤝 STAKEHOLDER PACTS THIS QUARTER (honored at resolution)</div>
+              {pacts.map(p => (
+                <div key={p.stakeholderId} className="flex items-center justify-between gap-2">
+                  <span className="text-slate-300">
+                    {scenario.stakeholders.find(sh => sh.id === p.stakeholderId)?.name ?? p.stakeholderId}: “{p.concession}” — ${p.committedBudget}K
+                  </span>
+                  {!team.decisionSubmitted && (
+                    <button onClick={() => handleWithdrawPact(p.stakeholderId)} className="text-rose-400 hover:text-rose-300">
+                      withdraw
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {scenario.initiativesCatalog.map(init => {
               const isSelected = selectedInitiatives.includes(init.id);
+              const isDone = team.completedInitiativeIds?.includes(init.id);
+              const roundsLeft = activeById.get(init.id);
+              const isLocked = lockedIds.has(init.id);
+              const atCapacity = !isSelected && selectedInitiatives.length >= decisionCheck.capacity;
 
               let riskBadge = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
               if (init.riskLevel === 'EXTREME') riskBadge = 'text-rose-400 bg-rose-500/10 border-rose-500/30';
@@ -414,7 +526,9 @@ export const PlayerArena: React.FC<Props> = ({
                 <div
                   key={init.id}
                   onClick={() => handleToggleInitiative(init.id)}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer relative flex flex-col justify-between ${
+                  className={`p-4 rounded-xl border transition-all relative flex flex-col justify-between ${
+                    isLocked || atCapacity ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                  } ${
                     isSelected
                       ? 'bg-dark-800 border-cyan-500 ring-1 ring-cyan-500/40 shadow-[0_0_15px_rgba(0,240,255,0.15)]'
                       : 'bg-dark-850 border-slate-800 hover:border-slate-700 hover:bg-dark-800/60'
@@ -429,6 +543,17 @@ export const PlayerArena: React.FC<Props> = ({
                         {init.riskLevel} RISK
                       </span>
                     </div>
+                    {(isDone || roundsLeft !== undefined || (init.durationRounds ?? 1) > 1) && (
+                      <div className="mb-2 text-[10px] font-mono">
+                        {isDone ? (
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">✓ COMPLETED</span>
+                        ) : roundsLeft !== undefined ? (
+                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">⏳ IN DELIVERY — {roundsLeft} quarter(s) left</span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">⏱ {init.durationRounds} quarters to deliver</span>
+                        )}
+                      </div>
+                    )}
 
                     <h4 className="font-bold text-slate-100 text-sm mb-1">{init.name}</h4>
                     <p className="text-xs text-slate-400 mb-4 line-clamp-3">{init.description}</p>
@@ -493,7 +618,7 @@ export const PlayerArena: React.FC<Props> = ({
                   id: 'BYPASS_ARCH',
                   name: 'Bypass Architecture Review (Fast-Track Features)',
                   description: 'Authorize direct database hooks and bypass review boards to deploy customer features instantly.',
-                  impact: '+18% Delivery Velocity sugar-rush, but +18% Compound Debt Surge & -15% Compliance penalty.',
+                  impact: '+18 velocity sugar-rush, but 18% debt compounding, +12 TDI, -15 compliance (fines below 50%) and -8 resilience per quarter.',
                   color: 'border-rose-500/40 bg-rose-500/5',
                   tag: 'EXTREME AGILITY / HIGH RISK',
                 },
@@ -501,7 +626,7 @@ export const PlayerArena: React.FC<Props> = ({
                   id: 'BALANCED_AGILE',
                   name: 'Balanced Pragmatic Agile (Standard)',
                   description: 'Continuous integration with pragmatic architecture oversight and manageable debt compounding.',
-                  impact: 'Baseline delivery rate with standard 8% debt drift per quarter.',
+                  impact: 'Baseline delivery rate: 8% debt compounding, +2 compliance, -3 resilience per quarter.',
                   color: 'border-cyan-500/40 bg-cyan-500/5',
                   tag: 'BALANCED TRADE-OFF',
                 },
@@ -509,7 +634,7 @@ export const PlayerArena: React.FC<Props> = ({
                   id: 'STRICT_GOVERNANCE',
                   name: 'Strict Enterprise Architecture Review Board',
                   description: 'Mandatory schema contracts, security audits, and formal review board sign-offs before any release.',
-                  impact: '-10% Delivery Velocity drag, but curbs debt drift to 2.5% and boosts compliance by +14%.',
+                  impact: '-10 velocity, but debt compounding capped at 2.5%, -5 TDI, +14 compliance and +6 resilience per quarter.',
                   color: 'border-indigo-500/40 bg-indigo-500/5',
                   tag: 'DEFENSIVE / AUDIT-PROOF',
                 },
@@ -517,7 +642,7 @@ export const PlayerArena: React.FC<Props> = ({
                   id: 'ACCELERATED_MODERN',
                   name: 'Accelerated Modernization Tranche',
                   description: 'Dedicate 35% of engineering capacity exclusively to refactoring and strangler fig migrations.',
-                  impact: '-8% TDI immediate drop, boosts resilience and agility for future quarters.',
+                  impact: '4% debt compounding, -8 TDI, +5 velocity, +8 compliance and +2 resilience per quarter.',
                   color: 'border-emerald-500/40 bg-emerald-500/5',
                   tag: 'TECH-DEBT REMEDIATION',
                 },

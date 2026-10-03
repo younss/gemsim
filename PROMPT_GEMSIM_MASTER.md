@@ -46,6 +46,8 @@ gemsim/
 │   │   │   ├── gateway.ts                    # Pluggable AI provider gateway
 │   │   │   ├── circuit-breaker.ts            # 3-strike / 60s cooldown resilience
 │   │   │   ├── json-repair-loop.ts           # Self-healing LLM schema repair
+│   │   │   ├── systemone.ts                  # System 1 client (Clef/Jev /v1/systemone)
+│   │   │   ├── stakeholder-judge.ts          # Typed verdicts, trust shifts & board votes
 │   │   │   └── providers/                    # Ollama, Gemini, Claude, OpenAI, Heuristic
 │   │   ├── simulation/
 │   │   │   ├── engine.ts                     # Deterministic quarterly state machine
@@ -85,10 +87,25 @@ $$\text{OpEx}_t = \sum_{n \in \text{Nodes}} \text{Cost}(n) \times \left(1 + 0.45
 
 ### 4. Node Failure Probability & Production Outages
 $$P(\text{Fail}) = \left(\frac{\text{Node TDI}}{100}\right)^{2.2} \times (\text{isCritical} ? 1.6 : 0.9) \times \left(1 - \frac{\text{ResilienceIndex}}{160}\right)$$
-When $P(\text{Fail}) > 0.45$, production outages trigger emergency recovery expenses, velocity penalties, and SLA violations.
+When $P(\text{Fail}) > 0.45$ the node is at risk and fails if a seeded roll (hash of session/team/quarter/node) falls under $P(\text{Fail})$, so outcomes are probabilistic but reproducible. Outages trigger emergency recovery expenses ($75K–$350K), velocity penalties (-4, -8 when critical), and SLA violations.
 
 ### 5. Stakeholder Trust Function
 $$\Delta \text{Trust}_i = \text{clamp}\Big(15 \times \sum (w_{i, k} \times \Delta_k), -25, +25\Big)$$
+
+### 6. Game Rules & Economy (shared pure module `engine/rules.ts`, reused by the client)
+- **Budget envelope**: CapEx of started initiatives + crisis response cost + pact budgets must fit the cash available; otherwise the submission is rejected (HTTP 422). An insolvent team may still submit an empty quarter.
+- **Delivery capacity**: at most `maxInitiativesPerRound` initiatives per quarter (default 2).
+- **One-time, multi-quarter initiatives**: an initiative is bought once; CapEx is paid at start, effects land on completion after `durationRounds`; OpEx deltas are permanent; 50% of the velocity gain persists afterwards.
+- **Run vs change budget**: the business funds a quarterly run budget equal to the starting estate's OpEx. Overruns are charged to the change budget; half of savings is returned. TCO accumulates change spending plus overruns.
+- **Governance side effects**: Bypass also costs -8 resilience per quarter; Strict +6; compliance under 50% triggers a fine of $6K per missing point and trust losses for compliance-minded executives.
+- **Insolvency**: negative cash costs every executive trust weighted by financial focus.
+- **Modernized capabilities**: a node becomes MODERNIZED when a completed modernization initiative brings its debt to 50 or below.
+
+### 7. Win / Loss Evaluation (`engine/outcome.ts`)
+- 7 objectives: the 6 `winLossConditions` plus solvency (cash ≥ 0), each with partial credit by distance to target; score 0–100.
+- **VICTORY** (A+/A) = all met; **PARTIAL** (B/C) = solvent and ≥ 4 met; **DEFEAT** (D/F) otherwise. Missing conditions in generated scenarios fall back to defaults.
+- Computed for every team when the last quarter resolves; players see a live objectives tracker and a final verdict screen; facilitator rankings use the score.
+- **Balance acceptance test**: scripted through the API on every seeded scenario, a modernization strategy must win, a cautious one must reach PARTIAL, and a bypass/feature-blitz one must lose.
 
 ---
 
@@ -129,7 +146,10 @@ Render an interactive, high-end 3D architectural digital twin matching modern en
 ### Anti-Cheat Semantic Scoring & Psychological Resistance
 - The LLM stakeholder **never** blindly awards trust.
 - Detects copy-paste spam, hollow promises, and lack of budget allocation.
-- Tracks patience and skepticism meters: repeated vague arguments decrease patience and trigger active negotiation resistance.
+- **Patience meter** per executive and quarter (0–100): empty pitch -30, repetition -35, rejection -20, conditional -8, acceptance +5 (half in the boardroom). At 0 the executive refuses to negotiate until next quarter (-2 trust per attempt) and votes against without an LLM call. +50 recovery each quarter. Patience is passed to System 1 and to the LLM prompt (curt tone below 35).
+- **Binding pacts**: a demanded concession can be signed as a pact with a committed budget (`POST /api/sessions/:id/pacts`, server-held so clients cannot forge them). Pacts consume the quarter's budget envelope and are honored at resolution (cost charged, trust +5 to +15).
+- Stakeholders see the team's submitted quarter decisions (initiatives with costs, posture, crisis response, pacts, last quarter's results) and react to them concretely.
+- **Decision vs. voice separation**: the verdict, trust delta and scores come from the System 1 decision model (see Section 9), including paraphrased-rehash and low-effort detection. The LLM only voices the decision in character.
 
 ---
 
@@ -137,8 +157,9 @@ Render an interactive, high-end 3D architectural digital twin matching modern en
 
 In addition to 1-on-1 negotiations, players can convene an All-Hands Executive Committee:
 - Player presents their quarterly strategic package to all stakeholders simultaneously.
-- **Cross-NPC Debates**: Executives argue among themselves (e.g. CISO challenges CFO’s cuts to automated testing; Delivery Director defends release schedule).
+- **Cross-NPC Debates**: after the vote, the most opposed member rebuts the most supportive one in character (one LLM call; persona resistance line when no LLM is available). No debate when the vote is unanimous.
 - Real-time collective consensus meter and formal alignment vote before finalizing the quarter.
+- **Single-pass board vote**: all members' verdicts are decided in **one** System 1 call (one question set per stakeholder, shared message-quality questions). The LLM then writes each member's statement.
 
 ---
 
@@ -150,7 +171,8 @@ In addition to 1-on-1 negotiations, players can convene an All-Hands Executive C
   - **Q2**: Delivery velocity bottlenecks or vendor turnover.
   - **Q3 (Black Swan)**: Surprise regulatory audit (DORA/HIPAA) or supply-chain pipeline vulnerability.
   - **Q4**: Cascading systemic failure or successful modernization milestone.
-- Facilitators can trigger manual black swan overrides during live multiplayer sessions.
+- Facilitators can trigger manual black swan overrides during live multiplayer sessions. The injected crisis applies its impact immediately (no clamping of cash), is not charged again at resolution, and teams that answered the scheduled dilemma must choose again.
+- Quarter resolution goes through one service for REST, WebSocket and the BullMQ worker, so injected crises and rules always apply.
 
 ---
 
@@ -171,7 +193,54 @@ In addition to 1-on-1 negotiations, players can convene an All-Hands Executive C
 
 ---
 
-## 9. FLAGSHIP SCENARIO: "HEALTHNOVA: CLINICAL EHR & TELEHEALTH OVERHAUL"
+## 9. HYBRID SYSTEM 1 / SYSTEM 2 DECISION LAYER (CLEF / JEV)
+
+Separate **deciding** from **writing**:
+- **System 1** is a non-autoregressive decision model: Clef-flash, served by Ollama with the `decision` capability, or any Jev/SystemOne-compatible model. It returns a probability for every option of every typed question in one forward pass, with zero generated tokens and no JSON parsing.
+- **System 2** is the LLM gateway from Section 8. It writes dialogue, rationale and concession text conditioned on the System 1 decision.
+
+### API Contract (`POST {SYSTEMONE_BASE_URL}/v1/systemone`)
+```json
+{
+  "model": "clef-flash",
+  "state": { "stakeholder": { "bias": "...", "hiddenAgenda": "...", "decisionWeights": {}, "currentTrust": 45 },
+             "company": { "round": 2, "budgetRemaining": 900, "technicalDebtIndex": 62 },
+             "previousPlayerProposals": ["..."], "playerMessage": "..." },
+  "questions": {
+    "verdict":     { "type": "choice", "instructions": "...", "criteria": { "ACCEPTED": "...", "CONDITIONAL_ACCEPTANCE": "...", "REJECTED": "..." } },
+    "trust_shift": { "type": "score",  "criteria": ["Strongly damaged", "Slightly damaged", "Unchanged", "Slightly improved", "Strongly improved"] },
+    "low_effort":  { "type": "noul",   "instructions": "Vague, pressure tactic or flattery without concrete substance?" }
+  }
+}
+```
+Response: `answers[id]` contains `{choice, confidence, probabilities}` for `choice` questions, `{score, confidence, legend, probabilities}` for `score` questions (score = expected option index), and `{noul}` (probability of true) for `noul` questions.
+
+### Negotiation Pipeline
+1. The anti-cheat sentinel rejects empty and verbatim-repeated messages before any model call.
+2. **Judge** (`stakeholder-judge.ts`) asks: `verdict` (choice), `trust_shift`, `empathy`, `financial_acumen` and `strategic_alignment` (scores 0–4), plus `low_effort` and `rehash` (noul).
+3. **Mapping** (a pure, unit-tested function):
+   - `penalty = max(low_effort, rehash)`.
+   - Raise P(REJECTED) by `0.6 × penalty`, scale P(ACCEPTED) by `1 − 0.8 × penalty`, renormalize, then take the top verdict.
+   - `trustDelta = clamp(round((trust_shift − 2) × 10 − 10 × penalty), −20, +20)`.
+   - Scores become 0–100.
+4. **Voice**: the LLM prompt includes a "decision already made" block. The server keeps System 1's verdict and numbers authoritative and keeps the LLM's wording.
+5. **Streaming**: emit an SSE `{ "type": "decision", "evaluation": ... }` event before the first dialogue token.
+6. `ProposalEvaluation` adds the optional fields `verdictProbabilities` and `decisionEngine`.
+
+### Emergent Behaviour & Resilience
+- `SYSTEMONE_STOCHASTIC=true` samples verdicts from the distribution (roulette wheel) instead of argmax, so identical situations can produce different, still credible reactions.
+- Graceful degradation: if System 1 is disabled, times out or has an open circuit breaker (3 failures, 60 s), the system falls back to LLM-only evaluation transparently.
+- Configuration: `SYSTEMONE_ENABLED`, `SYSTEMONE_BASE_URL` (defaults to `OLLAMA_BASE_URL`), `SYSTEMONE_MODEL` (`clef-flash`), `SYSTEMONE_TIMEOUT_MS` (20000, covers cold model loads), `SYSTEMONE_STOCHASTIC`.
+- Health probe: `GET /api/ai/systemone/health`.
+
+### Extension Points (same pattern)
+- End-of-round stakeholder reactions that account for hidden agendas.
+- An AI storyteller that suggests crises to the facilitator: `noul` "should a crisis occur?" + `choice` among event types.
+- Quality gates on Studio-generated scenarios.
+
+---
+
+## 10. FLAGSHIP SCENARIO: "HEALTHNOVA: CLINICAL EHR & TELEHEALTH OVERHAUL"
 
 Pre-seed the database with the flagship enterprise scenario:
 - **Context**: 15 regional hospitals facing legacy EHR monolith lock-in, 68% Technical Debt Index, and critical video consultation latency during peak telehealth hours.
@@ -192,15 +261,16 @@ Pre-seed the database with the flagship enterprise scenario:
 
 ---
 
-## 10. FACILITATOR COCKPIT (MULTI-TEAM WAR ROOM)
+## 11. FACILITATOR COCKPIT (MULTI-TEAM WAR ROOM)
 
 - Multi-squad live synchronization dashboard (1 to 5 squads competing side-by-side).
 - Round timer pause/resume, broadcast announcements, and manual black swan injection.
-- Executive Post-Mortem Report: Generates comparative radar charts, resilience rankings (A+ to F), and exportable JSON/Markdown audit logs.
+- Executive Post-Mortem Report: Generates comparative radar charts, rankings by win-condition score with grades (A+ to F), and exportable JSON/Markdown audit logs.
+- Solo sessions (one team): the player resolves the quarter from the arena after submitting.
 
 ---
 
-## 11. DEPLOYMENT & CONTAINERIZATION
+## 12. DEPLOYMENT & CONTAINERIZATION
 
 - **Podman / Docker Compose**: Rootless, unprivileged container execution (UID `10001`).
 - **SELinux Support**: Persistent volume storage flags (`:Z`).
@@ -208,5 +278,12 @@ Pre-seed the database with the flagship enterprise scenario:
 
 ---
 
+### Persistence & Jobs
+- SQLite is the local synchronous store. When `DATABASE_URL` is set, PostgreSQL is the system of record: seeds are pushed to it at startup, its content is loaded into SQLite, and every write and delete is mirrored with per-record ordering.
+- When Redis is reachable, quarter resolution runs as a BullMQ job (concurrency 1) awaited by the caller; jobs are logged to `job_logs`. Without Redis the same handler runs inline.
+- All mutating endpoints validate their body with Zod (HTTP 400 with issues). Client state lives in a Zustand store fed by WebSocket messages.
+
+---
+
 ## EXECUTION INSTRUCTIONS
-Generate clean, modular, and fully tested TypeScript code. Ensure all Three.js materials, mathematical state transitions, AI streaming handlers, and UI dashboards compile without errors (`npm run build` client & server with 0 errors, `npm test` passing 100%).
+Generate clean, modular, and fully tested TypeScript code. Unit-test the System 1 answer-to-evaluation mapping without a live model. Ensure all Three.js materials, mathematical state transitions, AI streaming handlers, and UI dashboards compile without errors (`npm run build` client & server with 0 errors, `npm test` passing 100%).

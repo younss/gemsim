@@ -5,7 +5,9 @@
 
 import { Router } from 'express';
 import { DatabaseRepository } from '../db/index.js';
-import { SimulationResolver } from '../engine/resolver.js';
+import { checkDecisions } from '../engine/rules.js';
+import { evaluateOutcome } from '../engine/outcome.js';
+import { advanceRound } from '../services/round-service.js';
 import {
   SimulationSession,
   Team,
@@ -15,6 +17,7 @@ import {
   ArchivedSimulationRun,
 } from '../types/index.js';
 import { broadcastToSession } from '../socket/handler.js';
+import { broadcastSchema, createSessionSchema, injectEventSchema, pactSchema, submitDecisionsSchema, validateBody } from '../validation.js';
 
 export const sessionsRouter = Router();
 
@@ -70,7 +73,7 @@ sessionsRouter.post('/:id/verify-facilitator', (req, res) => {
 });
 
 // POST /api/sessions
-sessionsRouter.post('/', (req, res) => {
+sessionsRouter.post('/', validateBody(createSessionSchema), (req, res) => {
   try {
     const { name, scenarioId, teamNames, roundDurationSeconds } = req.body as {
       name: string;
@@ -105,7 +108,7 @@ sessionsRouter.post('/', (req, res) => {
         name: tName,
         color: colors[idx % colors.length],
         avatar: avatars[idx % avatars.length],
-        metrics: { ...scenario.baselineMetrics },
+        metrics: { ...scenario.baselineMetrics, modernizedNodesCount: scenario.topology.nodes.filter(n => n.status === 'MODERNIZED').length },
         stakeholderTrustMap: initialTrustMap,
         currentRoundDecisions: {
           selectedInitiativeIds: [],
@@ -115,6 +118,9 @@ sessionsRouter.post('/', (req, res) => {
         decisionSubmitted: false,
         history: [],
         activeInitiatives: [],
+        completedInitiativeIds: [],
+        stakeholderPatience: Object.fromEntries(scenario.stakeholders.map(sh => [sh.id, 100])),
+        honoredPacts: [],
         nodeHealthOverrides: {},
       };
     });
@@ -144,7 +150,7 @@ sessionsRouter.post('/', (req, res) => {
 });
 
 // POST /api/sessions/:id/decisions
-sessionsRouter.post('/:id/decisions', (req, res) => {
+sessionsRouter.post('/:id/decisions', validateBody(submitDecisionsSchema), (req, res) => {
   try {
     const { teamId, decisions } = req.body as {
       teamId: string;
@@ -161,8 +167,29 @@ sessionsRouter.post('/:id/decisions', (req, res) => {
     if (!team) {
       return res.status(404).json({ error: 'Team not found in session' });
     }
+    if (session.state === 'COMPLETED') {
+      return res.status(409).json({ error: 'Simulation already completed' });
+    }
+    if (team.decisionSubmitted) {
+      return res.status(409).json({ error: 'Decisions already submitted for this quarter' });
+    }
 
-    team.currentRoundDecisions = decisions;
+    const scenario = db.getScenario(session.scenarioId);
+    if (!scenario) {
+      return res.status(404).json({ error: 'Scenario not found' });
+    }
+
+    // Pacts are negotiated with stakeholders server-side; the client cannot forge them
+    const finalDecisions: TeamDecision = {
+      ...decisions,
+      customPacts: team.currentRoundDecisions?.customPacts ?? [],
+    };
+    const check = checkDecisions(scenario, team, finalDecisions, session.currentRound, session.injectedEvents);
+    if (!check.ok) {
+      return res.status(422).json({ error: check.errors.join(' '), errors: check.errors, check });
+    }
+
+    team.currentRoundDecisions = finalDecisions;
     team.decisionSubmitted = true;
     session.updatedAt = new Date().toISOString();
 
@@ -190,58 +217,89 @@ sessionsRouter.post('/:id/decisions', (req, res) => {
 });
 
 // POST /api/sessions/:id/advance (Resolves current round for all teams)
-sessionsRouter.post('/:id/advance', (req, res) => {
+sessionsRouter.post('/:id/advance', async (req, res) => {
   try {
     const db = DatabaseRepository.getInstance();
     const session = db.getSession(req.params.id);
     if (!session) {
       return res.status(404).json({ error: 'Session not found' });
     }
+    if (session.state === 'COMPLETED') {
+      return res.status(409).json({ error: 'Simulation already completed' });
+    }
 
+    const { session: updated, results } = await advanceRound(session.id);
+    res.json({ session: updated, results });
+  } catch (err: any) {
+    res.status(err.status || 500).json({ error: err.message });
+  }
+});
+
+// POST /api/sessions/:id/pacts (Records a concession accepted in negotiation as a binding pact)
+sessionsRouter.post('/:id/pacts', validateBody(pactSchema), (req, res) => {
+  try {
+    const { teamId, stakeholderId, concession, committedBudget } = req.body as {
+      teamId: string;
+      stakeholderId: string;
+      concession: string;
+      committedBudget: number;
+    };
+
+    const db = DatabaseRepository.getInstance();
+    const session = db.getSession(req.params.id);
+    if (!session) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
     const scenario = db.getScenario(session.scenarioId);
-    if (!scenario) {
-      return res.status(404).json({ error: 'Associated scenario missing' });
+    const team = session.teams.find(t => t.id === teamId);
+    if (!scenario || !team) {
+      return res.status(404).json({ error: 'Team or scenario not found' });
+    }
+    if (!scenario.stakeholders.some(sh => sh.id === stakeholderId)) {
+      return res.status(404).json({ error: 'Stakeholder not found' });
+    }
+    if (team.decisionSubmitted || session.state === 'COMPLETED') {
+      return res.status(409).json({ error: 'Pacts can only be signed before the quarter decisions are submitted' });
     }
 
-    const roundResults: Record<string, RoundResult> = {};
-    const updatedTeams: Team[] = [];
+    const pacts = (team.currentRoundDecisions.customPacts ?? []).filter(p => p.stakeholderId !== stakeholderId);
+    pacts.push({ stakeholderId, concession, committedBudget: Math.max(0, Math.round(committedBudget)) });
+    const draft = { ...team.currentRoundDecisions, customPacts: pacts };
 
-    // Resolve round for each team
-    for (const team of session.teams) {
-      const { updatedTeam, roundResult } = SimulationResolver.resolveRound(
-        scenario,
-        team,
-        session.currentRound,
-        session.injectedEvents
-      );
-      updatedTeams.push(updatedTeam);
-      roundResults[team.id] = roundResult;
+    // Pacts consume the same budget envelope as initiatives
+    const check = checkDecisions(scenario, team, { ...draft, selectedInitiativeIds: [], eventChoiceId: undefined }, session.currentRound, session.injectedEvents);
+    if (!check.ok) {
+      return res.status(422).json({ error: check.errors.join(' '), errors: check.errors });
     }
 
-    session.teams = updatedTeams;
-    session.activeCrisis = null;
-
-    // Check if simulation completed or advances
-    if (session.currentRound >= session.totalRounds) {
-      session.state = 'COMPLETED';
-      session.isTimerRunning = false;
-    } else {
-      session.currentRound += 1;
-      session.timerSecondsRemaining = session.roundDurationSeconds;
-      session.state = 'ACTIVE';
-    }
-
+    team.currentRoundDecisions = draft;
     session.updatedAt = new Date().toISOString();
     db.saveSession(session);
+    broadcastToSession(session.id, { type: 'TEAM_UPDATED', team });
+    res.json({ success: true, team });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-    // Notify all players and facilitator via WebSockets
-    broadcastToSession(session.id, {
-      type: 'ROUND_RESOLVED',
-      session,
-      results: roundResults,
-    });
-
-    res.json({ session, results: roundResults });
+// DELETE /api/sessions/:id/pacts/:teamId/:stakeholderId (Withdraws a pact before submission)
+sessionsRouter.delete('/:id/pacts/:teamId/:stakeholderId', (req, res) => {
+  try {
+    const db = DatabaseRepository.getInstance();
+    const session = db.getSession(req.params.id);
+    const team = session?.teams.find(t => t.id === req.params.teamId);
+    if (!session || !team) {
+      return res.status(404).json({ error: 'Session or team not found' });
+    }
+    if (team.decisionSubmitted) {
+      return res.status(409).json({ error: 'Decisions already submitted' });
+    }
+    team.currentRoundDecisions.customPacts = (team.currentRoundDecisions.customPacts ?? []).filter(
+      p => p.stakeholderId !== req.params.stakeholderId
+    );
+    db.saveSession(session);
+    broadcastToSession(session.id, { type: 'TEAM_UPDATED', team });
+    res.json({ success: true, team });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -292,7 +350,7 @@ sessionsRouter.post('/:id/timer', (req, res) => {
 });
 
 // POST /api/sessions/:id/inject-event (Facilitator Crisis Injection)
-sessionsRouter.post('/:id/inject-event', (req, res) => {
+sessionsRouter.post('/:id/inject-event', validateBody(injectEventSchema), (req, res) => {
   try {
     const { event } = req.body as { event: RoundEvent };
     if (!event || !event.title) {
@@ -310,6 +368,7 @@ sessionsRouter.post('/:id/inject-event', (req, res) => {
       ...event,
       roundNumber: session.currentRound,
       immediateImpact: event.immediateImpact || { budgetFine: 0, tdiSurge: 0, velocityPenalty: 0 },
+      impactAppliedAtInjection: true,
       choices: event.choices || [],
     };
 
@@ -324,7 +383,12 @@ sessionsRouter.post('/:id/inject-event', (req, res) => {
     // Apply immediate financial, tech debt, and node outage impacts across all teams
     const { budgetFine = 0, tdiSurge = 0, velocityPenalty = 0, downedNodeIds = [] } = enrichedEvent.immediateImpact;
     for (const team of session.teams) {
-      team.metrics.budgetRemaining = Math.max(0, team.metrics.budgetRemaining - budgetFine);
+      team.metrics.budgetRemaining = team.metrics.budgetRemaining - budgetFine;
+      // The crisis replaces this quarter's dilemma: a response to the old one no longer applies
+      if (team.currentRoundDecisions?.eventChoiceId) {
+        team.currentRoundDecisions.eventChoiceId = undefined;
+        team.decisionSubmitted = false;
+      }
       team.metrics.technicalDebtIndex = Math.min(100, team.metrics.technicalDebtIndex + tdiSurge);
       team.metrics.deliveryVelocity = Math.max(5, team.metrics.deliveryVelocity - Math.abs(velocityPenalty));
 
@@ -366,7 +430,7 @@ sessionsRouter.post('/:id/inject-event', (req, res) => {
 });
 
 // POST /api/sessions/:id/broadcast
-sessionsRouter.post('/:id/broadcast', (req, res) => {
+sessionsRouter.post('/:id/broadcast', validateBody(broadcastSchema), (req, res) => {
   try {
     const { message } = req.body as { message: string };
     if (!message) {
@@ -419,11 +483,8 @@ sessionsRouter.post('/:id/reset', (req, res) => {
       const runNumber = existingRuns.length + 1;
 
       // Sort teams to determine winner and rankings
-      const sortedTeams = [...session.teams].sort((a, b) => {
-        const scoreA = (100 - a.metrics.technicalDebtIndex) * 1.5 + a.metrics.deliveryVelocity + a.metrics.stakeholderTrust * 1.2;
-        const scoreB = (100 - b.metrics.technicalDebtIndex) * 1.5 + b.metrics.deliveryVelocity + b.metrics.stakeholderTrust * 1.2;
-        return scoreB - scoreA;
-      });
+      const outcomes = new Map(session.teams.map(t => [t.id, t.outcome ?? evaluateOutcome(scenario, t.metrics)]));
+      const sortedTeams = [...session.teams].sort((a, b) => outcomes.get(b.id)!.score - outcomes.get(a.id)!.score);
 
       archivedRun = {
         id: `run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -453,6 +514,9 @@ sessionsRouter.post('/:id/reset', (req, res) => {
             tco: `$${t.metrics.tco}K`,
             resilienceIndex: `${t.metrics.resilienceIndex}/100`,
             complianceScore: `${t.metrics.complianceScore}%`,
+            grade: outcomes.get(t.id)!.grade,
+            verdict: outcomes.get(t.id)!.verdict,
+            score: outcomes.get(t.id)!.score,
           })),
         },
         chatTranscriptCount: db.getChatMessageCountForSession(session.id),
@@ -475,10 +539,14 @@ sessionsRouter.post('/:id/reset', (req, res) => {
 
     // 4. Reset each team's score, metrics, decisions, and stakeholder trust back to scenario baseline
     for (const team of session.teams) {
-      team.metrics = { ...scenario.baselineMetrics };
+      team.metrics = { ...scenario.baselineMetrics, modernizedNodesCount: scenario.topology.nodes.filter(n => n.status === 'MODERNIZED').length };
       team.history = [];
       team.decisionSubmitted = false;
       team.activeInitiatives = [];
+      team.completedInitiativeIds = [];
+      team.stakeholderPatience = Object.fromEntries(scenario.stakeholders.map(sh => [sh.id, 100]));
+      team.honoredPacts = [];
+      team.outcome = undefined;
       team.nodeHealthOverrides = {};
       team.currentRoundDecisions = {
         selectedInitiativeIds: [],

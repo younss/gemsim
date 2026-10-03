@@ -1,0 +1,62 @@
+// ============================================================================
+// GEMSIM: WIN / LOSS EVALUATION
+// Scores a team against the scenario's winLossConditions. Pure function with
+// type-only imports so the client can reuse it for live objective tracking.
+// ============================================================================
+
+import type { OutcomeObjective, Scenario, SimulationOutcome, TeamMetrics } from '../types/index.js';
+
+function attainment(comparator: '<=' | '>=', target: number, actual: number, span: number): number {
+  const gap = comparator === '<=' ? actual - target : target - actual;
+  if (gap <= 0) return 1;
+  return Math.max(0, 1 - gap / span);
+}
+
+export function evaluateOutcome(scenario: Pick<Scenario, 'winLossConditions' | 'baselineMetrics'>, metrics: TeamMetrics): SimulationOutcome {
+  const base = scenario.baselineMetrics;
+  // Generated scenarios may omit conditions: fall back to reasonable targets
+  const w: Scenario['winLossConditions'] = {
+    maxTechnicalDebtIndex: 45,
+    minStakeholderTrustAvg: 60,
+    minDeliveryVelocity: 60,
+    minResilienceIndex: 70,
+    maxTCOBudget: base.tco + base.budgetRemaining * 1.5,
+    targetCapabilitiesModernized: base.modernizedNodesCount + 2,
+    ...(scenario.winLossConditions as Partial<Scenario['winLossConditions']>),
+  };
+
+  const defs: Array<Omit<OutcomeObjective, 'met' | 'attainment'> & { span: number }> = [
+    { key: 'technicalDebtIndex', label: 'Technical Debt Index', comparator: '<=', target: w.maxTechnicalDebtIndex, actual: metrics.technicalDebtIndex, span: 40 },
+    { key: 'stakeholderTrust', label: 'Average Stakeholder Trust', comparator: '>=', target: w.minStakeholderTrustAvg, actual: metrics.stakeholderTrust, span: 40 },
+    { key: 'deliveryVelocity', label: 'Delivery Velocity', comparator: '>=', target: w.minDeliveryVelocity, actual: metrics.deliveryVelocity, span: 40 },
+    { key: 'resilienceIndex', label: 'Resilience Index', comparator: '>=', target: w.minResilienceIndex, actual: metrics.resilienceIndex, span: 40 },
+    { key: 'tco', label: 'Total Cost of Ownership ($K)', comparator: '<=', target: w.maxTCOBudget, actual: metrics.tco, span: Math.max(500, w.maxTCOBudget * 0.3) },
+    { key: 'modernizedNodesCount', label: 'Capabilities Modernized', comparator: '>=', target: w.targetCapabilitiesModernized, actual: metrics.modernizedNodesCount, span: Math.max(1, w.targetCapabilitiesModernized) },
+    { key: 'solvency', label: 'Cash Remaining ($K)', comparator: '>=', target: 0, actual: metrics.budgetRemaining, span: Math.max(500, base.budgetRemaining) },
+  ];
+
+  const objectives: OutcomeObjective[] = defs.map(({ span, ...d }) => {
+    const met = d.comparator === '<=' ? d.actual <= d.target : d.actual >= d.target;
+    return { ...d, met, attainment: Math.round(attainment(d.comparator, d.target, d.actual, span) * 100) / 100 };
+  });
+
+  const objectivesMet = objectives.filter(o => o.met).length;
+  const score = Math.round((objectives.reduce((sum, o) => sum + o.attainment, 0) / objectives.length) * 100);
+  const solvent = metrics.budgetRemaining >= 0;
+
+  // Insolvency caps the result whatever the other metrics say
+  let verdict: SimulationOutcome['verdict'];
+  if (objectivesMet === objectives.length) verdict = 'VICTORY';
+  else if (solvent && objectivesMet >= Math.ceil(objectives.length / 2)) verdict = 'PARTIAL';
+  else verdict = 'DEFEAT';
+
+  let grade: SimulationOutcome['grade'];
+  if (verdict === 'VICTORY' && score >= 98) grade = 'A+';
+  else if (verdict === 'VICTORY') grade = 'A';
+  else if (verdict === 'PARTIAL' && score >= 85) grade = 'B';
+  else if (verdict === 'PARTIAL') grade = 'C';
+  else if (solvent && score >= 60) grade = 'D';
+  else grade = 'F';
+
+  return { verdict, grade, score, objectivesMet, objectives };
+}

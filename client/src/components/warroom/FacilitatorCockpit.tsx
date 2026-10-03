@@ -12,6 +12,8 @@ import {
   ArchivedSimulationRun,
 } from '../../types/index';
 import { api } from '../../services/api';
+import { evaluateOutcome } from '../../engine';
+import { TeamRadarChart } from './TeamRadarChart';
 import {
   Play,
   Pause,
@@ -319,14 +321,47 @@ export const FacilitatorCockpit: React.FC<Props> = ({
   };
 
   // Debrief Winner Calculation
-  const sortedTeams = [...session.teams].sort((a, b) => {
-    // Score based on low TDI, high velocity, high trust
-    const scoreA = (100 - a.metrics.technicalDebtIndex) * 1.5 + a.metrics.deliveryVelocity + a.metrics.stakeholderTrust * 1.2;
-    const scoreB = (100 - b.metrics.technicalDebtIndex) * 1.5 + b.metrics.deliveryVelocity + b.metrics.stakeholderTrust * 1.2;
-    return scoreB - scoreA;
-  });
+  // Ranked on the scenario's win conditions (final verdict once completed, projection before)
+  const outcomes = new Map(session.teams.map(t => [t.id, t.outcome ?? evaluateOutcome(scenario, t.metrics)]));
+  const sortedTeams = [...session.teams].sort((a, b) => outcomes.get(b.id)!.score - outcomes.get(a.id)!.score);
 
   const allTeamsSubmitted = session.teams.every(t => t.decisionSubmitted);
+
+  const handleExportMarkdown = () => {
+    const lines: string[] = [
+      `# Executive Debrief — ${session.name}`,
+      '',
+      `- Scenario: ${scenario.title}`,
+      `- Quarters played: ${session.state === 'COMPLETED' ? session.totalRounds : session.currentRound - 1} / ${session.totalRounds}`,
+      `- Exported: ${new Date().toISOString()}`,
+      '',
+      '## Rankings',
+      '',
+      '| Rank | Team | Verdict | Grade | Score | TDI | Velocity | Trust | Resilience | Cash | TCO |',
+      '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+      ...sortedTeams.map((t, i) => {
+        const o = outcomes.get(t.id)!;
+        const m = t.metrics;
+        return `| ${i + 1} | ${t.name} | ${o.verdict} | ${o.grade} | ${o.score} | ${m.technicalDebtIndex} | ${m.deliveryVelocity} | ${m.stakeholderTrust} | ${m.resilienceIndex} | $${m.budgetRemaining}K | $${m.tco}K |`;
+      }),
+    ];
+    for (const t of sortedTeams) {
+      const o = outcomes.get(t.id)!;
+      lines.push('', `## ${t.name} — ${o.verdict} (${o.grade})`, '', '| Objective | Target | Final | Met |', '| --- | --- | --- | --- |');
+      for (const ob of o.objectives) lines.push(`| ${ob.label} | ${ob.comparator} ${ob.target} | ${ob.actual} | ${ob.met ? '✅' : '❌'} |`);
+      lines.push('', '### Quarter log', '');
+      for (const h of t.history) {
+        lines.push(`- **Q${h.roundNumber}**: ${h.facilitatorFeedback} Incidents: ${h.incidentsTriggered.length}. Initiatives: ${h.activeInitiativesProgress.map(p => `${p.name}${p.completed ? '' : ` (${p.remainingRounds}Q left)`}`).join(', ') || 'none'}.`);
+      }
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${session.name.replace(/\s+/g, '_')}_Executive_Debrief.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const selectedArchivedRun = archivedRuns.find(r => r.id === selectedRunId);
 
@@ -359,6 +394,10 @@ export const FacilitatorCockpit: React.FC<Props> = ({
         totalTCO: `$${t.metrics.tco}K`,
         resilienceIndex: `${t.metrics.resilienceIndex}/100`,
         complianceScore: `${t.metrics.complianceScore}%`,
+        verdict: outcomes.get(t.id)!.verdict,
+        grade: outcomes.get(t.id)!.grade,
+        score: outcomes.get(t.id)!.score,
+        objectives: outcomes.get(t.id)!.objectives,
       })),
     };
 
@@ -706,6 +745,15 @@ export const FacilitatorCockpit: React.FC<Props> = ({
               <Download className="w-4 h-4" />
               <span>{selectedArchivedRun ? `Export Run #${selectedArchivedRun.runNumber} (.JSON)` : 'Export Executive Briefing (.JSON)'}</span>
             </button>
+            {!selectedArchivedRun && (
+              <button
+                onClick={handleExportMarkdown}
+                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs flex items-center gap-2 transition-all shadow-lg"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export Audit Log (.MD)</span>
+              </button>
+            )}
           </div>
 
           {/* Run Version Selector: Current Live Run vs Past Archived Runs */}
@@ -835,6 +883,8 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                 </div>
               )}
 
+              <TeamRadarChart teams={session.teams} scenario={scenario} />
+
               {/* Comparative Table for Live Session */}
               <div className="overflow-x-auto rounded-xl border border-slate-800 bg-dark-850">
                 <table className="w-full text-left text-xs font-mono">
@@ -842,6 +892,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                     <tr>
                       <th className="p-3">Rank</th>
                       <th className="p-3">Organization</th>
+                      <th className="p-3">Verdict</th>
                       <th className="p-3">Tech Debt (TDI)</th>
                       <th className="p-3">Delivery Velocity</th>
                       <th className="p-3">Stakeholder Trust</th>
@@ -857,6 +908,12 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                         <td className="p-3 font-bold text-slate-100 flex items-center gap-2">
                           <span>{t.avatar}</span>
                           <span>{t.name}</span>
+                        </td>
+                        <td className="p-3 font-bold">
+                          <span className={outcomes.get(t.id)!.verdict === 'VICTORY' ? 'text-emerald-400' : outcomes.get(t.id)!.verdict === 'PARTIAL' ? 'text-amber-400' : 'text-rose-400'}>
+                            {outcomes.get(t.id)!.grade} · {outcomes.get(t.id)!.verdict}
+                          </span>
+                          <span className="text-slate-500 font-normal"> ({outcomes.get(t.id)!.score}{session.state === 'COMPLETED' ? '' : ', projected'})</span>
                         </td>
                         <td className={`p-3 font-bold ${t.metrics.technicalDebtIndex > 60 ? 'text-rose-400' : 'text-emerald-400'}`}>
                           {t.metrics.technicalDebtIndex}%

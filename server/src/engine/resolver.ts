@@ -7,12 +7,11 @@ import {
   Scenario,
   Team,
   TeamMetrics,
-  TeamDecision,
   RoundResult,
-  TopologyNode,
   NodeHealthStatus,
   InitiativeTemplate,
   RoundEvent,
+  TopologyNode,
 } from '../types/index.js';
 import {
   calculateCompoundDebtDrift,
@@ -20,7 +19,21 @@ import {
   calculateOpEx,
   calculateIncidentProbabilities,
   evaluateStakeholderSentiment,
+  seededRoll,
 } from './math.js';
+import { getRoundEvent } from './rules.js';
+
+const BASE_VELOCITY = 65;
+// Share of a completed initiative's velocity gain that persists in later quarters
+const PERSISTENT_VELOCITY_SHARE = 0.5;
+const COMPLIANCE_FINE_THRESHOLD = 50;
+const OPEX_SAVINGS_RETURNED = 0.5;
+const MODERNIZED_DEBT_THRESHOLD = 50;
+
+/** Quarterly run budget funded by the business: the OpEx of the scenario's starting estate. */
+export function getRunAllocation(scenario: Scenario): number {
+  return calculateOpEx(scenario.topology.nodes, scenario.baselineMetrics.technicalDebtIndex, 0);
+}
 
 export class SimulationResolver {
   /**
@@ -37,10 +50,13 @@ export class SimulationResolver {
       governancePosture: 'BALANCED_AGILE',
       customPacts: [],
     };
+    const seed = `${team.sessionId}|${team.id}|${roundNumber}`;
 
     const metricsBefore: TeamMetrics = { ...team.metrics };
     const initiativesMap = new Map(scenario.initiativesCatalog.map(i => [i.id, i]));
-    const nodesMap = new Map(scenario.topology.nodes.map(n => [n.id, { ...n }]));
+    const nodesMap = new Map<string, TopologyNode>(
+      scenario.topology.nodes.map(n => [n.id, { ...n, telemetry: { ...n.telemetry } }])
+    );
 
     // Apply previous node health overrides from team
     if (team.nodeHealthOverrides) {
@@ -54,175 +70,212 @@ export class SimulationResolver {
       }
     }
 
-    const selectedInitiatives: InitiativeTemplate[] = decisions.selectedInitiativeIds
+    // 1. Initiative lifecycle: CapEx is paid when an initiative starts, its
+    //    effects land when it completes (immediately for 1-quarter initiatives).
+    const completedBefore = new Set(team.completedInitiativeIds ?? []);
+    const started: InitiativeTemplate[] = decisions.selectedInitiativeIds
       .map(id => initiativesMap.get(id))
-      .filter((i): i is InitiativeTemplate => Boolean(i));
+      .filter((i): i is InitiativeTemplate => Boolean(i) && !completedBefore.has(i!.id));
 
-    // 1. CapEx and Budget deductions
-    let totalCapEx = 0;
+    const stillActive: Team['activeInitiatives'] = [];
+    const completing: InitiativeTemplate[] = [];
+    for (const active of team.activeInitiatives ?? []) {
+      const init = initiativesMap.get(active.initiativeId);
+      if (!init) continue;
+      const remaining = active.roundsRemaining - 1;
+      if (remaining <= 0) completing.push(init);
+      else stillActive.push({ initiativeId: init.id, roundsRemaining: remaining });
+    }
+    for (const init of started) {
+      const duration = Math.max(1, init.durationRounds || 1);
+      if (duration <= 1) completing.push(init);
+      else stillActive.push({ initiativeId: init.id, roundsRemaining: duration - 1 });
+    }
+
+    const totalCapEx = started.reduce((sum, i) => sum + i.capExCost, 0);
     let initiativeTdiDelta = 0;
     let initiativeVelocityDelta = 0;
     let initiativeResilienceDelta = 0;
     let initiativeComplianceDelta = 0;
-    let activeOpExDelta = 0;
+    const initiativeTrust: Record<string, number> = {};
 
-    for (const init of selectedInitiatives) {
-      totalCapEx += init.capExCost;
+    for (const init of completing) {
       initiativeTdiDelta += init.tdiDelta;
       initiativeVelocityDelta += init.velocityDelta;
       initiativeResilienceDelta += init.resilienceDelta;
       initiativeComplianceDelta += init.complianceDelta;
-      activeOpExDelta += init.opExDelta;
+      for (const [shId, delta] of Object.entries(init.trustDelta || {})) {
+        initiativeTrust[shId] = (initiativeTrust[shId] || 0) + delta;
+      }
 
-      // Modernize or fix affected nodes
+      // Modernize or fix affected nodes (debt-adding initiatives degrade them instead)
       for (const nodeId of init.affectedNodeIds) {
-        if (nodesMap.has(nodeId)) {
-          const node = nodesMap.get(nodeId)!;
+        const node = nodesMap.get(nodeId);
+        if (!node) continue;
+        if (init.tdiDelta <= 0) {
           const debtReduction = Math.abs(init.tdiDelta) * 1.5;
           node.technicalDebt = Math.max(5, Math.round(node.technicalDebt - debtReduction));
           node.health = Math.min(100, Math.round(node.health + debtReduction * 1.2));
-          if (node.technicalDebt <= 20) {
-            node.status = 'MODERNIZED';
-          } else if (node.health >= 70) {
-            node.status = 'HEALTHY';
-          }
+          // A modernization initiative re-platforms the node once its debt is back under control
+          if (node.technicalDebt <= MODERNIZED_DEBT_THRESHOLD) node.status = 'MODERNIZED';
+          else if (node.health >= 70) node.status = 'HEALTHY';
           node.telemetry.latencyMs = Math.max(12, Math.round(node.telemetry.latencyMs * 0.7));
           node.telemetry.errorRatePercent = Math.max(0.01, Math.round(node.telemetry.errorRatePercent * 0.5 * 100) / 100);
+        } else {
+          node.technicalDebt = Math.min(100, Math.round(node.technicalDebt + init.tdiDelta));
+          node.health = Math.max(10, Math.round(node.health - init.tdiDelta * 0.8));
+          node.status = node.health < 35 ? 'CRITICAL' : 'DEGRADED';
         }
       }
     }
+
+    const completedInitiativeIds = [...completedBefore, ...completing.map(i => i.id)];
+    // OpEx deltas are run-rate changes: they apply for every completed initiative
+    const activeOpExDelta = completedInitiativeIds.reduce((sum, id) => sum + (initiativesMap.get(id)?.opExDelta ?? 0), 0);
+    const persistentVelocityBonus = Math.round(
+      completedInitiativeIds.reduce((sum, id) => sum + (initiativesMap.get(id)?.velocityDelta ?? 0), 0) * PERSISTENT_VELOCITY_SHARE
+    );
 
     // 2. Governance Posture Impacts
     let governanceTdiSurge = 0;
     let governanceComplianceDelta = 0;
     let governanceVelocityBonus = 0;
+    let governanceResilienceDelta = 0;
 
     switch (decisions.governancePosture) {
       case 'BYPASS_ARCH':
         governanceTdiSurge = 12; // Fast features now, immediate debt penalty
         governanceComplianceDelta = -15;
         governanceVelocityBonus = 18; // Sugar rush
+        governanceResilienceDelta = -8; // Untested shortcuts erode fault tolerance
         break;
       case 'BALANCED_AGILE':
         governanceTdiSurge = 0;
         governanceComplianceDelta = 2;
         governanceVelocityBonus = 0;
+        governanceResilienceDelta = -3;
         break;
       case 'STRICT_GOVERNANCE':
         governanceTdiSurge = -5;
         governanceComplianceDelta = 14;
         governanceVelocityBonus = -10; // Extra review cycles slow down velocity
+        governanceResilienceDelta = 6;
         break;
       case 'ACCELERATED_MODERN':
         governanceTdiSurge = -8;
         governanceComplianceDelta = 8;
         governanceVelocityBonus = 5;
+        governanceResilienceDelta = 2;
         break;
     }
 
     // 3. Technical Debt Compounding
-    const { driftAmount } = calculateCompoundDebtDrift(
-      metricsBefore.technicalDebtIndex,
-      decisions.governancePosture
-    );
-
+    const { driftAmount } = calculateCompoundDebtDrift(metricsBefore.technicalDebtIndex, decisions.governancePosture);
     const netTdiDelta = driftAmount + initiativeTdiDelta + governanceTdiSurge;
     const newTdi = Math.max(5, Math.min(100, Math.round(metricsBefore.technicalDebtIndex + netTdiDelta)));
 
-    // 4. Delivery Velocity calculation
-    const baseVelocity = 65;
-    const totalVelocityBonuses = initiativeVelocityDelta + governanceVelocityBonus;
-    const { effectiveVelocity } = calculateEffectiveVelocity(baseVelocity, newTdi, totalVelocityBonuses);
+    // 4. Delivery Velocity: one-off bonuses this quarter + persistent capability gains
+    const oneOffVelocity = Math.round(initiativeVelocityDelta * (1 - PERSISTENT_VELOCITY_SHARE));
+    const { effectiveVelocity } = calculateEffectiveVelocity(
+      BASE_VELOCITY,
+      newTdi,
+      persistentVelocityBonus + oneOffVelocity + governanceVelocityBonus
+    );
 
     // 5. Resilience and Compliance
-    const newResilience = Math.max(
-      10,
-      Math.min(100, Math.round(metricsBefore.resilienceIndex + initiativeResilienceDelta + (decisions.governancePosture === 'STRICT_GOVERNANCE' ? 6 : -3)))
-    );
+    const newResilience = Math.max(10, Math.min(100, Math.round(metricsBefore.resilienceIndex + initiativeResilienceDelta + governanceResilienceDelta)));
+    const newCompliance = Math.max(10, Math.min(100, Math.round(metricsBefore.complianceScore + initiativeComplianceDelta + governanceComplianceDelta)));
 
-    const newCompliance = Math.max(
-      10,
-      Math.min(100, Math.round(metricsBefore.complianceScore + initiativeComplianceDelta + governanceComplianceDelta))
-    );
-
-    // 6. OpEx calculation
-    const currentNodes = Array.from(nodesMap.values());
-    const currentOpEx = calculateOpEx(currentNodes, newTdi, activeOpExDelta);
-
-    // 7. Incident simulation
-    const incidentCandidates = calculateIncidentProbabilities(currentNodes, newResilience);
-    const incidentsTriggered: RoundResult['incidentsTriggered'] = [];
-    let incidentCostTotal = 0;
-
-    for (const candidate of incidentCandidates) {
-      // Deterministic threshold + pseudo-random seeded by round and team
-      const threshold = (roundNumber * 0.17 + candidate.failureProbability) % 1.0;
-      if (candidate.failureProbability > 0.45 && threshold > 0.4) {
-        const cost = candidate.severity === 'CRITICAL' ? 350 : candidate.severity === 'HIGH' ? 180 : 75;
-        incidentCostTotal += cost;
-        incidentsTriggered.push({
-          id: `inc-${candidate.node.id}-${roundNumber}`,
-          title: `${candidate.severity} Alert: ${candidate.node.name} Degradation`,
-          severity: candidate.severity,
-          costImpact: cost,
-          description: `High debt (${candidate.node.technicalDebt}%) and latency overload caused service disruptions. Required emergency triage and customer remediation.`,
-          affectedNodeId: candidate.node.id,
-        });
-
-        // Degrade node status
-        candidate.node.health = Math.max(10, candidate.node.health - 25);
-        candidate.node.status = candidate.severity === 'CRITICAL' ? 'CRITICAL' : 'DEGRADED';
-      }
-    }
-
-    // 8. Round Event Impact (injected black swan crisis OR scheduled disruption)
-    const currentRoundEvent = (injectedEvents && injectedEvents.find(e => e.roundNumber === roundNumber))
-      || scenario.roundEvents.find(e => e.roundNumber === roundNumber);
+    // 6. Round Event (injected black swan or scheduled disruption)
+    const currentRoundEvent = getRoundEvent(scenario, roundNumber, injectedEvents);
     let eventCapEx = 0;
     let eventTdi = 0;
     let eventVelocity = 0;
     const eventTrustImpacts: Record<string, number> = {};
+    const choice = currentRoundEvent?.choices.find(c => c.id === decisions.eventChoiceId);
 
     if (currentRoundEvent) {
-      if (decisions.eventChoiceId) {
-        const choice = currentRoundEvent.choices.find(c => c.id === decisions.eventChoiceId);
-        if (choice) {
-          eventCapEx = choice.capExImpact;
-          eventTdi = choice.tdiImpact;
-          eventVelocity = choice.velocityImpact;
-          Object.assign(eventTrustImpacts, choice.trustImpact);
+      if (choice) {
+        eventCapEx = choice.capExImpact;
+        eventTdi = choice.tdiImpact;
+        eventVelocity = choice.velocityImpact;
+        Object.assign(eventTrustImpacts, choice.trustImpact);
 
-          if (choice.nodeHealthImpacts) {
-            for (const [nodeId, delta] of Object.entries(choice.nodeHealthImpacts)) {
-              const node = nodesMap.get(nodeId);
-              if (node) {
-                node.health = Math.max(10, Math.min(100, node.health + delta));
-                if (node.health >= 70 && node.status === 'CRITICAL') {
-                  node.status = 'HEALTHY';
-                }
-              }
-            }
+        for (const [nodeId, delta] of Object.entries(choice.nodeHealthImpacts ?? {})) {
+          const node = nodesMap.get(nodeId);
+          if (node) {
+            node.health = Math.max(10, Math.min(100, node.health + delta));
+            if (node.health >= 70 && node.status === 'CRITICAL') node.status = 'HEALTHY';
           }
         }
-      } else {
-        // Default penalty if team neglected choice
+      } else if (!currentRoundEvent.impactAppliedAtInjection) {
+        // Default penalty if team neglected the dilemma
         eventCapEx = currentRoundEvent.immediateImpact.budgetFine;
         eventTdi = currentRoundEvent.immediateImpact.tdiSurge;
-        eventVelocity = currentRoundEvent.immediateImpact.velocityPenalty;
+        eventVelocity = -Math.abs(currentRoundEvent.immediateImpact.velocityPenalty);
+        for (const nodeId of currentRoundEvent.immediateImpact.downedNodeIds ?? []) {
+          const node = nodesMap.get(nodeId);
+          if (node) {
+            node.health = Math.min(node.health, 20);
+            node.status = 'CRITICAL';
+          }
+        }
       }
     }
 
-    // 9. Budget and TCO updates
-    const totalOutflow = totalCapEx + eventCapEx + incidentCostTotal + currentOpEx;
-    const newBudgetRemaining = Math.round(metricsBefore.budgetRemaining - totalOutflow);
-    const newCapExSpent = Math.round(metricsBefore.capExSpent + totalCapEx + eventCapEx + incidentCostTotal);
-    const newTco = Math.round(metricsBefore.tco + totalOutflow);
+    // 7. OpEx run-rate vs the run budget funded by the business
+    const currentNodes = Array.from(nodesMap.values());
+    const currentOpEx = calculateOpEx(currentNodes, newTdi, activeOpExDelta);
+    const runAllocation = getRunAllocation(scenario);
+    // Overruns are charged in full; the business keeps half of any savings
+    const opExOverrun = currentOpEx > runAllocation ? currentOpEx - runAllocation : Math.round((currentOpEx - runAllocation) * OPEX_SAVINGS_RETURNED);
 
-    // 10. Stakeholder Sentiment updates
+    // 8. Incident simulation: at-risk nodes (P > 0.45) fail on a seeded roll
+    const incidentCandidates = calculateIncidentProbabilities(currentNodes, newResilience);
+    const incidentsTriggered: RoundResult['incidentsTriggered'] = [];
+    let incidentCostTotal = 0;
+    let incidentVelocityPenalty = 0;
+
+    for (const candidate of incidentCandidates) {
+      if (candidate.failureProbability <= 0.45) continue;
+      if (seededRoll(`${seed}|${candidate.node.id}`) >= candidate.failureProbability) continue;
+
+      const cost = candidate.severity === 'CRITICAL' ? 350 : candidate.severity === 'HIGH' ? 180 : 75;
+      incidentCostTotal += cost;
+      incidentVelocityPenalty += candidate.severity === 'CRITICAL' ? 8 : 4;
+      incidentsTriggered.push({
+        id: `inc-${candidate.node.id}-${roundNumber}`,
+        title: `${candidate.severity} Alert: ${candidate.node.name} Degradation`,
+        severity: candidate.severity,
+        costImpact: cost,
+        description: `High debt (${candidate.node.technicalDebt}%) and latency overload caused service disruptions (failure probability ${Math.round(candidate.failureProbability * 100)}%). Required emergency triage, SLA credits and customer remediation.`,
+        affectedNodeId: candidate.node.id,
+      });
+
+      candidate.node.health = Math.max(10, candidate.node.health - 25);
+      candidate.node.status = candidate.severity === 'CRITICAL' ? 'CRITICAL' : 'DEGRADED';
+    }
+
+    // 9. Regulatory fine when compliance falls under the audit threshold
+    const regulatoryFine = newCompliance < COMPLIANCE_FINE_THRESHOLD ? (COMPLIANCE_FINE_THRESHOLD - newCompliance) * 6 : 0;
+
+    // 10. Stakeholder pacts negotiated this quarter are honored now
+    const pacts = decisions.customPacts ?? [];
+    const pactCost = pacts.reduce((sum, p) => sum + Math.max(0, p.committedBudget), 0);
+
+    // 11. Budget and TCO: change spending plus run overruns (the funded run baseline is excluded)
+    const changeOutflow = totalCapEx + eventCapEx + incidentCostTotal + regulatoryFine + pactCost + opExOverrun;
+    const newBudgetRemaining = Math.round(metricsBefore.budgetRemaining - changeOutflow);
+    const newCapExSpent = Math.round(metricsBefore.capExSpent + totalCapEx + Math.max(0, eventCapEx) + incidentCostTotal);
+    const newTco = Math.round(metricsBefore.tco + changeOutflow);
+    const insolvent = newBudgetRemaining < 0;
+
+    // 12. Stakeholder Sentiment updates
     const stakeholderReactions: RoundResult['stakeholderReactions'] = [];
     const updatedTrustMap: Record<string, number> = { ...team.stakeholderTrustMap };
 
-    const financialDelta = (metricsBefore.budgetRemaining - newBudgetRemaining) < 700 ? 0.8 : -0.6;
+    const spendRatio = changeOutflow / Math.max(1, metricsBefore.budgetRemaining);
+    const financialDelta = insolvent ? -1 : Math.max(-1, Math.min(1, 0.8 - 1.6 * spendRatio));
     const velocityDeltaNorm = (effectiveVelocity - metricsBefore.deliveryVelocity) / 25;
     const architectureDelta = (metricsBefore.technicalDebtIndex - newTdi) / 15 + (newResilience - metricsBefore.resilienceIndex) / 20;
     const complianceDeltaNorm = (newCompliance - metricsBefore.complianceScore) / 20;
@@ -242,64 +295,83 @@ export class SimulationResolver {
         currentTrust
       );
 
-      // Add event choice trust impact
-      const extraEventTrust = eventTrustImpacts[stakeholder.id] || 0;
-      const finalTrust = Math.max(5, Math.min(100, newTrust + extraEventTrust));
+      let extra = (eventTrustImpacts[stakeholder.id] || 0) + (initiativeTrust[stakeholder.id] || 0);
+      const notes: string[] = [reactionNote];
 
+      for (const pact of pacts.filter(p => p.stakeholderId === stakeholder.id)) {
+        const bonus = Math.max(5, Math.min(15, Math.round(5 + pact.committedBudget / 20)));
+        extra += bonus;
+        notes.push(`Pact honored: "${pact.concession}" (+${bonus}).`);
+      }
+      if (insolvent) {
+        const penalty = Math.round(3 + 12 * stakeholder.decisionWeights.financialAcumen);
+        extra -= penalty;
+        notes.push(`Cash reserves are negative (-${penalty}).`);
+      }
+      if (regulatoryFine > 0) {
+        const penalty = Math.round(10 * stakeholder.decisionWeights.regulatoryCompliance);
+        extra -= penalty;
+        if (penalty > 0) notes.push(`Regulatory fine of $${regulatoryFine}K (-${penalty}).`);
+      }
+
+      const finalTrust = Math.max(5, Math.min(100, newTrust + extra));
       updatedTrustMap[stakeholder.id] = finalTrust;
       aggregateTrustSum += finalTrust;
 
       stakeholderReactions.push({
         stakeholderId: stakeholder.id,
         name: stakeholder.name,
-        trustDelta: trustDelta + extraEventTrust,
-        comment: reactionNote,
+        trustDelta: finalTrust - currentTrust,
+        comment: notes.join(' '),
       });
     }
 
     const newAvgTrust = Math.round(aggregateTrustSum / (scenario.stakeholders.length || 1));
+    const modernizedCount = currentNodes.filter(n => n.status === 'MODERNIZED').length;
 
-    // Count modernized nodes
-    const modernizedCount = currentNodes.filter(n => n.status === 'MODERNIZED' || n.technicalDebt <= 25).length;
-
-    // Metrics After
     const metricsAfter: TeamMetrics = {
       tco: newTco,
       budgetRemaining: newBudgetRemaining,
       opEx: currentOpEx,
       capExSpent: newCapExSpent,
       technicalDebtIndex: Math.max(5, Math.min(100, newTdi + eventTdi)),
-      deliveryVelocity: Math.max(8, Math.min(100, effectiveVelocity + eventVelocity)),
+      deliveryVelocity: Math.max(8, Math.min(100, effectiveVelocity + eventVelocity - incidentVelocityPenalty)),
       stakeholderTrust: newAvgTrust,
       resilienceIndex: newResilience,
       complianceScore: newCompliance,
       modernizedNodesCount: modernizedCount,
     };
 
-    // Construct Facilitator Feedback
+    // Facilitator Feedback
     let facilitatorFeedback = `Round ${roundNumber} Completed. `;
     if (metricsAfter.technicalDebtIndex > 75) {
       facilitatorFeedback += `WARNING: Technical debt has reached critical levels (${metricsAfter.technicalDebtIndex}%). Feature delivery will stall unless refactoring is prioritized. `;
     } else if (metricsAfter.technicalDebtIndex < 35) {
       facilitatorFeedback += `EXCELLENT: Architectural health is strong, unlocking high delivery agility. `;
     }
-
+    if (stillActive.length > 0) {
+      facilitatorFeedback += `${stillActive.length} multi-quarter initiative(s) still in delivery. `;
+    }
     if (incidentsTriggered.length > 0) {
       facilitatorFeedback += `${incidentsTriggered.length} production incident(s) occurred costing $${incidentCostTotal}K. `;
     }
-
-    if (metricsAfter.budgetRemaining < 200) {
+    if (opExOverrun > 0) {
+      facilitatorFeedback += `OpEx run-rate exceeds the funded run budget by $${opExOverrun}K, charged to the change budget. `;
+    } else if (opExOverrun < 0) {
+      facilitatorFeedback += `OpEx savings of $${-opExOverrun}K returned to the change budget. `;
+    }
+    if (regulatoryFine > 0) {
+      facilitatorFeedback += `REGULATORY FINE: compliance at ${newCompliance}% triggered a $${regulatoryFine}K penalty. `;
+    }
+    if (insolvent) {
+      facilitatorFeedback += `INSOLVENT: cash reserves are negative ($${metricsAfter.budgetRemaining}K). Trust collapses and the program fails if not restored by the final quarter. `;
+    } else if (metricsAfter.budgetRemaining < 200) {
       facilitatorFeedback += `CRITICAL: Cash reserves are nearly depleted ($${metricsAfter.budgetRemaining}K remaining). `;
     }
 
-    // Node Health overrides to save
     const updatedNodeOverrides: Record<string, { health: number; technicalDebt: number; status: NodeHealthStatus }> = {};
     for (const node of currentNodes) {
-      updatedNodeOverrides[node.id] = {
-        health: node.health,
-        technicalDebt: node.technicalDebt,
-        status: node.status,
-      };
+      updatedNodeOverrides[node.id] = { health: node.health, technicalDebt: node.technicalDebt, status: node.status };
     }
 
     const roundResult: RoundResult = {
@@ -316,14 +388,25 @@ export class SimulationResolver {
         complianceScore: metricsAfter.complianceScore - metricsBefore.complianceScore,
         budgetRemaining: metricsAfter.budgetRemaining - metricsBefore.budgetRemaining,
       },
+      economics: {
+        runAllocation,
+        opExOverrun,
+        capExSpent: totalCapEx,
+        eventCost: eventCapEx,
+        pactCost,
+        regulatoryFine,
+      },
       incidentsTriggered,
       debtCompoundedAmount: driftAmount,
-      activeInitiativesProgress: selectedInitiatives.map(i => ({
-        initiativeId: i.id,
-        name: i.name,
-        completed: true,
-        remainingRounds: 0,
-      })),
+      activeInitiativesProgress: [
+        ...completing.map(i => ({ initiativeId: i.id, name: i.name, completed: true, remainingRounds: 0 })),
+        ...stillActive.map(a => ({
+          initiativeId: a.initiativeId,
+          name: initiativesMap.get(a.initiativeId)?.name ?? a.initiativeId,
+          completed: false,
+          remainingRounds: a.roundsRemaining,
+        })),
+      ],
       facilitatorFeedback,
       stakeholderReactions,
     };
@@ -338,6 +421,9 @@ export class SimulationResolver {
         governancePosture: decisions.governancePosture,
         customPacts: [],
       },
+      activeInitiatives: stillActive,
+      completedInitiativeIds,
+      honoredPacts: [...(team.honoredPacts ?? []), ...pacts],
       history: [...team.history, roundResult],
       nodeHealthOverrides: updatedNodeOverrides,
     };

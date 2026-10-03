@@ -155,3 +155,20 @@ export function evaluateStakeholderSentiment(
 
   return { newTrust, trustDelta, reactionNote };
 }
+
+/**
+ * Deterministic pseudo-random roll in [0, 1) derived from a string seed
+ * (FNV-1a hash + mulberry32). Same session/team/round/node => same roll, so
+ * replays are reproducible while outcomes still follow the probabilities.
+ */
+export function seededRoll(seed: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  let t = (h + 0x6d2b79f5) | 0;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}

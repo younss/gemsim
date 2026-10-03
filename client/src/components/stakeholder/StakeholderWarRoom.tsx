@@ -12,6 +12,7 @@ import {
   ProposalEvaluation,
 } from '../../types/index';
 import { api } from '../../services/api';
+import { useSimulationStore } from '../../stores/useSimulationStore';
 import {
   MessageSquare,
   Send,
@@ -103,6 +104,37 @@ export const StakeholderWarRoom: React.FC<Props> = ({
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isEvaluating]);
+
+  const setCurrentSession = useSimulationStore(state => state.setCurrentSession);
+  const updateTeam = useSimulationStore(state => state.updateTeam);
+  const [pactBudgets, setPactBudgets] = useState<Record<string, number>>({});
+  const [pactError, setPactError] = useState<string | null>(null);
+  const signedPacts = team.currentRoundDecisions?.customPacts ?? [];
+
+  // Server is the source of truth for trust and patience after each exchange
+  const refreshSession = async () => {
+    try {
+      const { session: fresh } = await api.getSession(session.id);
+      setCurrentSession(fresh);
+    } catch {
+      // keep optimistic state
+    }
+  };
+
+  const handleSignPact = async (stakeholderId: string, concession: string, msgId: string) => {
+    setPactError(null);
+    try {
+      const updated = await api.signPact(session.id, {
+        teamId: team.id,
+        stakeholderId,
+        concession,
+        committedBudget: pactBudgets[msgId] ?? 50,
+      });
+      updateTeam(updated);
+    } catch (err: any) {
+      setPactError(err.message);
+    }
+  };
 
   const handleSendMessage = async () => {
     if (!inputText.trim() || isEvaluating) return;
@@ -246,6 +278,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
       setMessages(prev => [...prev, errorMsg]);
     } finally {
       setIsEvaluating(false);
+      void refreshSession();
     }
   };
 
@@ -351,6 +384,24 @@ export const StakeholderWarRoom: React.FC<Props> = ({
                   style={{ width: `${trust}%` }}
                 />
               </div>
+
+              {/* Patience Meter: spent by rejected or empty pitches, recovers each quarter */}
+              {(() => {
+                const patience = team.stakeholderPatience?.[sh.id] ?? 100;
+                return (
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between text-[10px] font-mono text-slate-500">
+                      <span>PATIENCE</span>
+                      <span className={patience <= 0 ? 'text-rose-400 font-bold' : patience < 35 ? 'text-amber-400' : 'text-violet-300'}>
+                        {patience <= 0 ? '🚪 door closed until next quarter' : `${patience}%`}
+                      </span>
+                    </div>
+                    <div className="mt-1 w-full bg-dark-900 h-1 rounded-full overflow-hidden border border-slate-800">
+                      <div className="h-full rounded-full bg-violet-500 transition-all duration-500" style={{ width: `${patience}%` }} />
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Quick Bias Tag */}
               <div className="mt-2 text-[10px] text-slate-400 italic line-clamp-1">
@@ -537,6 +588,29 @@ export const StakeholderWarRoom: React.FC<Props> = ({
                       {msg.evaluation.concessionRequired && (
                         <div className="mt-2 text-amber-300 text-[11px] bg-amber-500/10 p-2 rounded border border-amber-500/30">
                           <strong>Concession Demanded:</strong> {msg.evaluation.concessionRequired}
+                          {msg.stakeholderId && msg.stakeholderId !== 'BOARDROOM' && session.state !== 'COMPLETED' && (
+                            signedPacts.some(p => p.stakeholderId === msg.stakeholderId && p.concession === msg.evaluation!.concessionRequired) ? (
+                              <div className="mt-2 text-emerald-300 font-bold">🤝 Pact signed — honored at quarter resolution</div>
+                            ) : !team.decisionSubmitted ? (
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <span className="text-slate-400">Commit budget ($K):</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step={10}
+                                  value={pactBudgets[msg.id] ?? 50}
+                                  onChange={e => setPactBudgets(prev => ({ ...prev, [msg.id]: Number(e.target.value) }))}
+                                  className="w-20 bg-dark-950 border border-slate-700 rounded px-2 py-0.5 text-cyan-300"
+                                />
+                                <button
+                                  onClick={() => handleSignPact(msg.stakeholderId!, msg.evaluation!.concessionRequired!, msg.id)}
+                                  className="px-2.5 py-1 rounded bg-indigo-500 hover:bg-indigo-400 text-white font-bold"
+                                >
+                                  🤝 Sign pact
+                                </button>
+                              </div>
+                            ) : null
+                          )}
                         </div>
                       )}
                     </div>
@@ -557,6 +631,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
             </div>
           )}
 
+          {pactError && <div className="text-xs font-mono text-rose-400 p-2">⚠️ {pactError}</div>}
           <div ref={chatBottomRef} />
         </div>
 

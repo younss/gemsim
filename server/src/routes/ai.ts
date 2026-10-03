@@ -6,8 +6,118 @@
 import { Router } from 'express';
 import { AIRegistry } from '../ai/registry.js';
 import { DatabaseRepository } from '../db/index.js';
-import { AIProviderType, ChatMessage, ProposalEvaluation, BoardResolution } from '../types/index.js';
+import { AIProviderType, ChatMessage, ProposalEvaluation, BoardResolution, Scenario, SimulationSession, StakeholderPersona, Team } from '../types/index.js';
 import { broadcastToSession } from '../socket/handler.js';
+import { judgeProposal, judgeBoard, mergeDecision } from '../ai/stakeholder-judge.js';
+import { SystemOneClient } from '../ai/systemone.js';
+import { boardroomSchema, negotiateSchema, validateBody } from '../validation.js';
+
+// Patience spent per exchange (negative = recovered). At 0 the stakeholder closes the door until next quarter.
+const PATIENCE_COST = { LOW_EFFORT: 30, REPETITION: 35, REJECTED: 20, CONDITIONAL_ACCEPTANCE: 8, ACCEPTED: -5 } as const;
+const CLOSED_DOOR_TRUST_PENALTY = -2;
+
+export function getPatience(team: Team, stakeholderId: string): number {
+  return team.stakeholderPatience?.[stakeholderId] ?? 100;
+}
+
+function spendPatience(team: Team, stakeholderId: string, cost: number): number {
+  const value = Math.max(0, Math.min(100, getPatience(team, stakeholderId) - cost));
+  team.stakeholderPatience = { ...(team.stakeholderPatience ?? {}), [stakeholderId]: value };
+  return value;
+}
+
+function closedDoorReply(name: string, isFrench: boolean): string {
+  return isFrench
+    ? `${name} a épuisé sa patience pour ce trimestre et refuse de poursuivre la discussion. Revenez au prochain trimestre avec des engagements concrets.`
+    : `${name} has run out of patience for this quarter and refuses to continue. Come back next quarter with concrete commitments.`;
+}
+
+const VERDICT_STANCE: Record<ProposalEvaluation['verdict'], number> = { ACCEPTED: 1, CONDITIONAL_ACCEPTANCE: 0, REJECTED: -1 };
+
+/**
+ * Picks the supporter and the opponent whose stances diverge most and lets the
+ * opponent challenge the supporter's statement in character.
+ */
+export async function runBoardDebate(
+  stakeholders: StakeholderPersona[],
+  replies: ChatMessage[],
+  breakdown: Record<string, { stakeholderName: string; verdict: ProposalEvaluation['verdict']; trustDelta: number }>,
+  playerMessage: string,
+  isFrench: boolean
+): Promise<ChatMessage | null> {
+  const ranked = stakeholders
+    .filter(sh => breakdown[sh.id])
+    .map(sh => ({ sh, stance: VERDICT_STANCE[breakdown[sh.id].verdict] * 100 + breakdown[sh.id].trustDelta }))
+    .sort((a, b) => b.stance - a.stance);
+  if (ranked.length < 2) return null;
+  const supporter = ranked[0];
+  const opponent = ranked[ranked.length - 1];
+  if (breakdown[supporter.sh.id].verdict === breakdown[opponent.sh.id].verdict) return null;
+
+  const supporterLine = replies.find(r => r.senderName.startsWith(supporter.sh.name))?.content ?? '';
+  const systemPrompt = `You are ${opponent.sh.name}, ${opponent.sh.title}, in a board meeting. Personality: ${opponent.sh.personality}. Bias: ${opponent.sh.bias}. Hidden agenda: ${opponent.sh.hiddenAgenda}.
+Your colleague ${supporter.sh.name} (${supporter.sh.title}) just supported the player's proposal. You voted against it.
+Reply directly to ${supporter.sh.name.split(' ')[0]} in 2 or 3 sharp sentences, naming the risk they overlook from your own mandate. No preamble, no stage directions.
+${isFrench ? 'Answer in elegant professional French.' : 'Answer in English.'}`;
+
+  let content: string;
+  try {
+    const { result, usedProvider } = await AIRegistry.getInstance().executeWithFallback(provider =>
+      provider.generateText(
+        [{ role: 'user', content: `Player proposal: "${playerMessage}"\n${supporter.sh.name} said: "${supporterLine}"` }],
+        { systemPrompt, temperature: 0.7, responseFormat: 'text' }
+      )
+    );
+    if (usedProvider === 'fallback' || !result.trim()) throw new Error('no LLM available');
+    content = result.trim();
+  } catch {
+    content = isFrench
+      ? `${supporter.sh.name.split(' ')[0]}, je ne partage pas votre optimisme. ${opponent.sh.sampleDialogue.resistance}`
+      : `${supporter.sh.name.split(' ')[0]}, I don't share your optimism. ${opponent.sh.sampleDialogue.resistance}`;
+  }
+
+  return {
+    id: `msg-${Date.now()}-debate`,
+    sender: 'STAKEHOLDER',
+    stakeholderId: 'BOARDROOM',
+    senderName: `${opponent.sh.name} → ${supporter.sh.name}`,
+    content,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+/**
+ * Describes the team's submitted quarter decisions and last round outcome so
+ * stakeholders can judge actual actions, not only the chat message.
+ */
+export function describeTeamDecisions(scenario: Scenario, session: SimulationSession, team: Team): string[] {
+  const lines: string[] = [];
+  const d = team.currentRoundDecisions;
+  if (d) {
+    for (const id of d.selectedInitiativeIds) {
+      const init = scenario.initiativesCatalog.find(i => i.id === id);
+      if (init) {
+        lines.push(`Initiative "${init.name}" (${init.category}, CapEx $${init.capExCost}K, OpEx ${init.opExDelta >= 0 ? '+' : ''}${init.opExDelta}K, tech debt ${init.tdiDelta >= 0 ? '+' : ''}${init.tdiDelta}, velocity ${init.velocityDelta >= 0 ? '+' : ''}${init.velocityDelta}, risk ${init.riskLevel})`);
+      }
+    }
+    lines.push(`Governance posture: ${d.governancePosture}`);
+    if (d.eventChoiceId) {
+      const events = [...(session.injectedEvents ?? []), ...scenario.roundEvents];
+      const choice = events.flatMap(e => e.choices).find(c => c.id === d.eventChoiceId);
+      if (choice) lines.push(`Crisis response chosen: "${choice.text}"`);
+    }
+    for (const pact of d.customPacts) {
+      lines.push(`Pact with ${pact.stakeholderId}: ${pact.concession} ($${pact.committedBudget}K)`);
+    }
+    lines.push(team.decisionSubmitted ? 'These decisions are submitted for this quarter.' : 'These decisions are a draft, not yet submitted.');
+  }
+  const last = team.history[team.history.length - 1];
+  if (last) {
+    const md = last.metricDeltas;
+    lines.push(`Last quarter (Q${last.roundNumber}) results: tech debt ${md.technicalDebtIndex >= 0 ? '+' : ''}${md.technicalDebtIndex}, velocity ${md.deliveryVelocity >= 0 ? '+' : ''}${md.deliveryVelocity}, budget ${md.budgetRemaining}K, ${last.incidentsTriggered.length} incident(s)`);
+  }
+  return lines;
+}
 
 /**
  * Sentinel Anti-Cheat: Checks if player is spamming the exact same message
@@ -74,6 +184,11 @@ function checkMessageRepetition(
 export const aiRouter = Router();
 
 // GET /api/ai/settings
+// GET /api/ai/systemone/health (System One decision model probe)
+aiRouter.get('/systemone/health', async (req, res) => {
+  res.json(await SystemOneClient.getInstance().checkHealth());
+});
+
 aiRouter.get('/settings', (req, res) => {
   try {
     const registry = AIRegistry.getInstance();
@@ -137,7 +252,7 @@ aiRouter.get('/chat/:sessionId/:teamId', (req, res) => {
 });
 
 // POST /api/ai/negotiate
-aiRouter.post('/negotiate', async (req, res) => {
+aiRouter.post('/negotiate', validateBody(negotiateSchema), async (req, res) => {
   try {
     const { sessionId, teamId, stakeholderId, playerMessage } = req.body as {
       sessionId: string;
@@ -189,6 +304,25 @@ aiRouter.post('/negotiate', async (req, res) => {
     const isFrench = /(?:[éàèùâêîôûëïç]|bonjour|merci|nous|vous|pour|dans|avec|coût|dette|archi|projet|stratégie|budget|marge)/i.test(playerMessage) ||
                      /(?:[éàèùâêîôûëïç]|directeur|responsable|chef)/i.test(stakeholder.title);
 
+    // 1b. Patience exhausted: the stakeholder refuses to negotiate until next quarter
+    if (getPatience(team, stakeholderId) <= 0) {
+      const currentTrust = team.stakeholderTrustMap[stakeholderId] ?? stakeholder.baseTrust ?? 60;
+      const newTrust = Math.max(5, currentTrust + CLOSED_DOOR_TRUST_PENALTY);
+      team.stakeholderTrustMap[stakeholderId] = newTrust;
+      db.saveSession(session);
+      const closedMsg: ChatMessage = {
+        id: `msg-${Date.now()}-sh`,
+        sender: 'STAKEHOLDER',
+        stakeholderId,
+        senderName: `${stakeholder.name} (${stakeholder.title})`,
+        content: closedDoorReply(stakeholder.name, isFrench),
+        timestamp: new Date().toISOString(),
+      };
+      db.saveChatMessage(sessionId, teamId, closedMsg);
+      broadcastToSession(sessionId, { type: 'STAKEHOLDER_RESPONSE', teamId, message: closedMsg });
+      return res.json({ reply: closedMsg, updatedTrust: newTrust, patience: 0, usedProvider: 'patience-exhausted' });
+    }
+
     // 2a. Anti-Spam: Low-effort or meaningless chatter check (< 8 chars or common test words)
     const trimmedMsg = playerMessage.trim();
     if (trimmedMsg.length < 8 || /^(asdf|qwerty|test|hello|salut|yo|ok|oui|non|cool|merci)$/i.test(trimmedMsg)) {
@@ -212,6 +346,7 @@ aiRouter.post('/negotiate', async (req, res) => {
       const currentTrust = team.stakeholderTrustMap[stakeholderId] ?? stakeholder.baseTrust ?? 60;
       const newTrust = Math.max(5, Math.min(100, currentTrust + penalty));
       team.stakeholderTrustMap[stakeholderId] = newTrust;
+      spendPatience(team, stakeholderId, penalty <= -6 ? PATIENCE_COST.REPETITION : PATIENCE_COST.LOW_EFFORT);
       const trusts = Object.values(team.stakeholderTrustMap);
       team.metrics.stakeholderTrust = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
       db.saveSession(session);
@@ -237,6 +372,7 @@ aiRouter.post('/negotiate', async (req, res) => {
         reply: stakeholderChatMsg,
         evaluation: lowEffortEval,
         updatedTrust: newTrust,
+      patience: getPatience(team, stakeholderId),
         usedProvider: 'anti-cheat-sentinel',
       });
     }
@@ -270,6 +406,7 @@ aiRouter.post('/negotiate', async (req, res) => {
       const currentTrust = team.stakeholderTrustMap[stakeholderId] ?? stakeholder.baseTrust ?? 60;
       const newTrust = Math.max(5, Math.min(100, currentTrust + penalty));
       team.stakeholderTrustMap[stakeholderId] = newTrust;
+      spendPatience(team, stakeholderId, penalty <= -6 ? PATIENCE_COST.REPETITION : PATIENCE_COST.LOW_EFFORT);
       const trusts = Object.values(team.stakeholderTrustMap);
       team.metrics.stakeholderTrust = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
       db.saveSession(session);
@@ -295,6 +432,7 @@ aiRouter.post('/negotiate', async (req, res) => {
         reply: stakeholderChatMsg,
         evaluation: repEval,
         updatedTrust: newTrust,
+      patience: getPatience(team, stakeholderId),
         usedProvider: 'anti-cheat-sentinel',
       });
     }
@@ -303,6 +441,27 @@ aiRouter.post('/negotiate', async (req, res) => {
     const currentTrust = team.stakeholderTrustMap[stakeholderId] ?? stakeholder.baseTrust ?? 60;
     const registry = AIRegistry.getInstance();
 
+    const teamMetrics = {
+      tco: team.metrics.tco,
+      budgetRemaining: team.metrics.budgetRemaining,
+      technicalDebtIndex: team.metrics.technicalDebtIndex,
+      deliveryVelocity: team.metrics.deliveryVelocity,
+    };
+    const teamDecisions = describeTeamDecisions(scenario, session, team);
+
+    // System 1: fast typed decision. System 2 (LLM) then only voices it.
+    const decision = await judgeProposal({
+      stakeholder,
+      currentTrust,
+      chatHistory: history.slice(-6),
+      playerMessage,
+      currentRound: session.currentRound,
+      teamMetrics,
+      teamDecisions,
+      patience: getPatience(team, stakeholderId),
+      isFrench,
+    });
+
     const { result, usedProvider } = await registry.executeWithFallback(async (provider) => {
       return provider.evaluateStakeholderProposal({
         stakeholder,
@@ -310,18 +469,20 @@ aiRouter.post('/negotiate', async (req, res) => {
         chatHistory: history.slice(-6),
         playerMessage,
         currentRound: session.currentRound,
-        teamMetrics: {
-          tco: team.metrics.tco,
-          budgetRemaining: team.metrics.budgetRemaining,
-          technicalDebtIndex: team.metrics.technicalDebtIndex,
-          deliveryVelocity: team.metrics.deliveryVelocity,
-        },
+        teamMetrics,
+        teamDecisions,
+        patience: getPatience(team, stakeholderId),
+        decision: decision ?? undefined,
       });
     });
+    if (decision) {
+      result.evaluation = mergeDecision(result.evaluation, decision);
+    }
 
     // 4. Update team trust map
     const newTrust = Math.max(5, Math.min(100, currentTrust + (result.evaluation.trustDelta || 0)));
     team.stakeholderTrustMap[stakeholderId] = newTrust;
+    spendPatience(team, stakeholderId, PATIENCE_COST[result.evaluation.verdict] ?? PATIENCE_COST.REJECTED);
 
     // Recalculate average trust
     const trusts = Object.values(team.stakeholderTrustMap);
@@ -351,6 +512,7 @@ aiRouter.post('/negotiate', async (req, res) => {
       reply: stakeholderChatMsg,
       evaluation: result.evaluation,
       updatedTrust: newTrust,
+      patience: getPatience(team, stakeholderId),
       usedProvider,
     });
   } catch (err: any) {
@@ -360,7 +522,7 @@ aiRouter.post('/negotiate', async (req, res) => {
 });
 
 // POST /api/ai/negotiate/stream (Real-Time Token Streaming Stakeholder Dialogue via SSE)
-aiRouter.post('/negotiate/stream', async (req, res) => {
+aiRouter.post('/negotiate/stream', validateBody(negotiateSchema), async (req, res) => {
   const { sessionId, teamId, stakeholderId, playerMessage } = req.body as {
     sessionId: string;
     teamId: string;
@@ -416,6 +578,26 @@ aiRouter.post('/negotiate/stream', async (req, res) => {
   const isFrench = /(?:[éàèùâêîôûëïç]|bonjour|merci|nous|vous|pour|dans|avec|coût|dette|archi|projet|stratégie|budget|marge)/i.test(playerMessage) ||
                    /(?:[éàèùâêîôûëïç]|directeur|responsable|chef)/i.test(stakeholder.title);
 
+  // 1b. Patience exhausted: the stakeholder refuses to negotiate until next quarter
+  if (getPatience(team, stakeholderId) <= 0) {
+    const currentTrust = team.stakeholderTrustMap[stakeholderId] ?? stakeholder.baseTrust ?? 60;
+    const newTrust = Math.max(5, currentTrust + CLOSED_DOOR_TRUST_PENALTY);
+    team.stakeholderTrustMap[stakeholderId] = newTrust;
+    db.saveSession(session);
+    const closedMsg: ChatMessage = {
+      id: `msg-${Date.now()}-sh`,
+      sender: 'STAKEHOLDER',
+      stakeholderId,
+      senderName: `${stakeholder.name} (${stakeholder.title})`,
+      content: closedDoorReply(stakeholder.name, isFrench),
+      timestamp: new Date().toISOString(),
+    };
+    db.saveChatMessage(sessionId, teamId, closedMsg);
+    res.write(`data: ${JSON.stringify({ type: 'chunk', text: closedMsg.content })}\n\n`);
+    res.write(`data: ${JSON.stringify({ type: 'done', reply: closedMsg, updatedTrust: newTrust, patience: 0, usedProvider: 'patience-exhausted' })}\n\n`);
+    return res.end();
+  }
+
   // 2a. Anti-Spam Check
   const trimmedMsg = playerMessage.trim();
   if (trimmedMsg.length < 8 || /^(asdf|qwerty|test|hello|salut|yo|ok|oui|non|cool|merci)$/i.test(trimmedMsg)) {
@@ -437,6 +619,7 @@ aiRouter.post('/negotiate/stream', async (req, res) => {
     const currentTrust = team.stakeholderTrustMap[stakeholderId] ?? stakeholder.baseTrust ?? 60;
     const newTrust = Math.max(5, Math.min(100, currentTrust + penalty));
     team.stakeholderTrustMap[stakeholderId] = newTrust;
+    spendPatience(team, stakeholderId, penalty <= -6 ? PATIENCE_COST.REPETITION : PATIENCE_COST.LOW_EFFORT);
     const trusts = Object.values(team.stakeholderTrustMap);
     team.metrics.stakeholderTrust = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
     db.saveSession(session);
@@ -463,6 +646,7 @@ aiRouter.post('/negotiate/stream', async (req, res) => {
       reply: stakeholderChatMsg,
       evaluation: lowEffortEval,
       updatedTrust: newTrust,
+      patience: getPatience(team, stakeholderId),
       usedProvider: 'anti-cheat-sentinel',
     })}\n\n`);
     return res.end();
@@ -495,6 +679,7 @@ aiRouter.post('/negotiate/stream', async (req, res) => {
     const currentTrust = team.stakeholderTrustMap[stakeholderId] ?? stakeholder.baseTrust ?? 60;
     const newTrust = Math.max(5, Math.min(100, currentTrust + penalty));
     team.stakeholderTrustMap[stakeholderId] = newTrust;
+    spendPatience(team, stakeholderId, penalty <= -6 ? PATIENCE_COST.REPETITION : PATIENCE_COST.LOW_EFFORT);
     const trusts = Object.values(team.stakeholderTrustMap);
     team.metrics.stakeholderTrust = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
     db.saveSession(session);
@@ -521,6 +706,7 @@ aiRouter.post('/negotiate/stream', async (req, res) => {
       reply: stakeholderChatMsg,
       evaluation: repEval,
       updatedTrust: newTrust,
+      patience: getPatience(team, stakeholderId),
       usedProvider: 'anti-cheat-sentinel',
     })}\n\n`);
     return res.end();
@@ -531,6 +717,30 @@ aiRouter.post('/negotiate/stream', async (req, res) => {
     const currentTrust = team.stakeholderTrustMap[stakeholderId] ?? stakeholder.baseTrust ?? 60;
     const registry = AIRegistry.getInstance();
 
+    const teamMetrics = {
+      tco: team.metrics.tco,
+      budgetRemaining: team.metrics.budgetRemaining,
+      technicalDebtIndex: team.metrics.technicalDebtIndex,
+      deliveryVelocity: team.metrics.deliveryVelocity,
+    };
+    const teamDecisions = describeTeamDecisions(scenario, session, team);
+
+    // System 1 decides before the first dialogue token is streamed
+    const decision = await judgeProposal({
+      stakeholder,
+      currentTrust,
+      chatHistory: history.slice(-6),
+      playerMessage,
+      currentRound: session.currentRound,
+      teamMetrics,
+      teamDecisions,
+      patience: getPatience(team, stakeholderId),
+      isFrench,
+    });
+    if (decision) {
+      res.write(`data: ${JSON.stringify({ type: 'decision', evaluation: decision })}\n\n`);
+    }
+
     const { result, usedProvider } = await registry.executeStreamWithFallback(
       {
         stakeholder,
@@ -538,12 +748,10 @@ aiRouter.post('/negotiate/stream', async (req, res) => {
         chatHistory: history.slice(-6),
         playerMessage,
         currentRound: session.currentRound,
-        teamMetrics: {
-          tco: team.metrics.tco,
-          budgetRemaining: team.metrics.budgetRemaining,
-          technicalDebtIndex: team.metrics.technicalDebtIndex,
-          deliveryVelocity: team.metrics.deliveryVelocity,
-        },
+        teamMetrics,
+        teamDecisions,
+        patience: getPatience(team, stakeholderId),
+        decision: decision ?? undefined,
       },
       (chunk: string) => {
         res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
@@ -555,10 +763,14 @@ aiRouter.post('/negotiate/stream', async (req, res) => {
         });
       }
     );
+    if (decision) {
+      result.evaluation = mergeDecision(result.evaluation, decision);
+    }
 
     // 4. Update team trust map
     const newTrust = Math.max(5, Math.min(100, currentTrust + (result.evaluation.trustDelta || 0)));
     team.stakeholderTrustMap[stakeholderId] = newTrust;
+    spendPatience(team, stakeholderId, PATIENCE_COST[result.evaluation.verdict] ?? PATIENCE_COST.REJECTED);
     const trusts = Object.values(team.stakeholderTrustMap);
     team.metrics.stakeholderTrust = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
     db.saveSession(session);
@@ -587,6 +799,7 @@ aiRouter.post('/negotiate/stream', async (req, res) => {
       reply: stakeholderChatMsg,
       evaluation: result.evaluation,
       updatedTrust: newTrust,
+      patience: getPatience(team, stakeholderId),
       usedProvider,
     })}\n\n`);
     res.end();
@@ -598,7 +811,7 @@ aiRouter.post('/negotiate/stream', async (req, res) => {
 });
 
 // POST /api/ai/boardroom (Executive Board Meeting / Plenary ComEx Deliberation)
-aiRouter.post('/boardroom', async (req, res) => {
+aiRouter.post('/boardroom', validateBody(boardroomSchema), async (req, res) => {
   try {
     const { sessionId, teamId, playerMessage } = req.body as {
       sessionId: string;
@@ -679,6 +892,7 @@ aiRouter.post('/boardroom', async (req, res) => {
       for (const sh of stakeholders) {
         const cur = team.stakeholderTrustMap[sh.id] ?? sh.baseTrust ?? 60;
         team.stakeholderTrustMap[sh.id] = Math.max(5, Math.min(100, cur + penalty));
+        spendPatience(team, sh.id, Math.round(PATIENCE_COST.REPETITION / 2));
       }
       const trusts = Object.values(team.stakeholderTrustMap);
       const avgTrust = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
@@ -748,26 +962,65 @@ aiRouter.post('/boardroom', async (req, res) => {
     let totalRejected = 0;
     let usedProviderName = 'fallback';
 
+    const teamMetrics = {
+      tco: team.metrics.tco,
+      budgetRemaining: team.metrics.budgetRemaining,
+      technicalDebtIndex: team.metrics.technicalDebtIndex,
+      deliveryVelocity: team.metrics.deliveryVelocity,
+    };
+    const teamDecisions = describeTeamDecisions(scenario, session, team);
+
+    // System 1: every board vote in a single forward pass
+    const boardDecisions = await judgeBoard(stakeholders, team.stakeholderTrustMap, {
+      chatHistory: history.slice(-6),
+      playerMessage,
+      currentRound: session.currentRound,
+      teamMetrics,
+      teamDecisions,
+      isFrench,
+    });
+
     for (let i = 0; i < stakeholders.length; i++) {
       const sh = stakeholders[i];
       const currentTrust = team.stakeholderTrustMap[sh.id] ?? sh.baseTrust ?? 60;
+      const decision = boardDecisions?.[sh.id];
 
-      const { result, usedProvider } = await registry.executeWithFallback(async (provider) => {
-        return provider.evaluateStakeholderProposal({
-          stakeholder: sh,
-          currentTrust,
-          chatHistory: history.slice(-6),
-          playerMessage,
-          currentRound: session.currentRound,
-          teamMetrics: {
-            tco: team.metrics.tco,
-            budgetRemaining: team.metrics.budgetRemaining,
-            technicalDebtIndex: team.metrics.technicalDebtIndex,
-            deliveryVelocity: team.metrics.deliveryVelocity,
+      let result: { responseDialogue: string; evaluation: ProposalEvaluation };
+      if (getPatience(team, sh.id) <= 0) {
+        // Out of patience: votes against without hearing the pitch again
+        result = {
+          responseDialogue: closedDoorReply(sh.name, isFrench),
+          evaluation: {
+            empathyScore: 0,
+            financialAcumenScore: 0,
+            strategicAlignmentScore: 0,
+            trustDelta: CLOSED_DOOR_TRUST_PENALTY,
+            verdict: 'REJECTED',
+            rationale: isFrench ? 'Patience épuisée pour ce trimestre.' : 'Patience exhausted for this quarter.',
           },
+        };
+      } else {
+        const evaluated = await registry.executeWithFallback(async (provider) => {
+          return provider.evaluateStakeholderProposal({
+            stakeholder: sh,
+            currentTrust,
+            chatHistory: history.slice(-6),
+            playerMessage,
+            currentRound: session.currentRound,
+            teamMetrics,
+            teamDecisions,
+            patience: getPatience(team, sh.id),
+            decision,
+          });
         });
-      });
-      usedProviderName = usedProvider;
+        result = evaluated.result;
+        if (decision) {
+          result.evaluation = mergeDecision(result.evaluation, decision);
+        }
+        usedProviderName = evaluated.usedProvider;
+        // A plenary session costs each member half the patience of a 1-on-1
+        spendPatience(team, sh.id, Math.round((PATIENCE_COST[result.evaluation.verdict] ?? PATIENCE_COST.REJECTED) / 2));
+      }
 
       // Update trust
       const updatedTrust = Math.max(5, Math.min(100, currentTrust + (result.evaluation.trustDelta || 0)));
@@ -794,6 +1047,13 @@ aiRouter.post('/boardroom', async (req, res) => {
       };
       db.saveChatMessage(sessionId, teamId, replyMsg);
       replies.push(replyMsg);
+    }
+
+    // 3b. Cross-NPC debate: the most opposed member rebuts the most supportive one
+    const debate = await runBoardDebate(stakeholders, replies, breakdown, playerMessage, isFrench);
+    if (debate) {
+      db.saveChatMessage(sessionId, teamId, debate);
+      replies.push(debate);
     }
 
     // 4. Calculate Board Resolution

@@ -118,6 +118,7 @@ export interface RoundEvent {
     velocityPenalty: number;
     downedNodeIds?: string[];
   };
+  impactAppliedAtInjection?: boolean; // facilitator-injected crises hit immediately, not again at resolution
   choices: EventChoice[];
 }
 
@@ -144,6 +145,7 @@ export interface Scenario {
   stakeholders: StakeholderPersona[];
   roundEvents: RoundEvent[];
   initiativesCatalog: InitiativeTemplate[];
+  maxInitiativesPerRound?: number; // delivery capacity per quarter (default 2)
   tags: string[];
   author: string;
   isDefault: boolean;
@@ -189,6 +191,14 @@ export interface RoundResult {
     complianceScore: number;
     budgetRemaining: number;
   };
+  economics?: {
+    runAllocation: number; // quarterly run budget funded by the business ($K)
+    opExOverrun: number; // OpEx above the run allocation, charged to the change budget
+    capExSpent: number;
+    eventCost: number;
+    pactCost: number;
+    regulatoryFine: number;
+  };
   incidentsTriggered: Array<{
     id: string;
     title: string;
@@ -228,7 +238,29 @@ export interface Team {
     initiativeId: string;
     roundsRemaining: number;
   }>;
+  completedInitiativeIds?: string[];
+  stakeholderPatience?: Record<string, number>; // stakeholderId -> patience (0-100); 0 = door closed this quarter
+  honoredPacts?: TeamDecision['customPacts'];
+  outcome?: SimulationOutcome;
   nodeHealthOverrides: Record<string, { health: number; technicalDebt: number; status: NodeHealthStatus }>;
+}
+
+export interface OutcomeObjective {
+  key: 'technicalDebtIndex' | 'stakeholderTrust' | 'deliveryVelocity' | 'resilienceIndex' | 'tco' | 'modernizedNodesCount' | 'solvency';
+  label: string;
+  comparator: '<=' | '>=';
+  target: number;
+  actual: number;
+  met: boolean;
+  attainment: number; // 0-1 partial credit
+}
+
+export interface SimulationOutcome {
+  verdict: 'VICTORY' | 'PARTIAL' | 'DEFEAT';
+  grade: 'A+' | 'A' | 'B' | 'C' | 'D' | 'F';
+  score: number; // 0-100
+  objectivesMet: number;
+  objectives: OutcomeObjective[];
 }
 
 export type SessionState = 'WAITING' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
@@ -289,6 +321,8 @@ export interface ProposalEvaluation {
   verdict: 'ACCEPTED' | 'REJECTED' | 'CONDITIONAL_ACCEPTANCE';
   rationale: string;
   concessionRequired?: string;
+  verdictProbabilities?: Partial<Record<'ACCEPTED' | 'REJECTED' | 'CONDITIONAL_ACCEPTANCE', number>>; // System One distribution
+  decisionEngine?: string; // System One model that made the decision, when used
 }
 
 export type AIProviderType = 'ollama' | 'gemini' | 'claude' | 'openai' | 'fallback';
@@ -338,6 +372,9 @@ export interface ArchivedSimulationRun {
       tco: string;
       resilienceIndex: string;
       complianceScore: string;
+      grade?: SimulationOutcome['grade'];
+      verdict?: SimulationOutcome['verdict'];
+      score?: number;
     }>;
   };
   chatTranscriptCount?: number;
@@ -362,5 +399,6 @@ export type WSServerMessage =
   | { type: 'STAKEHOLDER_CHUNK'; teamId: string; stakeholderId: string; chunk: string }
   | { type: 'STAKEHOLDER_RESPONSE'; teamId: string; message: ChatMessage }
   | { type: 'ANNOUNCEMENT'; message: string; timestamp: string }
-  | { type: 'TELEMETRY_PULSE'; activeTeams: number; round: number; avgTdi: number; avgTrust: number };
+  | { type: 'TELEMETRY_PULSE'; activeTeams: number; round: number; avgTdi: number; avgTrust: number }
+  | { type: 'ERROR'; message: string };
 

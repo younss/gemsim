@@ -19,6 +19,9 @@ import { docsRouter } from './routes/docs.js';
 import { initWebSocketServer } from './socket/handler.js';
 import { DatabaseRepository } from './db/index.js';
 import { AIRegistry } from './ai/registry.js';
+import { QueueManager } from './queue/index.js';
+import { PrismaRepository } from './db/prisma.js';
+import { registerRoundHandler } from './services/round-service.js';
 
 dotenv.config();
 
@@ -39,6 +42,10 @@ app.use(express.json({ limit: '15mb' }));
 const db = DatabaseRepository.getInstance();
 const aiRegistry = AIRegistry.getInstance();
 
+// Round resolution runs through BullMQ when Redis is reachable, inline otherwise
+registerRoundHandler();
+const queues = QueueManager.getInstance();
+
 // REST API Routes
 app.use('/api/scenarios', scenariosRouter);
 app.use('/api/sessions', sessionsRouter);
@@ -55,6 +62,8 @@ app.get('/api/health', (req, res) => {
     aiProvider: activeAi.providerType,
     sessionsCount: db.getSessions().length,
     scenariosCount: db.getScenarios().length,
+    database: PrismaRepository.getInstance().isAvailable() ? 'postgresql+sqlite' : 'sqlite',
+    queue: queues.getHealth(),
   });
 });
 
@@ -77,7 +86,8 @@ if (fs.existsSync(clientDistPath)) {
 // Attach WebSockets
 initWebSocketServer(server);
 
-// Start HTTP Server
+// Start HTTP Server once PostgreSQL (when configured) has been synced into the local store
+await db.syncWithPrimary().catch(err => console.warn(`[GemSim Server] PostgreSQL sync failed, serving local data: ${err.message}`));
 server.listen(PORT, HOST, () => {
   console.log(`=======================================================`);
   console.log(`💎 GemSim Platform Server online at http://${HOST}:${PORT}`);
@@ -89,7 +99,8 @@ server.listen(PORT, HOST, () => {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('[GemSim Server] Received SIGTERM. Shutting down gracefully...');
-  server.close(() => {
-    process.exit(0);
-  });
+  server.close(() => process.exit(0));
+  // Open WebSocket and Redis connections keep the server alive: force exit after a grace period
+  setTimeout(() => process.exit(0), 1500).unref();
+  void queues.close().catch(() => {});
 });

@@ -207,6 +207,23 @@ export class FallbackProvider extends BaseAIProvider {
         : `I see where you are heading with this strategy. As long as our operational integrity remains uncompromised, we can move forward.`;
     }
 
+    // A System One decision is authoritative: voice it with the persona's own lines
+    if (context.decision) {
+      const d = context.decision;
+      const voiced =
+        d.verdict === 'ACCEPTED'
+          ? isFrench
+            ? `${s.sampleDialogue.greeting} Sur le fond, votre proposition sert nos intérêts : vous avez mon soutien.`
+            : `${s.sampleDialogue.greeting} On substance, your proposal serves our interests: you have my support.`
+          : d.verdict === 'CONDITIONAL_ACCEPTANCE'
+            ? s.sampleDialogue.concession
+            : s.sampleDialogue.resistance;
+      return {
+        responseDialogue: voiced,
+        evaluation: { ...d, concessionRequired: d.verdict === 'ACCEPTED' ? undefined : concessionRequired },
+      };
+    }
+
     return {
       responseDialogue,
       evaluation: {

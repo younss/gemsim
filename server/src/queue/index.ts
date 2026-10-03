@@ -3,7 +3,7 @@
 // Scalable background simulation ticks, AI synthesis, and async job execution
 // ============================================================================
 
-import { Queue, Worker, Job } from 'bullmq';
+import { Queue, QueueEvents, Worker, Job } from 'bullmq';
 import { Redis } from 'ioredis';
 import { PrismaRepository } from '../db/prisma.js';
 
@@ -28,6 +28,8 @@ export class QueueManager {
   private aiQueue: Queue<AIJobData> | null = null;
 
   private simulationWorker: Worker<SimulationJobData> | null = null;
+  private simulationEvents: QueueEvents | null = null;
+  private simulationHandler: ((data: SimulationJobData) => Promise<any>) | null = null;
   private aiWorker: Worker<AIJobData> | null = null;
 
   private constructor() {
@@ -113,7 +115,10 @@ export class QueueManager {
               payload: job.data,
             });
 
-            const result = { success: true, processedAt: new Date().toISOString() };
+            if (!this.simulationHandler) {
+              throw new Error('No simulation handler registered');
+            }
+            const result = await this.simulationHandler(job.data);
 
             await PrismaRepository.getInstance().recordJobLog({
               queueName: 'simulation-operations',
@@ -135,8 +140,10 @@ export class QueueManager {
             throw err;
           }
         },
-        { connection: this.redisConnection }
+        // Rounds of one session must resolve in order
+        { connection: this.redisConnection, concurrency: 1 }
       );
+      this.simulationEvents = new QueueEvents('simulation-operations', { connection: this.redisConnection.duplicate() });
 
       this.aiWorker = new Worker(
         'ai-synthesis',
@@ -182,6 +189,26 @@ export class QueueManager {
     }
   }
 
+  /** Registers the function that executes simulation jobs (inline or on the worker). */
+  public registerSimulationHandler(handler: (data: SimulationJobData) => Promise<any>) {
+    this.simulationHandler = handler;
+  }
+
+  /**
+   * Runs a simulation job through BullMQ when Redis is available and waits for
+   * its result; executes it inline otherwise.
+   */
+  public async runSimulationJob<T>(data: SimulationJobData, timeoutMs = 30000): Promise<T> {
+    if (!this.simulationHandler) {
+      throw new Error('No simulation handler registered');
+    }
+    if (this.isRedisConnected && this.simulationQueue && this.simulationEvents) {
+      const job = await this.simulationQueue.add(`sim-${data.action}`, data, { attempts: 1 });
+      return (await job.waitUntilFinished(this.simulationEvents, timeoutMs)) as T;
+    }
+    return (await this.simulationHandler(data)) as T;
+  }
+
   public async enqueueSimulationJob(data: SimulationJobData): Promise<{ queued: boolean; jobId?: string }> {
     if (this.isRedisConnected && this.simulationQueue) {
       const job = await this.simulationQueue.add(`sim-${data.action}`, data);
@@ -209,6 +236,7 @@ export class QueueManager {
 
   public async close() {
     if (this.simulationWorker) await this.simulationWorker.close();
+    if (this.simulationEvents) await this.simulationEvents.close();
     if (this.aiWorker) await this.aiWorker.close();
     if (this.simulationQueue) await this.simulationQueue.close();
     if (this.aiQueue) await this.aiQueue.close();

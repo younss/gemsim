@@ -84,6 +84,7 @@ export const api = {
       body: JSON.stringify({ teamId, decisions }),
     });
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Decision submission rejected');
     return data.team;
   },
 
@@ -92,7 +93,30 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
     });
-    return res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Round resolution failed');
+    return data;
+  },
+
+  async signPact(
+    sessionId: string,
+    payload: { teamId: string; stakeholderId: string; concession: string; committedBudget: number }
+  ): Promise<Team> {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/pacts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Pact rejected');
+    return data.team;
+  },
+
+  async withdrawPact(sessionId: string, teamId: string, stakeholderId: string): Promise<Team> {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/pacts/${teamId}/${stakeholderId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not withdraw pact');
+    return data.team;
   },
 
   async updateTimer(sessionId: string, payload: { isRunning?: boolean; secondsRemaining?: number }): Promise<SimulationSession> {

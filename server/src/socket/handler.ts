@@ -7,7 +7,8 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Server as HttpServer } from 'http';
 import { WSClientMessage, WSServerMessage } from '../types/index.js';
 import { DatabaseRepository } from '../db/index.js';
-import { SimulationResolver } from '../engine/resolver.js';
+import { checkDecisions } from '../engine/rules.js';
+import { advanceRound } from '../services/round-service.js';
 
 interface ClientConnection {
   ws: WebSocket;
@@ -74,8 +75,15 @@ function handleClientMessage(conn: ClientConnection, msg: WSClientMessage) {
       const session = db.getSession(msg.sessionId);
       if (session) {
         const team = session.teams.find(t => t.id === msg.teamId);
-        if (team) {
-          team.currentRoundDecisions = msg.decisions;
+        const scenario = db.getScenario(session.scenarioId);
+        if (team && scenario && !team.decisionSubmitted && session.state !== 'COMPLETED') {
+          const decisions = { ...msg.decisions, customPacts: team.currentRoundDecisions?.customPacts ?? [] };
+          const check = checkDecisions(scenario, team, decisions, session.currentRound, session.injectedEvents);
+          if (!check.ok) {
+            sendToClient(conn.ws, { type: 'ERROR', message: check.errors.join(' ') });
+            break;
+          }
+          team.currentRoundDecisions = decisions;
           team.decisionSubmitted = true;
           session.updatedAt = new Date().toISOString();
           db.saveSession(session);
@@ -100,40 +108,11 @@ function handleClientMessage(conn: ClientConnection, msg: WSClientMessage) {
         session.isTimerRunning = false;
         session.state = 'PAUSED';
       } else if (msg.action === 'ADVANCE_ROUND') {
-        const scenario = db.getScenario(session.scenarioId);
-        if (scenario) {
-          const roundResults: any = {};
-          const updatedTeams = [];
-          for (const team of session.teams) {
-            const { updatedTeam, roundResult } = SimulationResolver.resolveRound(
-              scenario,
-              team,
-              session.currentRound
-            );
-            updatedTeams.push(updatedTeam);
-            roundResults[team.id] = roundResult;
-          }
-
-          session.teams = updatedTeams;
-          if (session.currentRound >= session.totalRounds) {
-            session.state = 'COMPLETED';
-            session.isTimerRunning = false;
-          } else {
-            session.currentRound += 1;
-            session.timerSecondsRemaining = session.roundDurationSeconds;
-            session.state = 'ACTIVE';
-          }
-
-          session.updatedAt = new Date().toISOString();
-          db.saveSession(session);
-
-          broadcastToSession(session.id, {
-            type: 'ROUND_RESOLVED',
-            session,
-            results: roundResults,
-          });
-          return;
+        // Same path as REST /advance (BullMQ when available); it broadcasts ROUND_RESOLVED itself
+        if (session.state !== 'COMPLETED') {
+          advanceRound(session.id).catch(err => sendToClient(conn.ws, { type: 'ERROR', message: err.message }));
         }
+        return;
       }
 
       session.updatedAt = new Date().toISOString();
