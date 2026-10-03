@@ -73,3 +73,13 @@ describe('Fallback provider with a System One decision', () => {
     assert.strictEqual(res.responseDialogue, stakeholder.sampleDialogue.resistance);
   });
 });
+
+describe('previousProposals', () => {
+  const msg = (content: string) => ({ id: content, sender: 'PLAYER' as const, senderName: 'p', content, timestamp: '' });
+  it('drops the just-saved current message but keeps genuine earlier repeats', async () => {
+    const { previousProposals } = await import('./stakeholder-judge.js');
+    assert.deepStrictEqual(previousProposals([msg('pitch A')], 'pitch A'), []);
+    assert.deepStrictEqual(previousProposals([msg('pitch A'), msg('pitch A')], 'pitch A'), ['pitch A']);
+    assert.deepStrictEqual(previousProposals([msg('old'), msg('new')], 'new'), ['old']);
+  });
+});

@@ -77,6 +77,17 @@ const MESSAGE_QUESTIONS: Record<string, SystemOneQuestion> = {
   },
 };
 
+/**
+ * The player's earlier proposals. Routes save the new message before judging,
+ * so the history ends with it: drop that copy or every pitch looks like a rehash.
+ * Exported for unit tests.
+ */
+export function previousProposals(history: ChatMessage[], playerMessage: string): string[] {
+  const proposals = history.filter(m => m.sender === 'PLAYER').map(m => m.content);
+  if (proposals.length > 0 && proposals[proposals.length - 1].trim() === playerMessage.trim()) proposals.pop();
+  return proposals.slice(-3);
+}
+
 function personaState(stakeholder: StakeholderPersona, currentTrust: number) {
   return {
     name: stakeholder.name,
@@ -162,7 +173,7 @@ export async function judgeProposal(ctx: JudgeContext): Promise<ProposalEvaluati
         stakeholder: { ...personaState(ctx.stakeholder, ctx.currentTrust), patienceWithPlayer: ctx.patience ?? 100 },
         company: { round: ctx.currentRound, ...ctx.teamMetrics },
         teamDecisions: ctx.teamDecisions ?? [],
-        previousPlayerProposals: ctx.chatHistory.filter(m => m.sender === 'PLAYER').slice(-3).map(m => m.content),
+        previousPlayerProposals: previousProposals(ctx.chatHistory, ctx.playerMessage),
         playerMessage: ctx.playerMessage,
       },
       { ...stakeholderQuestions(), ...MESSAGE_QUESTIONS }
@@ -203,7 +214,7 @@ export async function judgeBoard(
         ),
         company: { round: ctx.currentRound, ...ctx.teamMetrics },
         teamDecisions: ctx.teamDecisions ?? [],
-        previousPlayerProposals: ctx.chatHistory.filter(m => m.sender === 'PLAYER').slice(-3).map(m => m.content),
+        previousPlayerProposals: previousProposals(ctx.chatHistory, ctx.playerMessage),
         playerMessage: ctx.playerMessage,
       },
       questions
