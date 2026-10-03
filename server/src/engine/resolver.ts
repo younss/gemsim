@@ -21,7 +21,7 @@ import {
   evaluateStakeholderSentiment,
   seededRoll,
 } from './math.js';
-import { getRoundEvent } from './rules.js';
+import { BOARD_MANDATE_EFFECTS, activeBoardMandate, getRoundEvent } from './rules.js';
 
 const BASE_VELOCITY = 65;
 // Share of a completed initiative's velocity gain that persists in later quarters
@@ -184,7 +184,9 @@ export class SimulationResolver {
     const newTdi = Math.max(5, Math.min(100, Math.round(metricsBefore.technicalDebtIndex + netTdiDelta)));
 
     // 4. Delivery Velocity: one-off bonuses this quarter + persistent capability gains
-    const oneOffVelocity = Math.round(initiativeVelocityDelta * (1 - PERSISTENT_VELOCITY_SHARE));
+    const mandate = activeBoardMandate(team, roundNumber);
+    const boardVelocityBonus = mandate ? BOARD_MANDATE_EFFECTS[mandate.verdict].velocityBonus : 0;
+    const oneOffVelocity = Math.round(initiativeVelocityDelta * (1 - PERSISTENT_VELOCITY_SHARE)) + boardVelocityBonus;
     const { effectiveVelocity } = calculateEffectiveVelocity(
       BASE_VELOCITY,
       newTdi,
@@ -357,6 +359,9 @@ export class SimulationResolver {
       facilitatorFeedback += `WARNING: Technical debt has reached critical levels (${metricsAfter.technicalDebtIndex}%). Feature delivery will stall unless refactoring is prioritized. `;
     } else if (metricsAfter.technicalDebtIndex < 35) {
       facilitatorFeedback += `EXCELLENT: Architectural health is strong, unlocking high delivery agility. `;
+    }
+    if (mandate) {
+      facilitatorFeedback += `Board resolution this quarter: ${mandate.verdict} (${mandate.consensusScore}% consensus)${boardVelocityBonus ? `, +${boardVelocityBonus} velocity` : ''}. `;
     }
     if (stillActive.length > 0) {
       facilitatorFeedback += `${stillActive.length} multi-quarter initiative(s) still in delivery. `;

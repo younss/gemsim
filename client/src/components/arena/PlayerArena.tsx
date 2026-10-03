@@ -35,7 +35,7 @@ import {
 } from 'lucide-react';
 import { ExecutiveBriefingModal } from '../briefing/ExecutiveBriefingModal';
 import { ObjectivesTracker, FinalVerdict } from './OutcomePanels';
-import { checkDecisions, evaluateOutcome, lockedInitiativeIds } from '../../engine';
+import { activeBoardMandate, checkDecisions, describeBoardMandate, evaluateOutcome, lockedInitiativeIds } from '../../engine';
 import { useSimulationStore } from '../../stores/useSimulationStore';
 
 interface Props {
@@ -110,6 +110,7 @@ export const PlayerArena: React.FC<Props> = ({
     session.injectedEvents
   );
   const lockedIds = lockedInitiativeIds(team);
+  const boardMandate = activeBoardMandate(team, session.currentRound);
   const activeById = new Map((team.activeInitiatives ?? []).map(a => [a.initiativeId, a.roundsRemaining]));
   const isCompleted = session.state === 'COMPLETED';
   const outcome = team.outcome ?? evaluateOutcome(scenario, team.metrics);
@@ -488,6 +489,16 @@ export const PlayerArena: React.FC<Props> = ({
                 <span className="text-slate-500">CAPACITY: </span>
                 <span className="text-cyan-400 font-bold">{selectedInitiatives.length}/{decisionCheck.capacity}</span>
                 <span className="text-slate-600"> initiatives this quarter</span>
+              </div>
+              <div>
+                <span className="text-slate-500">BOARD MANDATE: </span>
+                {boardMandate ? (
+                  <span className={boardMandate.verdict === 'APPROVED' ? 'text-emerald-400 font-bold' : boardMandate.verdict === 'REJECTED' ? 'text-rose-400 font-bold' : 'text-amber-400 font-bold'}>
+                    {boardMandate.verdict.replace('_', ' ')} — {describeBoardMandate(boardMandate.verdict, false)}
+                  </span>
+                ) : (
+                  <span className="text-slate-600">none yet (convene the board to unlock +1 capacity)</span>
+                )}
               </div>
             </div>
           </div>

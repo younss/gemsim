@@ -4,6 +4,13 @@
 // exactly the constraints and objectives the server applies.
 // ============================================================================
 
-export { checkDecisions, lockedInitiativeIds, getRoundEvent, DEFAULT_MAX_INITIATIVES_PER_ROUND } from '../../server/src/engine/rules';
+export {
+  checkDecisions,
+  lockedInitiativeIds,
+  getRoundEvent,
+  activeBoardMandate,
+  describeBoardMandate,
+  DEFAULT_MAX_INITIATIVES_PER_ROUND,
+} from '../../server/src/engine/rules';
 export type { DecisionCheck } from '../../server/src/engine/rules';
 export { evaluateOutcome } from '../../server/src/engine/outcome';

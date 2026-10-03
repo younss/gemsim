@@ -242,6 +242,7 @@ export interface Team {
     roundsRemaining: number;
   }>;
   completedInitiativeIds?: string[];
+  boardMandate?: BoardMandate; // latest board resolution; only applies to its own quarter
   stakeholderPatience?: Record<string, number>; // stakeholderId -> patience (0-100); 0 = door closed this quarter
   honoredPacts?: TeamDecision['customPacts'];
   outcome?: SimulationOutcome;
@@ -285,6 +286,12 @@ export interface SimulationSession {
   activeCrisis?: RoundEvent | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface BoardMandate {
+  round: number;
+  verdict: BoardResolution['verdict'];
+  consensusScore: number;
 }
 
 export interface BoardResolution {

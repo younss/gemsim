@@ -244,3 +244,39 @@ describe('Scenario balance (every seeded scenario)', () => {
     });
   }
 });
+
+describe('Board mandate', () => {
+  const three = decide({ selectedInitiativeIds: ['init-zero-trust-sec', 'init-ai-ops-copilot', 'init-shadow-feature-sprint'] });
+
+  it('an approved board resolution grants +1 capacity for its quarter only', () => {
+    const approved = makeTeam(neoTitan, { boardMandate: { round: 1, verdict: 'APPROVED', consensusScore: 90 } });
+    expect(checkDecisions(neoTitan, approved, three, 1).ok).toBe(true);
+    expect(checkDecisions(neoTitan, approved, three, 2).ok).toBe(false); // stale mandate
+    expect(checkDecisions(neoTitan, makeTeam(neoTitan), three, 1).ok).toBe(false);
+  });
+
+  it('a conditional quorum blocks EXTREME-risk initiatives', () => {
+    const team = makeTeam(neoTitan, { boardMandate: { round: 1, verdict: 'CONDITIONAL_QUORUM', consensusScore: 60 } });
+    const check = checkDecisions(neoTitan, team, decide({ selectedInitiativeIds: ['init-shadow-feature-sprint'] }), 1);
+    expect(check.ok).toBe(false);
+    expect(check.errors.join(' ')).toMatch(/blocked by the board/);
+  });
+
+  it('a rejected resolution cuts capacity and blocks HIGH-risk initiatives', () => {
+    const team = makeTeam(neoTitan, { boardMandate: { round: 1, verdict: 'REJECTED', consensusScore: 20 } });
+    expect(checkDecisions(neoTitan, team, decide({ selectedInitiativeIds: ['init-strangler-core', 'init-kafka-ledger'] }), 1).ok).toBe(false);
+    expect(checkDecisions(neoTitan, team, decide({ selectedInitiativeIds: ['init-cloud-mesh'] }), 1).ok).toBe(false); // HIGH risk
+    expect(checkDecisions(neoTitan, team, decide({ selectedInitiativeIds: ['init-zero-trust-sec'] }), 1).ok).toBe(true);
+  });
+
+  it('an approved resolution adds velocity at resolution', () => {
+    const base = SimulationResolver.resolveRound(neoTitan, makeTeam(neoTitan), 4);
+    const backed = SimulationResolver.resolveRound(
+      neoTitan,
+      makeTeam(neoTitan, { boardMandate: { round: 4, verdict: 'APPROVED', consensusScore: 90 } }),
+      4
+    );
+    expect(backed.updatedTeam.metrics.deliveryVelocity).toBe(base.updatedTeam.metrics.deliveryVelocity + 5);
+    expect(backed.roundResult.facilitatorFeedback).toMatch(/Board resolution this quarter: APPROVED/);
+  });
+});

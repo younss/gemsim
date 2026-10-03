@@ -66,6 +66,7 @@ Interact with autonomous C-suite executive personas driven by local or cloud LLM
 - **Patience Meters**: Each executive has a per-quarter patience gauge. Empty pitches (-30), repeats (-35), rejections (-20) and conditional answers (-8) drain it; acceptances restore it (+5). At 0 the executive closes the door until next quarter and votes against in the boardroom. Patience recovers by 50 each quarter.
 - **Binding Pacts**: When an executive demands a concession, the player can sign it as a pact with a committed budget. Pacts share the quarter's budget envelope and are honored at resolution (cost charged, trust +5 to +15).
 - **Boardroom Debates**: After the vote, the most opposed member rebuts the most supportive one in character.
+- **1-on-1 vs Board**: 1-on-1s cost full patience, move one executive's trust and allow pacts; the board judges everyone at once (half patience each), runs a debate and votes. Its resolution becomes the quarter's **board mandate** (extra capacity and velocity when approved, risk restrictions when not). Lobby individually, then convene the board.
 - **System One Verdicts**: When a System One model is available, verdicts, trust deltas and scores come from typed judgments (with per-verdict probabilities) instead of LLM-generated JSON. See [System One Decision Layer](#-system-one-decision-layer-clef--jev).
 
 ---
@@ -195,6 +196,7 @@ Each quarter's choices are checked by the same pure rule function on the server 
 | **Regulatory fines** | Compliance under 50% costs $6K per point below the threshold, and compliance-minded executives lose trust. |
 | **Insolvency** | Negative cash costs every executive trust (weighted by financial focus). The team can still submit an empty quarter. |
 | **Incidents** | At-risk nodes (P(Fail) > 0.45) fail on a seeded roll against P(Fail): reproducible per session/team/quarter, not deterministic. Each incident also costs velocity. |
+| **Board mandate** | The latest board resolution of the quarter shapes it: **APPROVED** = +1 initiative capacity and +5 velocity at resolution; **CONDITIONAL QUORUM** = EXTREME-risk initiatives blocked; **REJECTED** = -1 capacity (min 1) and HIGH/EXTREME-risk initiatives blocked. No board meeting = no effect. |
 | **Crisis injection** | An injected crisis hits immediately and is not charged again at resolution; teams that answered the old dilemma must choose again. |
 
 | Budget, capacity, multi-quarter delivery & pacts | Patience meters & binding pacts |

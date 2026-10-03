@@ -179,6 +179,7 @@ In addition to 1-on-1 negotiations, players can convene an All-Hands Executive C
 - Player presents their quarterly strategic package to all stakeholders simultaneously.
 - **Cross-NPC Debates**: after the vote, the most opposed member rebuts the most supportive one in character (one LLM call; persona resistance line when no LLM is available). No debate when the vote is unanimous.
 - Real-time collective consensus meter and formal alignment vote before finalizing the quarter.
+- **Board mandate**: the latest resolution of the quarter is stored on the team and applies to that quarter only. APPROVED = +1 initiative capacity and +5 velocity at resolution; CONDITIONAL_QUORUM = EXTREME-risk initiatives blocked; REJECTED (including the anti-repetition sentinel) = -1 capacity (min 1) and HIGH/EXTREME-risk initiatives blocked. Enforced by the shared rule module and shown in the player's portfolio and in the board's resolution message.
 - **Single-pass board vote**: all members' verdicts are decided in **one** System 1 call (one question set per stakeholder, shared message-quality questions). The LLM then writes each member's statement.
 
 ---

@@ -544,6 +544,7 @@ sessionsRouter.post('/:id/reset', requireFacilitator, (req, res) => {
       team.stakeholderPatience = Object.fromEntries(scenario.stakeholders.map(sh => [sh.id, 100]));
       team.honoredPacts = [];
       team.outcome = undefined;
+      team.boardMandate = undefined;
       team.nodeHealthOverrides = {};
       team.currentRoundDecisions = {
         selectedInitiativeIds: [],

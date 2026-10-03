@@ -12,6 +12,7 @@ import { judgeProposal, judgeBoard, mergeDecision } from '../ai/stakeholder-judg
 import { SystemOneClient } from '../ai/systemone.js';
 import { boardroomSchema, negotiateSchema, validateBody } from '../validation.js';
 import { requireFacilitator } from '../auth.js';
+import { describeBoardMandate } from '../engine/rules.js';
 
 // Patience spent per exchange (negative = recovered). At 0 the stakeholder closes the door until next quarter.
 const PATIENCE_COST = { LOW_EFFORT: 30, REPETITION: 35, REJECTED: 20, CONDITIONAL_ACCEPTANCE: 8, ACCEPTED: -5 } as const;
@@ -927,13 +928,15 @@ aiRouter.post('/boardroom', validateBody(boardroomSchema), async (req, res) => {
         votes: { accepted: 0, conditional: 0, rejected: stakeholders.length, total: stakeholders.length },
         breakdown: rejectedBreakdown,
       };
+      team.boardMandate = { round: session.currentRound, verdict: 'REJECTED', consensusScore: 10 };
+      db.saveSession(session);
 
       const resolutionMsg: ChatMessage = {
         id: `msg-${Date.now()}-board-resolution`,
         sender: 'STAKEHOLDER',
         stakeholderId: 'BOARDROOM',
         senderName: 'Conseil d\'Administration (Résolution Officielle)',
-        content: `RÉSOLUTION DU CONSEIL : ${boardResolution.verdict} (Consensus : ${boardResolution.consensusScore}%) - ${boardResolution.rationale}`,
+        content: `RÉSOLUTION DU CONSEIL : ${boardResolution.verdict} (Consensus : ${boardResolution.consensusScore}%) - ${boardResolution.rationale}\n• Mandat du trimestre : ${describeBoardMandate('REJECTED', true)}`,
         timestamp: new Date().toISOString(),
         boardResolution,
       };
@@ -1084,6 +1087,10 @@ aiRouter.post('/boardroom', validateBody(boardroomSchema), async (req, res) => {
     team.metrics.stakeholderTrust = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
     db.saveSession(session);
 
+    // The latest board resolution shapes what the team may do this quarter
+    team.boardMandate = { round: session.currentRound, verdict: boardVerdict, consensusScore };
+    db.saveSession(session);
+
     const boardResolution = {
       verdict: boardVerdict,
       consensusScore,
@@ -1103,7 +1110,7 @@ aiRouter.post('/boardroom', validateBody(boardroomSchema), async (req, res) => {
       sender: 'SYSTEM',
       stakeholderId: 'BOARDROOM',
       senderName: 'Conseil d\'Administration // Secrétariat Général',
-      content: `🏛️ VERDICT DU CONSEIL : ${boardVerdict === 'APPROVED' ? 'STRATÉGIE APPROUVÉE' : boardVerdict === 'CONDITIONAL_QUORUM' ? 'QUORUM SOUS CONDITIONS' : 'PROPOSITION REJETÉE'}\n\n• Consensus global : ${consensusScore}%\n• Votes : ${totalAccepted} pour, ${totalConditional} sous réserve, ${totalRejected} contre\n• Décision : ${rationale}`,
+      content: `🏛️ VERDICT DU CONSEIL : ${boardVerdict === 'APPROVED' ? 'STRATÉGIE APPROUVÉE' : boardVerdict === 'CONDITIONAL_QUORUM' ? 'QUORUM SOUS CONDITIONS' : 'PROPOSITION REJETÉE'}\n\n• Consensus global : ${consensusScore}%\n• Votes : ${totalAccepted} pour, ${totalConditional} sous réserve, ${totalRejected} contre\n• Décision : ${rationale}\n• Mandat du trimestre : ${describeBoardMandate(boardVerdict, true)}`,
       timestamp: new Date().toISOString(),
       boardResolution,
     };
