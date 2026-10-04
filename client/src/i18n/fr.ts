@@ -932,4 +932,13 @@ export const fr = {
   'debrief.q.strongFinish': "({teams}) Belle remontée en fin de partie : qu'avez-vous changé, et pourquoi pas plus tôt ?",
   'debrief.q.earnedShare': "({teams}) Vous avez gagné de la part en restant rentables : quand la qualité est-elle devenue un avantage commercial ?",
   'debrief.q.general': "Quelle décision prendriez-vous différemment lundi matin, dans votre propre organisation ?",
+
+  // --- Notes pédagogiques ---
+  'docs.category.TEACHING_NOTE': "Note pédagogique",
+  'docs.restricted': "Réservé à l'animateur",
+  'docs.note.generating': "Le moteur joue le cas pour rédiger la note…",
+  'docs.note.locked': "Cette note révèle les agendas cachés et le chemin gagnant : elle est réservée à l'animateur. Saisissez le PIN pour l'ouvrir.",
+
+  // --- Notes pédagogiques (2) ---
+  'docs.note.retry': "Ouvrir la note",
 } as const;

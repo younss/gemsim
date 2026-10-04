@@ -7,15 +7,19 @@ import { Router } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { DatabaseRepository } from '../db/index.js';
+import { requireFacilitator } from '../auth.js';
+import { buildTeachingNote } from '../docs/teaching-note.js';
 
 export const docsRouter = Router();
 
 export interface DocSection {
   id: string;
   title: string;
-  category: 'PLAYER' | 'FACILITATOR_KIT' | 'JOURNEYS' | 'FORMULAS' | 'SCHEMA' | 'AI_GATEWAY' | 'PODMAN';
+  category: 'PLAYER' | 'FACILITATOR_KIT' | 'TEACHING_NOTE' | 'JOURNEYS' | 'FORMULAS' | 'SCHEMA' | 'AI_GATEWAY' | 'PODMAN';
   summary: string;
   content: string;
+  restricted?: boolean; // facilitator only: the content is fetched with the PIN
 }
 
 const SYSTEM_DOCS: DocSection[] = [
@@ -215,8 +219,42 @@ function docsFor(lang: unknown): DocSection[] {
   return [...KIT[l], ...SYSTEM_DOCS];
 }
 
+const NOTE_PREFIX = 'note-';
+const noteCache = new Map<string, DocSection>();
+
+/** Teaching notes are listed for everyone; their content (agendas, winning path) needs the PIN. */
+function teachingNoteEntries(lang: 'fr' | 'en'): DocSection[] {
+  return DatabaseRepository.getInstance()
+    .getScenarios()
+    .map(scenario => ({
+      id: `${NOTE_PREFIX}${scenario.id}`,
+      title: lang === 'fr' ? `Note pédagogique — ${scenario.title}` : `Teaching note — ${scenario.title}`,
+      category: 'TEACHING_NOTE' as const,
+      summary: lang === 'fr' ? 'Réservée à l’animateur (PIN).' : 'Facilitator only (PIN).',
+      content: '',
+      restricted: true,
+    }));
+}
+
 docsRouter.get('/', (req, res) => {
-  res.json({ docs: docsFor(req.query.lang) });
+  const lang = req.query.lang === 'en' ? 'en' : 'fr';
+  // Kit first, then the teaching notes, then the technical documentation
+  res.json({ docs: [...KIT[lang], ...teachingNoteEntries(lang), ...SYSTEM_DOCS] });
+});
+
+// GET /api/docs/note-:scenarioId — the generated teaching note (facilitator only, cached per scenario version)
+docsRouter.get(`/${NOTE_PREFIX}:scenarioId`, requireFacilitator, (req, res) => {
+  const lang = req.query.lang === 'en' ? 'en' : 'fr';
+  const scenario = DatabaseRepository.getInstance().getScenario(req.params.scenarioId);
+  if (!scenario) return res.status(404).json({ error: 'Scenario not found' });
+  const key = `${scenario.id}|${scenario.updatedAt ?? scenario.createdAt}|${lang}`;
+  let doc = noteCache.get(key);
+  if (!doc) {
+    const note = buildTeachingNote(scenario, lang);
+    doc = { id: `${NOTE_PREFIX}${scenario.id}`, title: note.title, category: 'TEACHING_NOTE', summary: note.summary, content: note.content, restricted: true };
+    noteCache.set(key, doc);
+  }
+  res.json({ doc });
 });
 
 docsRouter.get('/:id', (req, res) => {

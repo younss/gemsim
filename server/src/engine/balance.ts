@@ -154,6 +154,11 @@ function legalDecisions(scenario: Scenario, team: Team, round: number): TeamDeci
 
 /** Beam search over quarter decisions: the best outcome a well-informed player can reach. */
 export function searchBestOutcome(scenario: Scenario, beamWidth = 40): SimulationOutcome {
+  return evaluateOutcome(scenario, searchBestTeam(scenario, beamWidth).metrics);
+}
+
+/** The team at the end of the best path found; its history holds every quarter's decision. */
+export function searchBestTeam(scenario: Scenario, beamWidth = 40): Team {
   let beam: Team[] = [initialTeam(scenario, 'search')];
   const rounds = scenario.totalRounds || 4;
   for (let round = 1; round <= rounds; round++) {
@@ -167,7 +172,7 @@ export function searchBestOutcome(scenario: Scenario, beamWidth = 40): Simulatio
     next.sort((a, b) => b.score - a.score);
     beam = next.slice(0, beamWidth).map(n => n.team);
   }
-  return evaluateOutcome(scenario, beam[0].metrics);
+  return beam[0];
 }
 
 export interface StrategyReplay {

@@ -274,6 +274,12 @@ The player's **Market** tab sets prices, marketing and entries per segment and p
 | **Automatic debrief** | Score trajectory per team, its three decisive quarters (largest score swings, with the decision and the coach's causes), patterns (price war, repeated shortcuts, negative cash, lost sales, ignored crisis, broken promises, late start, strong finish, share earned at a profit), the leader on each objective and up to six targeted questions. In the cockpit and the Markdown export. | `engine/debrief.ts`, `AutoDebrief.tsx` |
 | **Promise memory** | When an executive or the board accepts a proposal that names initiatives, it becomes a promise. At the end of the quarter it is kept if they were launched (+4 trust, +2 per board member) or broken (−8, −4 per board member). Executives' prompts and the System One judge receive the promise history. | `engine/promises.ts`, `Team.promises` |
 
+## 📝 Automatic Teaching Notes (`server/src/docs/teaching-note.ts`)
+
+Every scenario, seeded or generated in the Studio, gets a Harvard-style teaching note in French and English, built from the case and from the engine playing it: synopsis, learning objectives (adapted to the domain vocabulary and to the market when there is one), targets and key parameters, the two most opposed executives and every hidden agenda, traps (extreme-risk or debt-adding initiatives, the shortcut posture), each crisis with its most lasting and cheapest answers, **the winning path found by the beam search quarter by quarter** (posture, initiatives, crisis answer, price level, market entries), typical strategies alone and in a shared market, common mistakes, the market, a session plan and case-specific debrief questions.
+
+Notes are listed in **Docs & kit**; their content requires the facilitator PIN (`GET /api/docs/note-:scenarioId?lang=`) because it reveals hidden agendas and the winning path. They are generated on demand and cached per scenario version.
+
 ## 🎓 Learning Design: Making the Case Playable for Everyone
 
 GemSim targets executives, MBA students and professionals without a technical background as much as architects. Everything below works without an AI provider.
@@ -524,12 +530,13 @@ Test Results:
  ✓ server/test/game-rules.test.ts (25 tests)
  ✓ server/test/market.test.ts (16 tests)
  ✓ server/test/phase2.test.ts (9 tests)
+ ✓ server/test/teaching-note.test.ts (11 tests)
 
- Test Files  8 passed (8)
-      Tests  79 passed (79)
+ Test Files  9 passed (9)
+      Tests  90 passed (90)
 ```
 
-`game-rules.test.ts` covers the budget and capacity rules, one-time and multi-quarter initiatives, run-budget economics, insolvency, pacts, crisis injection, seeded incidents, win/loss verdicts, request validation (Zod) and the balance check of every seeded scenario. `phase2.test.ts` checks that a replay reproduces a three-team market game exactly (with an injected crisis, negotiations, promises and a board mandate), that an alternative changes the outcome and that illegal ones are refused, promise detection and their trust effects, the coach's causes and advice, and the automatic debrief's moments, patterns and questions. `market.test.ts` covers market sharing, price and quality effects, capacity caps and lost sales, entries, price bounds and budget, determinism, a shared-market quarter through `advanceSession`, scaled objectives, request validation, Studio market generation and bounds, the balance and tournament of both market scenarios, and the player view that hides other teams' decisions. `i18n.test.ts` checks that French and English define the same keys and placeholders, that every message code emitted by the engine is translated, and that every domain names every metric, layer and posture. `npm test` works from the repository root or from `server/`.
+`game-rules.test.ts` covers the budget and capacity rules, one-time and multi-quarter initiatives, run-budget economics, insolvency, pacts, crisis injection, seeded incidents, win/loss verdicts, request validation (Zod) and the balance check of every seeded scenario. `teaching-note.test.ts` generates the note of every seeded scenario in both languages (every section, every hidden agenda and crisis, one winning-path line per quarter, market section only for market cases, no raw engine ids) and of a Studio case. `phase2.test.ts` checks that a replay reproduces a three-team market game exactly (with an injected crisis, negotiations, promises and a board mandate), that an alternative changes the outcome and that illegal ones are refused, promise detection and their trust effects, the coach's causes and advice, and the automatic debrief's moments, patterns and questions. `market.test.ts` covers market sharing, price and quality effects, capacity caps and lost sales, entries, price bounds and budget, determinism, a shared-market quarter through `advanceSession`, scaled objectives, request validation, Studio market generation and bounds, the balance and tournament of both market scenarios, and the player view that hides other teams' decisions. `i18n.test.ts` checks that French and English define the same keys and placeholders, that every message code emitted by the engine is translated, and that every domain names every metric, layer and posture. `npm test` works from the repository root or from `server/`.
 
 ---
 

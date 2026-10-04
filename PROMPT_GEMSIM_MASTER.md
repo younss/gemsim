@@ -382,5 +382,12 @@ Player manual, learning objectives with references, workshop agenda (3h30 and 2h
 
 ---
 
+## 17. AUTOMATIC TEACHING NOTES
+
+- `buildTeachingNote(scenario, lang)` (server, `docs/teaching-note.ts`) writes a Markdown teaching note in French or English from the scenario and from the engine: synopsis; learning objectives (vocabulary-aware, plus market); targets with starting values and key parameters (cash, capacity, run budget); the most opposed pair of executives (largest decision-weight distance), every bias and hidden agenda; traps (EXTREME or debt-adding initiatives with their effects, the shortcut posture); each crisis with its choices, the most lasting (lowest debt impact) and cheapest answers and the default impact; the winning path from `searchBestTeam` (beam search keeping the best team, whose history holds every decision); typical strategies alone (`simulateStrategy`) and in a shared market (`playTournament`); common mistakes; market segments and rivals; session plan; case-specific debrief questions (trap, black swan, opposed executives, first winning move, market).
+- Served by the docs API: listed for everyone, content behind the facilitator PIN (`GET /api/docs/note-:scenarioId?lang=`), cached per scenario id, version and language. The Docs portal fetches it on selection and offers to unlock.
+
+---
+
 ## EXECUTION INSTRUCTIONS
 Generate clean, modular, and fully tested TypeScript code. Unit-test the System 1 answer-to-evaluation mapping without a live model. Ensure all Three.js materials, mathematical state transitions, AI streaming handlers, and UI dashboards compile without errors (`npm run build` client & server with 0 errors, `npm test` passing 100%).

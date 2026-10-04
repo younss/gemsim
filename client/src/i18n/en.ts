@@ -934,4 +934,13 @@ export const en: Record<keyof typeof fr, string> = {
   'debrief.q.strongFinish': "({teams}) Strong finish: what did you change, and why not earlier?",
   'debrief.q.earnedShare': "({teams}) You won share while staying profitable: when did quality become a commercial advantage?",
   'debrief.q.general': "Which decision would you take differently on Monday morning, in your own organization?",
+
+  // --- Teaching notes ---
+  'docs.category.TEACHING_NOTE': "Teaching note",
+  'docs.restricted': "Facilitator only",
+  'docs.note.generating': "The engine is playing the case to write the note…",
+  'docs.note.locked': "This note reveals the hidden agendas and the winning path: it is for the facilitator only. Enter the PIN to open it.",
+
+  // --- Teaching notes (2) ---
+  'docs.note.retry': "Open the note",
 };

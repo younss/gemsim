@@ -18,6 +18,8 @@ import {
   Shield,
   Activity,
   Cpu,
+  Lock,
+  Loader2,
 } from 'lucide-react';
 
 export const DocsPortal: React.FC = () => {
@@ -41,6 +43,21 @@ export const DocsPortal: React.FC = () => {
   }, [lang]);
 
   const activeDoc = docs.find(d => d.id === activeDocId) || docs[0];
+
+  // Teaching notes are generated on demand and need the facilitator PIN
+  const [noteState, setNoteState] = useState<'idle' | 'loading' | 'locked'>('idle');
+  const [noteAttempt, setNoteAttempt] = useState(0);
+  useEffect(() => {
+    if (!activeDoc?.restricted || activeDoc.content) return;
+    setNoteState('loading');
+    api
+      .getDoc(activeDoc.id, lang)
+      .then(doc => {
+        setDocs(list => list.map(d => (d.id === doc.id ? { ...doc } : d)));
+        setNoteState('idle');
+      })
+      .catch(() => setNoteState('locked'));
+  }, [activeDoc?.id, activeDoc?.content, lang, noteAttempt]);
 
   // Live Formula Calculations
   let driftRate = 0.08;
@@ -86,7 +103,10 @@ export const DocsPortal: React.FC = () => {
                 </span>
                 <ChevronRight className={`w-3.5 h-3.5 text-slate-500 transition-transform ${isSelected ? 'translate-x-1 text-cyan-400' : ''}`} />
               </div>
-              <h4 className="font-bold text-slate-100 text-xs mt-1">{doc.title}</h4>
+              <h4 className="font-bold text-slate-100 text-xs mt-1 flex items-center gap-1.5">
+                {doc.restricted && <Lock className="w-3 h-3 text-amber-400 shrink-0" aria-label={t('docs.restricted')} />}
+                {doc.title}
+              </h4>
               <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{doc.summary}</p>
             </button>
           );
@@ -107,7 +127,24 @@ export const DocsPortal: React.FC = () => {
             </div>
 
             <div className="pt-2">
-              <MarkdownViewer content={activeDoc.content} />
+              {activeDoc.restricted && !activeDoc.content ? (
+                noteState === 'locked' ? (
+                  <p className="text-xs text-amber-300 flex items-center gap-2">
+                    <Lock className="w-4 h-4" aria-hidden="true" />
+                    {t('docs.note.locked')}
+                    <button onClick={() => setNoteAttempt(n => n + 1)} className="ml-2 underline text-cyan-400 font-mono">
+                      {t('docs.note.retry')}
+                    </button>
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-400 flex items-center gap-2" role="status">
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+                    {t('docs.note.generating')}
+                  </p>
+                )
+              ) : (
+                <MarkdownViewer content={activeDoc.content} />
+              )}
             </div>
           </div>
         )}

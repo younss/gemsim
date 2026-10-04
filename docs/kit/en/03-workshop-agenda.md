@@ -4,7 +4,8 @@ Reference format: **3h30**, 3 to 5 teams of 3 to 5 people, one facilitator. A sh
 
 ## Before the workshop (D-7 to D-1)
 
-- [ ] Choose the scenario: IT (NeoTitan, HealthNova), sourcing (Mirage Offshore), industrial (Vénissieux) or a Studio-generated scenario that passed the balance check.
+- [ ] Choose the scenario: IT (NeoTitan, HealthNova), sourcing (Mirage Offshore), industrial (Vénissieux), expansion (Maison Dumas) or a Studio-generated scenario that passed the balance check.
+- [ ] Read the case's **teaching note** (Docs & kit, facilitator PIN): objectives, tensions, hidden agendas, traps, winning path and case-specific debrief questions.
 - [ ] Check the AI engine in **Settings** (a cloud provider is recommended in class: local models are slow).
 - [ ] Create the session with the number of teams and a quarter duration (20 to 25 min recommended).
 - [ ] Generate team links (**Workshop invites**) and send them.

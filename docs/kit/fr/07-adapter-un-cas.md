@@ -23,6 +23,10 @@ Le scénario **« Usine de Vénissieux »** est fourni comme exemple industriel 
 5. Lisez le **rapport d'équilibrage** : le cas doit être **jouable** (une victoire existe, la stratégie « raccourci » perd).
 6. Ajustez si besoin (JSON du scénario), puis publiez.
 
+## La note pédagogique est générée pour vous
+
+Chaque cas, y compris ceux du Studio, a sa **note pédagogique** dans Docs & kit (PIN animateur). Le moteur joue le cas pour la rédiger : chemin gagnant trimestre par trimestre, résultats des stratégies typiques, lecture des dilemmes de crise (réponse la plus durable, la moins chère), tensions entre décideurs, pièges et questions de débriefing. Relisez-la avant de publier un cas : si le chemin gagnant vous paraît absurde, le cas mérite d'être retouché.
+
 ## Bonnes pratiques
 
 - 3 ou 4 décideurs aux intérêts réellement opposés.

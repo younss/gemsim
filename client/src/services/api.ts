@@ -452,6 +452,14 @@ export const api = {
   },
 
   // Docs
+  // A restricted document (teaching note): needs the facilitator PIN
+  async getDoc(id: string, lang: string = 'fr'): Promise<any> {
+    const res = await apiFetch(`${API_BASE}/docs/${encodeURIComponent(id)}?lang=${encodeURIComponent(lang)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Document unavailable');
+    return data.doc;
+  },
+
   async getDocs(lang: string = 'fr'): Promise<any[]> {
     const res = await apiFetch(`${API_BASE}/docs?lang=${encodeURIComponent(lang)}`);
     const data = await res.json();

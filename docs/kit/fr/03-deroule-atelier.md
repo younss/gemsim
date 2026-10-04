@@ -4,7 +4,8 @@ Format de référence : **3 h 30**, 3 à 5 équipes de 3 à 5 personnes, un faci
 
 ## Avant l'atelier (J-7 à J-1)
 
-- [ ] Choisir le scénario : IT (NeoTitan, HealthNova), sourcing (Mirage Offshore), industriel (Vénissieux) ou un scénario généré dans le Studio et validé par le contrôle d'équilibrage.
+- [ ] Choisir le scénario : IT (NeoTitan, HealthNova), sourcing (Mirage Offshore), industriel (Vénissieux), expansion (Maison Dumas) ou un scénario généré dans le Studio et validé par le contrôle d'équilibrage.
+- [ ] Lire la **note pédagogique** du cas (Docs & kit, PIN animateur) : objectifs, tensions, agendas cachés, pièges, chemin gagnant et questions de débriefing propres au cas.
 - [ ] Vérifier le moteur IA dans **Réglages** (fournisseur cloud recommandé en salle : les modèles locaux sont lents).
 - [ ] Créer la session avec le nombre d'équipes et une durée de trimestre (20 à 25 min recommandées).
 - [ ] Générer les liens d'équipe (**Invitations atelier**) et les envoyer.
