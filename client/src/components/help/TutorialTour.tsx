@@ -40,9 +40,10 @@ interface Props {
   isSolo: boolean;
   hasMarket?: boolean;
   objectiveCount?: number;
+  totalRounds?: number;
 }
 
-export const TutorialTour: React.FC<Props> = ({ onTabChange, isSolo, hasMarket = false, objectiveCount = 7 }) => {
+export const TutorialTour: React.FC<Props> = ({ onTabChange, isSolo, hasMarket = false, objectiveCount = 7, totalRounds = 4 }) => {
   const STEPS = ALL_STEPS.filter(s => hasMarket || !s.marketOnly);
   const { t } = useI18n();
   const endTutorial = useHelpStore(s => s.endTutorial);
@@ -149,7 +150,12 @@ export const TutorialTour: React.FC<Props> = ({ onTabChange, isSolo, hasMarket =
             {index + 1}/{STEPS.length}
           </span>
         </div>
-        <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{t(bodyKey, { n: objectiveCount, half: Math.ceil(objectiveCount / 2) })}</p>
+        <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{t(bodyKey, {
+          n: objectiveCount,
+          half: Math.ceil(objectiveCount / 2),
+          last: totalRounds,
+          duration: totalRounds === 1 ? t('studio.rounds.one') : t('studio.rounds.many', { n: totalRounds }),
+        })}</p>
         <div className="flex items-center justify-between pt-1">
           <button onClick={endTutorial} className="text-[11px] text-slate-500 hover:text-slate-300">
             {t('tutorial.skip')}

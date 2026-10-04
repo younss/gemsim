@@ -25,6 +25,8 @@ interface Props {
   selectedNodeId?: string | null;
   onSelectNode?: (node: TopologyNode | null) => void;
   layerLabels?: Partial<Record<EnterpriseLayer, string>>; // scenario vocabulary for the four planes
+  sidePanel?: boolean; // the parent shows the element list and details next to the map
+  onLayerChange?: (layer: EnterpriseLayer | 'ALL') => void; // the layer filter, for lists outside the map
 }
 
 // Generates crisp billboard text sprites with shadow for 3D space
@@ -155,11 +157,35 @@ function getNodeThemeColor(node: TopologyNode): { primary: number; glow: number;
   }
 }
 
+// Ground layout: one row per layer (business at the front, infrastructure at the back), elements
+// evenly spaced along each row in the author's left-to-right order. Stored positions are only a
+// hint: generated cases often put several elements at the same place, which made them overlap.
+const ROW_ORDER: EnterpriseLayer[] = ['BUSINESS', 'APPLICATION', 'DATA', 'INFRASTRUCTURE'];
+const COLUMN_SPACING = 5.8; // wider than a label (5.2) so neighbours never collide
+const ROW_SPACING = 5.5;
+
+export function layoutTopology(nodes: TopologyNode[]): { positions: Map<string, { x: number; z: number; slot: number }>; extent: number } {
+  const positions = new Map<string, { x: number; z: number; slot: number }>();
+  const rows = ROW_ORDER.map(layer => nodes.filter(n => n.layer === layer).sort((a, b) => a.position.x - b.position.x)).filter(r => r.length);
+  let extent = 0;
+  rows.forEach((row, r) => {
+    const z = (r - (rows.length - 1) / 2) * ROW_SPACING;
+    row.forEach((node, i) => {
+      const x = (i - (row.length - 1) / 2) * COLUMN_SPACING;
+      positions.set(node.id, { x, z, slot: i });
+      extent = Math.max(extent, Math.abs(x), Math.abs(z));
+    });
+  });
+  return { positions, extent };
+}
+
 export const EnterpriseCanvas: React.FC<Props> = ({
   topology,
   nodeHealthOverrides,
   selectedNodeId: controlledSelectedId,
   onSelectNode: onSelectNodeProp,
+  sidePanel = false,
+  onLayerChange,
   layerLabels,
 }) => {
   const { t } = useI18n();
@@ -173,7 +199,14 @@ export const EnterpriseCanvas: React.FC<Props> = ({
   const layerName = (layer: EnterpriseLayer | 'ALL') => (layer === 'ALL' ? t('canvas.allLayers') : layerLabels?.[layer] ?? layer);
   const statusName = (status: string) => t(`canvas.status.${status}` as TranslationKey);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [activeLayerFilter, setActiveLayerFilter] = useState<EnterpriseLayer | 'ALL'>('ALL');
+  const [activeLayerFilter, setLayerFilterState] = useState<EnterpriseLayer | 'ALL'>('ALL');
+  const setActiveLayerFilter = (layer: EnterpriseLayer | 'ALL') => {
+    setLayerFilterState(layer);
+    onLayerChange?.(layer);
+    // A selected element hidden by the new filter is deselected
+    const current = effectiveNodes.find(n => n.id === selectedNodeId);
+    if (current && layer !== 'ALL' && current.layer !== layer) onSelectNode(null);
+  };
   const [hoveredNode, setHoveredNode] = useState<TopologyNode | null>(null);
   const [autoRotate, setAutoRotate] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -186,6 +219,7 @@ export const EnterpriseCanvas: React.FC<Props> = ({
   const particlesRef = useRef<Array<{ mesh: THREE.Mesh; curve: THREE.Curve<THREE.Vector3>; progress: number; speed: number }>>([]);
   const animFrameRef = useRef<number | null>(null);
   const resetCameraFnRef = useRef<(() => void) | null>(null);
+  const fitCameraFnRef = useRef<((radius: number) => void) | null>(null);
 
   // Merge node overrides
   const effectiveNodes: TopologyNode[] = topology.nodes.map(n => {
@@ -298,14 +332,20 @@ export const EnterpriseCanvas: React.FC<Props> = ({
     // Orbit controls with smooth spherical coordinates
     let isDragging = false;
     let prevMouse = { x: 0, y: 0 };
-    const defaultSpherical = { radius: 24, theta: 0.45, phi: Math.PI / 2.7 };
+    const defaultSpherical = { radius: 24, theta: 0.35, phi: Math.PI / 3.8 }; // high enough to see the back rows
     let spherical = { ...defaultSpherical };
+    // The scene effect frames the whole map once the layout is known
+    fitCameraFnRef.current = (radius: number) => {
+      defaultSpherical.radius = radius;
+      spherical = { ...spherical, radius };
+      updateCameraPosition();
+    };
 
     const updateCameraPosition = () => {
       camera.position.x = spherical.radius * Math.sin(spherical.phi) * Math.sin(spherical.theta);
       camera.position.y = spherical.radius * Math.cos(spherical.phi);
       camera.position.z = spherical.radius * Math.sin(spherical.phi) * Math.cos(spherical.theta);
-      camera.lookAt(0, 1.2, 0);
+      camera.lookAt(0, 0.6, 3.5); // towards the front row: the filter bar and legend cover the bottom of the view
     };
     updateCameraPosition();
 
@@ -341,7 +381,7 @@ export const EnterpriseCanvas: React.FC<Props> = ({
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      spherical.radius = Math.max(10, Math.min(48, spherical.radius + e.deltaY * 0.02));
+      spherical.radius = Math.max(8, Math.min(70, spherical.radius + e.deltaY * 0.02));
       updateCameraPosition();
     };
 
@@ -362,6 +402,9 @@ export const EnterpriseCanvas: React.FC<Props> = ({
       renderer.setSize(w, h);
     };
     window.addEventListener('resize', onResize);
+    // The viewport also changes size without a window resize (layout, fullscreen, panels)
+    const resizeObserver = new ResizeObserver(() => onResize());
+    if (containerRef.current) resizeObserver.observe(containerRef.current);
 
     // Animation Loop
     let clock = new THREE.Clock();
@@ -394,6 +437,7 @@ export const EnterpriseCanvas: React.FC<Props> = ({
       dom.removeEventListener('click', onClick);
       dom.removeEventListener('wheel', onWheel);
       window.removeEventListener('resize', onResize);
+      resizeObserver.disconnect();
       if (renderer.domElement && dom.contains(renderer.domElement)) {
         dom.removeChild(renderer.domElement);
       }
@@ -424,6 +468,9 @@ export const EnterpriseCanvas: React.FC<Props> = ({
       : effectiveNodes.filter(n => n.layer === activeLayerFilter);
 
     const filteredNodeIds = new Set(filteredNodes.map(n => n.id));
+    // Layout over every node, so positions stay put when a layer filter is applied
+    const { positions: layout, extent } = layoutTopology(effectiveNodes);
+    fitCameraFnRef.current?.(Math.max(15, Math.min(64, extent * 1.8 + 8)));
 
     // Construct each node with Codex-grade architectural meshes
     filteredNodes.forEach(node => {
@@ -435,10 +482,8 @@ export const EnterpriseCanvas: React.FC<Props> = ({
       nodeGroup.userData = { isDynamicNode: true, nodeId: node.id };
 
       // Base spatial coordinates
-      const posX = node.position.x;
-      const posY = Math.max(0, node.position.y * 0.4); // ground-anchored isometric elevation
-      const posZ = node.position.z;
-      nodeGroup.position.set(posX, posY, posZ);
+      const place = layout.get(node.id) ?? { x: node.position.x, z: node.position.z, slot: 0 };
+      nodeGroup.position.set(place.x, 0, place.z);
 
       let topY = 1.0;
 
@@ -629,7 +674,8 @@ export const EnterpriseCanvas: React.FC<Props> = ({
 
       // --- FLOATING 3D TEXT BILLBOARD ---
       const labelSprite = createTextSprite(node.name, '#ffffff');
-      labelSprite.position.set(0, topY + 0.7, 0);
+      // Alternate label heights along a row so long names never sit on top of each other
+      labelSprite.position.set(0, topY + 0.7 + (place.slot % 2) * 0.9, 0);
       nodeGroup.add(labelSprite);
 
       scene.add(nodeGroup);
@@ -643,8 +689,10 @@ export const EnterpriseCanvas: React.FC<Props> = ({
       const toNode = effectiveNodes.find(n => n.id === edge.toId);
       if (!fromNode || !toNode) return;
 
-      const p1 = new THREE.Vector3(fromNode.position.x, Math.max(0, fromNode.position.y * 0.4) + 0.6, fromNode.position.z);
-      const p2 = new THREE.Vector3(toNode.position.x, Math.max(0, toNode.position.y * 0.4) + 0.6, toNode.position.z);
+      const a = layout.get(fromNode.id) ?? { x: fromNode.position.x, z: fromNode.position.z };
+      const b = layout.get(toNode.id) ?? { x: toNode.position.x, z: toNode.position.z };
+      const p1 = new THREE.Vector3(a.x, 0.6, a.z);
+      const p2 = new THREE.Vector3(b.x, 0.6, b.z);
 
       // Create gentle curved connection arc
       const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
@@ -695,9 +743,9 @@ export const EnterpriseCanvas: React.FC<Props> = ({
   };
 
   return (
-    <div className="relative w-full h-full min-h-[480px] bg-dark-950 rounded-xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col">
+    <div className="relative w-full h-full min-h-[320px] bg-dark-950 rounded-xl overflow-hidden border border-slate-800 shadow-2xl flex flex-col">
       {/* 3D WebGL Canvas Viewport */}
-      <div ref={containerRef} className="w-full h-full flex-1 relative select-none">
+      <div ref={containerRef} className="w-full flex-1 min-h-0 relative select-none">
         {/* Top Left: LIVE ENTERPRISE MODEL Pill Badge (Codex-inspired) */}
         <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-dark-900/80 backdrop-blur-md px-3.5 py-1.5 rounded-lg border border-slate-700/60 shadow-lg">
           <Layers className="w-3.5 h-3.5 text-cyan-400" />
@@ -737,8 +785,9 @@ export const EnterpriseCanvas: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Bottom Left: Architecture Planes Filter Tabs */}
-        <div className="absolute bottom-4 left-4 z-10 flex flex-wrap items-center gap-1.5 bg-dark-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-xs font-mono shadow-lg">
+        {/* Bottom strip: planes filter and status legend wrap together instead of overlapping */}
+        <div className="absolute bottom-3 left-3 right-3 z-10 flex flex-wrap items-end justify-between gap-2 pointer-events-none">
+        <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 bg-dark-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-xs font-mono shadow-lg">
           <span className="text-slate-400 text-[11px] mr-1 hidden sm:inline">{t('canvas.planes')}</span>
           {(['ALL', 'BUSINESS', 'APPLICATION', 'DATA', 'INFRASTRUCTURE'] as const).map(layer => (
             <button
@@ -756,8 +805,8 @@ export const EnterpriseCanvas: React.FC<Props> = ({
           ))}
         </div>
 
-        {/* Bottom Right: Status Legend */}
-        <div className="absolute bottom-4 right-4 z-10 hidden md:flex items-center gap-3 bg-dark-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-[11px] font-mono shadow-lg">
+        {/* Status legend */}
+        <div className="pointer-events-auto hidden sm:flex items-center gap-3 bg-dark-900/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-800 text-[11px] font-mono shadow-lg">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
             <span className="text-slate-300">{t('canvas.legend.healthy')}</span>
@@ -770,6 +819,7 @@ export const EnterpriseCanvas: React.FC<Props> = ({
             <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]" />
             <span className="text-slate-300">{t('canvas.legend.critical')}</span>
           </div>
+        </div>
         </div>
 
         {/* Hover Tooltip */}
@@ -798,10 +848,11 @@ export const EnterpriseCanvas: React.FC<Props> = ({
         )}
       </div>
 
-      {/* Keyboard-accessible list of elements (the WebGL scene is mouse-only) */}
+      {/* Keyboard-accessible list of elements (the WebGL scene is mouse-only); the side panel has its own */}
+      {!sidePanel && (
       <div className="border-t border-slate-800 bg-dark-900/90 px-3 py-2 flex items-center gap-2 overflow-x-auto text-[11px] font-mono">
         <span className="text-slate-500 shrink-0">{t('canvas.elements')}</span>
-        {effectiveNodes.map(node => (
+        {effectiveNodes.filter(n => activeLayerFilter === 'ALL' || n.layer === activeLayerFilter).map(node => (
           <button
             key={node.id}
             onClick={() => onSelectNode(selectedNodeId === node.id ? null : node)}
@@ -821,9 +872,16 @@ export const EnterpriseCanvas: React.FC<Props> = ({
         ))}
       </div>
 
+      )}
+
       {/* Selected Node Deep Inspector Drawer */}
-      {selectedNode && (
-        <div className="border-t border-slate-800 bg-dark-900/95 p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-slideUp">
+      {selectedNode && !sidePanel && (
+        // Floating over the map: it no longer squeezes the 3D view or gets cut off below it
+        <div
+          role="region"
+          aria-label={selectedNode.name}
+          className="absolute top-16 right-3 z-20 w-[min(24rem,calc(100%-1.5rem))] max-h-[calc(100%-9rem)] overflow-y-auto rounded-xl border border-slate-700 bg-dark-900/95 backdrop-blur-md shadow-2xl p-4 flex flex-col items-start gap-3 animate-slideUp"
+        >
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <h3 className="font-bold text-slate-100 text-base">{selectedNode.name}</h3>

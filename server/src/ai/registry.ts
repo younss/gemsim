@@ -40,16 +40,23 @@ export class AIRegistry {
       process.env.OPENAI_API_KEY || '',
       process.env.OPENAI_MODEL || 'gpt-4o-mini'
     );
+    const custom = new OpenAIProvider(
+      process.env.CUSTOM_AI_API_KEY || '',
+      process.env.CUSTOM_AI_MODEL || '',
+      process.env.CUSTOM_AI_BASE_URL || 'https://api.mistral.ai/v1',
+      'custom'
+    );
     const fallback = new FallbackProvider();
 
     this.providers.set('ollama', ollama);
     this.providers.set('gemini', gemini);
     this.providers.set('claude', claude);
     this.providers.set('openai', openai);
+    this.providers.set('custom', custom);
     this.providers.set('fallback', fallback);
 
     // Initialize Circuit Breakers (3 failures -> 60s cooldown)
-    const providerTypes: AIProviderType[] = ['ollama', 'gemini', 'claude', 'openai', 'fallback'];
+    const providerTypes: AIProviderType[] = ['ollama', 'gemini', 'claude', 'openai', 'custom', 'fallback'];
     for (const t of providerTypes) {
       this.circuitBreakers.set(
         t,
@@ -86,6 +93,13 @@ export class AIRegistry {
         apiKey: process.env.OPENAI_API_KEY || '',
         enabled: Boolean(process.env.OPENAI_API_KEY),
       },
+      custom: {
+        type: 'custom',
+        model: process.env.CUSTOM_AI_MODEL || '',
+        baseUrl: process.env.CUSTOM_AI_BASE_URL || 'https://api.mistral.ai/v1',
+        apiKey: process.env.CUSTOM_AI_API_KEY || '',
+        enabled: Boolean(process.env.CUSTOM_AI_BASE_URL && process.env.CUSTOM_AI_MODEL),
+      },
       fallback: {
         type: 'fallback',
         model: 'heuristic-v1',
@@ -101,6 +115,8 @@ export class AIRegistry {
       this.activeProviderType = 'gemini';
     } else if (process.env.OPENAI_API_KEY) {
       this.activeProviderType = 'openai';
+    } else if (process.env.CUSTOM_AI_BASE_URL && process.env.CUSTOM_AI_MODEL) {
+      this.activeProviderType = 'custom';
     } else if (process.env.OLLAMA_BASE_URL) {
       this.activeProviderType = 'ollama';
     } else {
@@ -123,7 +139,7 @@ export class AIRegistry {
           this.cachedOllamaModels = health.models || [];
 
           // If no cloud API key was configured, switch to Ollama as the active local engine!
-          if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY) {
+          if (!process.env.GEMINI_API_KEY && !process.env.OPENAI_API_KEY && !process.env.CUSTOM_AI_BASE_URL) {
             this.activeProviderType = 'ollama';
             console.log(`[AIRegistry] Auto-activated local Ollama with model '${this.configs.ollama.model}' at ${this.configs.ollama.baseUrl}`);
           }
@@ -214,8 +230,8 @@ export class AIRegistry {
       provider.setConfig(current.apiKey, current.model);
     } else if (type === 'claude' && provider instanceof ClaudeProvider) {
       provider.setConfig(current.apiKey, current.model);
-    } else if (type === 'openai' && provider instanceof OpenAIProvider) {
-      provider.setConfig(current.apiKey, current.model);
+    } else if ((type === 'openai' || type === 'custom') && provider instanceof OpenAIProvider) {
+      provider.setConfig(current.apiKey, current.model, current.baseUrl);
     }
   }
 

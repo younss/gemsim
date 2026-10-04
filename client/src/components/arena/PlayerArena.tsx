@@ -5,7 +5,7 @@
 // ============================================================================
 
 import React, { useState } from 'react';
-import { SimulationSession, Team, Scenario, TeamDecision, GovernancePosture, MarketDecision } from '../../types/index';
+import { SimulationSession, Team, Scenario, TeamDecision, GovernancePosture, MarketDecision, EnterpriseLayer } from '../../types/index';
 import { EnterpriseCanvas } from '../3d/EnterpriseCanvas';
 import { StakeholderWarRoom } from '../stakeholder/StakeholderWarRoom';
 import { api } from '../../services/api';
@@ -33,6 +33,7 @@ import { MarketPanel, PnL } from './MarketPanel';
 import { CoachPanel } from './CoachPanel';
 import { WhatIfPanel } from './WhatIfPanel';
 import { PilotQuiz } from './PilotQuiz';
+import { MapSidePanel } from './MapSidePanel';
 import { BOARD_MANDATE_EFFECTS } from '../../../../server/src/engine/rules';
 import { useSimulationStore } from '../../stores/useSimulationStore';
 import { useHelpStore } from '../../stores/useHelpStore';
@@ -87,6 +88,8 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
   const [isResolving, setIsResolving] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
   const [isBriefingOpen, setIsBriefingOpen] = useState(false);
+  const [mapSelection, setMapSelection] = useState<string | null>(null);
+  const [mapLayer, setMapLayer] = useState<EnterpriseLayer | 'ALL'>('ALL');
   const [selectedRadarQuarter, setSelectedRadarQuarter] = useState<number>(session.currentRound || 1);
 
   const updateTeam = useSimulationStore(state => state.updateTeam);
@@ -497,8 +500,22 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
 
       {/* 3D map */}
       {activeTab === '3D' && (
-        <div className="h-[600px] w-full" data-tour="map">
-          <EnterpriseCanvas topology={scenario.topology} nodeHealthOverrides={team.nodeHealthOverrides} layerLabels={vocab.layers} />
+        // Map on half the width, the element list or details on the other half (stacked on small screens)
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour="map">
+          <div className="h-[420px]">
+            <EnterpriseCanvas
+              topology={scenario.topology}
+              nodeHealthOverrides={team.nodeHealthOverrides}
+              layerLabels={vocab.layers}
+              selectedNodeId={mapSelection}
+              onSelectNode={node => setMapSelection(node?.id ?? null)}
+              onLayerChange={setMapLayer}
+              sidePanel
+            />
+          </div>
+          <div className="lg:h-[420px] min-h-0">
+            <MapSidePanel scenario={scenario} team={team} layer={mapLayer} selectedNodeId={mapSelection} onSelect={setMapSelection} />
+          </div>
         </div>
       )}
 
@@ -1037,7 +1054,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
 
       <ExecutiveBriefingModal isOpen={isBriefingOpen} onClose={() => setIsBriefingOpen(false)} scenario={scenario} session={session} team={team} />
 
-      {tutorialActive && <TutorialTour onTabChange={setActiveTab} isSolo={isSolo} hasMarket={!!scenario.market} objectiveCount={outcome.objectives.length} />}
+      {tutorialActive && <TutorialTour onTabChange={setActiveTab} isSolo={isSolo} hasMarket={!!scenario.market} objectiveCount={outcome.objectives.length} totalRounds={session.totalRounds} />}
     </div>
   );
 };

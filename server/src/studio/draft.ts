@@ -85,17 +85,18 @@ export interface CaseDraft {
   };
 }
 
-export const MINIMUM = { nodes: 6, stakeholders: 4, initiatives: 6, crises: 4, answers: 2 };
+export const MINIMUM = { nodes: 6, stakeholders: 4, initiatives: 6, answers: 2 }; // one crisis per quarter on top
 const MAX_NODES = 10; // a readable map, and run costs in proportion to the case
 
-export function authorSystemPrompt(domain: ScenarioDomain, withMarket: boolean): string {
+export function authorSystemPrompt(domain: ScenarioDomain, withMarket: boolean, rounds = 4): string {
+  const swan = rounds >= 3 ? 3 : rounds;
   return `You are the author of business-school case studies and executive simulations.
 Write a complete, realistic case from the user's brief. You write the STORY and you QUALIFY each element in fixed categories; you never invent effect numbers (a calculation engine sets them from your qualifications).
 
 Rules:
 - Write every text in the language of the brief (French brief → French text). Fictional people and fictional companies only; never real brands.
 - Domain: ${domain}. ${DOMAIN_GUIDANCE[domain] ?? ''}
-- At least ${MINIMUM.nodes} nodes, ${MINIMUM.stakeholders} stakeholders with clearly different priorities (finance, speed, rigour, compliance), exactly ${MINIMUM.crises} crises (one per quarter, quarter 3 is a black swan) with 2 or 3 answers each, and at least ${MINIMUM.initiatives} initiatives.
+- The case lasts ${rounds} quarter(s). At least ${MINIMUM.nodes} nodes, ${MINIMUM.stakeholders} stakeholders with clearly different priorities (finance, speed, rigour, compliance), exactly ${rounds} crises (one per quarter, quarter ${swan} is a black swan) with 2 or 3 answers each, and at least ${MINIMUM.initiatives} initiatives.
 - Initiatives: at least one TRANSFORMATION (deep, slow, lasting), two or more IMPROVEMENT, at most one QUICK_WIN, and exactly one TRAP (tempting shortcut that backfires). Category must be one of: ${INITIATIVE_CATEGORIES.join(', ')}.
 - Crisis answers: each crisis offers a QUICK_FIX (fast, cheap, leaves the root cause) and a LASTING answer (slower, costlier, fixes the cause); a third answer may be AVOIDANCE (ignore, postpone, deny). Say who favours or opposes each answer (stakeholder ids).
 - startingState: the SEVERITY of each problem today (LOW, MODERATE, HIGH, SEVERE): debt = how heavily accumulated debt/ageing weighs, capacity = how short the organisation is of delivery capacity, resilience = how fragile it is to shocks, compliance = how serious its compliance/safety problems are, cash = how tight the programme's money is.
@@ -133,12 +134,12 @@ ${prompt.customDirectives ? `\nAuthor's directives: ${prompt.customDirectives}` 
 }
 
 /** What the draft still lacks, as instructions for a completion request. */
-export function missingParts(draft: CaseDraft, withMarket: boolean): string[] {
+export function missingParts(draft: CaseDraft, withMarket: boolean, rounds = 4): string[] {
   const missing: string[] = [];
   if (draft.nodes.length < MINIMUM.nodes) missing.push(`${MINIMUM.nodes - draft.nodes.length} more nodes`);
   if (draft.stakeholders.length < MINIMUM.stakeholders) missing.push(`${MINIMUM.stakeholders - draft.stakeholders.length} more stakeholders with different priorities`);
   const quarters = new Set(draft.crises.map(c => c.quarter));
-  for (let q = 1; q <= MINIMUM.crises; q++) if (!quarters.has(q)) missing.push(`the crisis of quarter ${q}`);
+  for (let q = 1; q <= rounds; q++) if (!quarters.has(q)) missing.push(`the crisis of quarter ${q}`);
   for (const c of draft.crises) if (c.answers.length < MINIMUM.answers) missing.push(`answers for the crisis "${c.title}" (a QUICK_FIX and a LASTING one)`);
   const kinds = draft.initiatives.map(i => i.kind);
   if (!kinds.includes('TRANSFORMATION')) missing.push('one TRANSFORMATION initiative');

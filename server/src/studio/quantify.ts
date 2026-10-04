@@ -83,7 +83,7 @@ const resolveId = (ids: Set<string>, raw: string) => {
 export function quantify(
   draft: CaseDraft,
   judgment: Judgment,
-  meta: { domain: ScenarioDomain; difficulty: Scenario['difficulty']; withMarket: boolean; author: string }
+  meta: { domain: ScenarioDomain; difficulty: Scenario['difficulty']; withMarket: boolean; author: string; rounds?: number }
 ): { scenario: Scenario; notes: QuantifyNotes } {
   const forced: string[] = [];
   const st = judgment.startingState;
@@ -233,9 +233,11 @@ export function quantify(
 
   // Crises: one per quarter, each with a lasting and a quick answer
   const complianceChampion = champion('regulatoryCompliance');
+  const rounds = Math.max(1, Math.min(4, meta.rounds ?? 4));
   const roundEvents: RoundEvent[] = [...draft.crises]
+    .filter(c => c.quarter <= rounds)
     .sort((a, b) => a.quarter - b.quarter)
-    .slice(0, 4)
+    .slice(0, rounds)
     .map(c => {
       const sev = CRISIS[c.severity];
       const answerKinds = c.answers.map(a => judgment.answerKinds[a.id] ?? a.kind);
@@ -357,7 +359,7 @@ export function quantify(
       maxTCOBudget: Math.round(baselineMetrics.tco + budgetRemaining * 1.7),
       targetCapabilitiesModernized: Math.min(nodes.length, modernized + 3),
     },
-    totalRounds: 4,
+    totalRounds: rounds,
     maxInitiativesPerRound: 2,
     ...(market ? { market } : {}),
     topology: { nodes, edges },

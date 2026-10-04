@@ -546,7 +546,8 @@ export interface ProposalEvaluation {
   decisionEngine?: string; // System One model that made the decision, when used
 }
 
-export type AIProviderType = 'ollama' | 'gemini' | 'claude' | 'openai' | 'fallback';
+// 'custom' = any OpenAI-compatible API (Mistral, Groq, OpenRouter, LM Studio...) with its own address and key
+export type AIProviderType = 'ollama' | 'gemini' | 'claude' | 'openai' | 'custom' | 'fallback';
 
 export interface AIProviderConfig {
   type: AIProviderType;

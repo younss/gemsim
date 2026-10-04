@@ -53,6 +53,7 @@ export async function runAuthoringPipeline(
   const registry = AIRegistry.getInstance();
   const domain = prompt.domain ?? 'IT';
   const withMarket = !!prompt.withMarket;
+  const rounds = Math.max(1, Math.min(4, prompt.rounds ?? 4));
   const language: 'fr' | 'en' = /[éèàùç]|\b(le|la|les|des|une|pour)\b/i.test(prompt.businessChallenge) ? 'fr' : 'en';
   const options = { temperature: 0.5, maxTokens: 8000, responseFormat: 'json' as const, timeoutMs: getAITimeout('STUDIO'), reasoning: false };
 
@@ -61,7 +62,7 @@ export async function runAuthoringPipeline(
   const { result: raw, usedProvider } = await registry.executeWithFallback(provider =>
     provider.generateStream(
       [
-        { role: 'system', content: authorSystemPrompt(domain, withMarket) },
+        { role: 'system', content: authorSystemPrompt(domain, withMarket, rounds) },
         { role: 'user', content: authorUserPrompt(prompt) },
       ],
       chunk => events.onChunk?.(chunk),
@@ -78,7 +79,7 @@ export async function runAuthoringPipeline(
     const { result } = await registry.executeWithFallback(provider =>
       provider.generateJSON<any>(
         [
-          { role: 'system', content: authorSystemPrompt(domain, withMarket) },
+          { role: 'system', content: authorSystemPrompt(domain, withMarket, rounds) },
           { role: 'user', content: authorUserPrompt(prompt) },
         ],
         options
@@ -90,7 +91,7 @@ export async function runAuthoringPipeline(
   // Completion: ask again only for what is missing
   const completions: string[][] = [];
   for (let i = 0; i < MAX_COMPLETIONS; i++) {
-    const missing = missingParts(draft, withMarket);
+    const missing = missingParts(draft, withMarket, rounds);
     if (!missing.length) break;
     completions.push(missing);
     events.onStage?.('completing', missing.join('; '));
@@ -98,7 +99,7 @@ export async function runAuthoringPipeline(
       const { result } = await registry.executeWithFallback(provider =>
         provider.generateJSON<any>(
           [
-            { role: 'system', content: authorSystemPrompt(domain, withMarket) },
+            { role: 'system', content: authorSystemPrompt(domain, withMarket, rounds) },
             { role: 'user', content: completionPrompt(draft, missing) },
           ],
           options
@@ -106,7 +107,7 @@ export async function runAuthoringPipeline(
       );
       const before = missing.length;
       draft = sanitizeDraft(parse(JSON.stringify(result)), language, draft);
-      if (missingParts(draft, withMarket).length === before) console.warn(`[Studio] Completion added nothing: ${JSON.stringify(result).slice(0, 200)}`);
+      if (missingParts(draft, withMarket, rounds).length === before) console.warn(`[Studio] Completion added nothing: ${JSON.stringify(result).slice(0, 200)}`);
     } catch (err: any) {
       console.warn(`[Studio] Completion request failed: ${err.message}`);
       break;
@@ -123,6 +124,7 @@ export async function runAuthoringPipeline(
     domain,
     difficulty: prompt.difficulty ?? 'INTERMEDIATE',
     withMarket,
+    rounds,
     author: `AI Studio (${usedProvider} + ${judgment.engine})`,
   });
 

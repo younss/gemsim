@@ -8,6 +8,7 @@ import React, { useState, useEffect } from 'react';
 import { AISettingsState, AIProviderType, AIProviderConfig } from '../../types/index';
 import { api } from '../../services/api';
 import { useI18n } from '../../i18n';
+import { SystemOnePanel } from './SystemOnePanel';
 import {
   Settings,
   Cpu,
@@ -50,6 +51,14 @@ export const SettingsModal: React.FC<Props> = ({
   const [openaiKey, setOpenaiKey] = useState('');
   const [openaiModel, setOpenaiModel] = useState('gpt-4o-mini');
 
+  // Any OpenAI-compatible API (Mistral, Groq, OpenRouter, LM Studio...)
+  const [customUrl, setCustomUrl] = useState('');
+  const [customKey, setCustomKey] = useState('');
+  const [customModel, setCustomModel] = useState('');
+
+  // System 2 writes (dialogue, cases, debriefs); System 1 judges (verdicts, votes)
+  const [tab, setTab] = useState<'S2' | 'S1'>('S2');
+
   const [testResults, setTestResults] = useState<Record<string, { ok: boolean; message: string; latencyMs: number }>>({});
   const [testingProvider, setTestingProvider] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState(false);
@@ -72,6 +81,10 @@ export const SettingsModal: React.FC<Props> = ({
         }
         if (data.providers.openai) {
           setOpenaiModel(data.providers.openai.model || 'gpt-4o-mini');
+        }
+        if (data.providers.custom) {
+          setCustomUrl(data.providers.custom.baseUrl || '');
+          setCustomModel(data.providers.custom.model || '');
         }
       });
     }
@@ -115,6 +128,10 @@ export const SettingsModal: React.FC<Props> = ({
           type: 'openai' as AIProviderType,
           config: { apiKey: openaiKey || undefined, model: openaiModel, enabled: Boolean(openaiKey) },
         },
+        {
+          type: 'custom' as AIProviderType,
+          config: { apiKey: customKey || undefined, baseUrl: customUrl || undefined, model: customModel, enabled: Boolean(customUrl && customModel) },
+        },
       ];
 
       const newSettings = await api.updateAISettings({
@@ -154,15 +171,41 @@ export const SettingsModal: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
+        {/* Two engines, configured separately */}
+        <div role="tablist" aria-label={t('settings.tabs')} className="px-5 pt-3 bg-dark-900 border-b border-slate-800 flex gap-1 font-mono text-xs">
+          {(['S2', 'S1'] as const).map(id => (
+            <button
+              key={id}
+              role="tab"
+              id={`settings-tab-${id}`}
+              aria-selected={tab === id}
+              aria-controls={`settings-panel-${id}`}
+              onClick={() => setTab(id)}
+              className={`px-4 py-2 rounded-t-lg border-b-2 -mb-px ${tab === id ? 'border-cyan-400 text-cyan-300 bg-dark-850' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+            >
+              <span className="font-bold">{t(id === 'S2' ? 'settings.tab.s2' : 'settings.tab.s1')}</span>
+              <span className="block text-[10px] text-slate-400">{t(id === 'S2' ? 'settings.tab.s2.hint' : 'settings.tab.s1.hint')}</span>
+            </button>
+          ))}
+        </div>
+
+        {tab === 'S1' && (
+          <div role="tabpanel" id="settings-panel-S1" aria-labelledby="settings-tab-S1" className="p-6 overflow-y-auto flex-1 text-xs">
+            <SystemOnePanel />
+          </div>
+        )}
+
+        {/* Body: System 2 */}
+        {tab === 'S2' && (
+        <div role="tabpanel" id="settings-panel-S2" aria-labelledby="settings-tab-S2" className="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
+          <p className="text-[11px] text-slate-400">{t('settings.s2.body')}</p>
           {/* Active Provider Selector */}
           <div>
             <label className="text-slate-300 font-bold uppercase tracking-wider text-[11px] font-mono block mb-2">
               {t('settings.active')}
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 font-mono">
-              {(['fallback', 'ollama', 'gemini', 'claude', 'openai'] as const).map(type => (
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 font-mono">
+              {(['fallback', 'ollama', 'gemini', 'claude', 'openai', 'custom'] as const).map(type => (
                 <button
                   key={type}
                   onClick={() => setActiveProvider(type)}
@@ -172,9 +215,9 @@ export const SettingsModal: React.FC<Props> = ({
                       : 'bg-dark-900 border-slate-800 text-slate-400 hover:border-slate-700'
                   }`}
                 >
-                  <div className="font-bold uppercase text-[11px]">{type}</div>
+                  <div className="font-bold uppercase text-[11px]">{type === 'custom' ? t('settings.custom.short') : type}</div>
                   <div className="text-[9px] text-slate-400 mt-0.5">
-                    {type === 'fallback' ? t('settings.kind.offline') : type === 'ollama' ? t('settings.kind.local') : t('settings.kind.cloud')}
+                    {type === 'fallback' ? t('settings.kind.offline') : type === 'ollama' ? t('settings.kind.local') : type === 'custom' ? t('settings.s1.providerHint.custom') : t('settings.kind.cloud')}
                   </div>
                 </button>
               ))}
@@ -320,9 +363,47 @@ export const SettingsModal: React.FC<Props> = ({
               />
             </div>
           </div>
-        </div>
 
-        {/* Footer */}
+          {/* Provider 5: any OpenAI-compatible API */}
+          <div className="p-4 rounded-xl bg-dark-900 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-slate-200 font-mono">{t('settings.custom')}</span>
+              <button
+                onClick={() => handleTestConnection('custom')}
+                disabled={testingProvider === 'custom'}
+                className="px-3 py-1 rounded bg-slate-800 hover:bg-slate-750 text-slate-300 border border-slate-700 font-mono flex items-center gap-1.5"
+              >
+                {testingProvider === 'custom' ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Activity className="w-3 h-3 text-cyan-400" />}
+                <span>{t('settings.test')}</span>
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400">{t('settings.custom.body')}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label htmlFor="custom-url" className="text-slate-400 block mb-1">{t('settings.s1.url')}</label>
+                <input id="custom-url" type="text" value={customUrl} onChange={e => setCustomUrl(e.target.value)} className="w-full bg-dark-800 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 font-mono" placeholder="https://api.mistral.ai/v1" />
+              </div>
+              <div>
+                <label htmlFor="custom-key" className="text-slate-400 block mb-1">{t('settings.s1.key')}</label>
+                <input id="custom-key" type="password" value={customKey} onChange={e => setCustomKey(e.target.value)} autoComplete="off" className="w-full bg-dark-800 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 font-mono" placeholder={settings?.providers.custom?.apiKey || '...'} />
+              </div>
+              <div>
+                <label htmlFor="custom-model" className="text-slate-400 block mb-1">{t('settings.model')}</label>
+                <input id="custom-model" type="text" value={customModel} onChange={e => setCustomModel(e.target.value)} className="w-full bg-dark-800 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 font-mono" placeholder="mistral-small-latest" />
+              </div>
+            </div>
+            {testResults['custom'] && (
+              <div className={`p-2 rounded text-[11px] font-mono flex items-center gap-2 ${testResults['custom'].ok ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                {testResults['custom'].ok ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                <span>{testResults['custom'].message} ({testResults['custom'].latencyMs}ms)</span>
+              </div>
+            )}
+          </div>
+        </div>
+        )}
+
+        {/* Footer (System 2; System 1 applies from its own tab) */}
+        {tab === 'S2' && (
         <div className="p-4 border-t border-slate-800 bg-dark-900 flex items-center justify-between">
           <span className="text-[11px] text-slate-500 font-mono">
             {t('settings.fallbackChain')}
@@ -343,6 +424,7 @@ export const SettingsModal: React.FC<Props> = ({
             </button>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

@@ -16,8 +16,44 @@ import {
   WSServerMessage,
   WSClientMessage,
 } from '../types/index';
+
 import type { WhatIfResult } from '../../../server/src/engine/whatif';
 import type { PipelineReport } from '../../../server/src/studio/report';
+
+export type SystemOneProvider = 'ollama' | 'gemini' | 'claude' | 'openai' | 'custom';
+
+/** An installed Ollama model; `decision` = native System 1 model such as Clef. */
+export interface SystemOneModel {
+  name: string;
+  decision: boolean;
+}
+
+export interface SystemOneConfig {
+  provider: SystemOneProvider;
+  baseUrl: string;
+  model: string;
+  apiKey?: string; // masked when read
+  timeoutMs: number;
+  enabled: boolean;
+}
+
+export interface SystemOneSettings extends SystemOneConfig {
+  circuit: string;
+  models: SystemOneModel[];
+  defaults: Record<SystemOneProvider, { baseUrl: string; model: string }>;
+}
+
+export interface SystemOneSample {
+  ok: boolean;
+  provider: SystemOneProvider;
+  native?: boolean;
+  model: string;
+  latencyMs: number;
+  message?: string;
+  verdict?: { choice: string; confidence: number };
+  effort?: number;
+  concession?: number;
+}
 
 export type { WhatIfResult, PipelineReport };
 
@@ -240,7 +276,7 @@ export const api = {
 
   // Game Studio
   async generateStudioScenarioStream(
-    prompt: { industry: string; businessChallenge: string; difficulty?: string; customDirectives?: string; domain?: string; withMarket?: boolean },
+    prompt: { industry: string; businessChallenge: string; difficulty?: string; customDirectives?: string; domain?: string; withMarket?: boolean; rounds?: number },
     onChunk: (text: string) => void,
     onStage?: (stage: string, detail?: string) => void
   ): Promise<{ scenario: Scenario; balance?: ScenarioBalanceSummary; pipeline?: PipelineReport }> {
@@ -360,6 +396,37 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    return res.json();
+  },
+
+  async getSystemOneSettings(): Promise<SystemOneSettings> {
+    const res = await apiFetch(`${API_BASE}/ai/systemone/settings`);
+    return res.json();
+  },
+
+  async updateSystemOneSettings(update: Partial<SystemOneConfig>): Promise<SystemOneSettings> {
+    const res = await apiFetch(`${API_BASE}/ai/systemone/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(update),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'System 1 settings failed');
+    return res.json();
+  },
+
+  async listSystemOneModels(baseUrl: string): Promise<SystemOneModel[]> {
+    const res = await apiFetch(`${API_BASE}/ai/systemone/models?baseUrl=${encodeURIComponent(baseUrl)}`);
+    return res.ok ? (await res.json()).models : [];
+  },
+
+  /** Runs the sample judgment with a candidate configuration, without applying it. */
+  async sampleSystemOne(candidate: Partial<SystemOneConfig>): Promise<SystemOneSample> {
+    const res = await apiFetch(`${API_BASE}/ai/systemone/sample`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(candidate),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'System 1 test failed');
     return res.json();
   },
 

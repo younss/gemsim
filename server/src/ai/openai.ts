@@ -1,6 +1,7 @@
 // ============================================================================
 // GEMSIM: OPENAI AI PROVIDER
-// Production BYOK Adapter for OpenAI (GPT-4o, GPT-4o-mini, etc.)
+// Production BYOK Adapter for OpenAI (GPT-4o, GPT-4o-mini, etc.) and for any
+// OpenAI-compatible API (Mistral, Groq, OpenRouter, LM Studio...) via its base URL
 // ============================================================================
 
 import { BaseAIProvider } from './base.js';
@@ -8,31 +9,46 @@ import { AIMessage, AIGenerateOptions } from './types.js';
 import { AIProviderType } from '../types/index.js';
 import { getAITimeout } from './timeout.js';
 
+const OPENAI_URL = 'https://api.openai.com/v1';
+
 export class OpenAIProvider extends BaseAIProvider {
-  public readonly providerType: AIProviderType = 'openai';
+  public readonly providerType: AIProviderType;
   private apiKey: string;
   private model: string;
+  private baseUrl: string;
 
-  constructor(apiKey: string = '', model: string = 'gpt-4o-mini') {
+  constructor(apiKey: string = '', model: string = 'gpt-4o-mini', baseUrl: string = OPENAI_URL, providerType: AIProviderType = 'openai') {
     super();
     this.apiKey = apiKey;
     this.model = model;
+    this.baseUrl = baseUrl.replace(/\/+$/, '');
+    this.providerType = providerType;
   }
 
-  public setConfig(apiKey?: string, model?: string) {
+  public setConfig(apiKey?: string, model?: string, baseUrl?: string) {
     if (apiKey !== undefined) this.apiKey = apiKey;
     if (model) this.model = model;
+    if (baseUrl) this.baseUrl = baseUrl.replace(/\/+$/, '');
+  }
+
+  /** A local OpenAI-compatible server (LM Studio, vLLM...) may need no key; OpenAI itself always does. */
+  private get keyRequired(): boolean {
+    return this.baseUrl === OPENAI_URL;
+  }
+
+  private headers(): Record<string, string> {
+    return { 'Content-Type': 'application/json', ...(this.apiKey ? { Authorization: `Bearer ${this.apiKey}` } : {}) };
   }
 
   public async checkHealth(): Promise<{ ok: boolean; message: string; latencyMs: number }> {
-    if (!this.apiKey) {
+    if (!this.apiKey && this.keyRequired) {
       return { ok: false, message: 'OpenAI API key not configured', latencyMs: 0 };
     }
 
     const start = Date.now();
     try {
-      const response = await fetch('https://api.openai.com/v1/models', {
-        headers: { Authorization: `Bearer ${this.apiKey}` },
+      const response = await fetch(`${this.baseUrl}/models`, {
+        headers: this.headers(),
         signal: AbortSignal.timeout(5000),
       });
       const latencyMs = Date.now() - start;
@@ -40,7 +56,7 @@ export class OpenAIProvider extends BaseAIProvider {
       if (response.ok) {
         return {
           ok: true,
-          message: `OpenAI API reachable (Target Model: ${this.model})`,
+          message: `API reachable at ${this.baseUrl} (Target Model: ${this.model})`,
           latencyMs,
         };
       }
@@ -55,7 +71,7 @@ export class OpenAIProvider extends BaseAIProvider {
   }
 
   public async generateText(messages: AIMessage[], options?: AIGenerateOptions): Promise<string> {
-    if (!this.apiKey) {
+    if (!this.apiKey && this.keyRequired) {
       throw new Error('OpenAI API Key is missing. Configure it in Settings.');
     }
 
@@ -79,12 +95,9 @@ export class OpenAIProvider extends BaseAIProvider {
     }
 
     const timeoutMs = getAITimeout('DEFAULT', options?.timeoutMs);
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: this.headers(),
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -103,7 +116,7 @@ export class OpenAIProvider extends BaseAIProvider {
     onChunk: (chunk: string) => void,
     options?: AIGenerateOptions
   ): Promise<string> {
-    if (!this.apiKey) {
+    if (!this.apiKey && this.keyRequired) {
       throw new Error('OpenAI API Key is missing.');
     }
 
@@ -116,12 +129,9 @@ export class OpenAIProvider extends BaseAIProvider {
     }
 
     const streamTimeoutMs = getAITimeout('CHAT', options?.timeoutMs);
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(`${this.baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: this.headers(),
       body: JSON.stringify({
         model: this.model,
         messages: formattedMessages,

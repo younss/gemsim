@@ -15,12 +15,12 @@
 **GemSim** puts cross-functional corporate teams at the helm of realistic, high-stakes multi-round enterprise scenarios. Facing legacy technical debt, aggressive market challengers, regulatory audits, and budget constraints, teams must balance rapid feature velocity against architectural resilience across discrete execution cycles (Quarters).
 
 The platform features:
-- **Interactive 3D Spatial Enterprise Journey**: 4-layer 3D topology canvas (Business, Application, Data, Infrastructure) with live particle telemetry, latency bottlenecks, and health degradation.
+- **Interactive 3D Spatial Enterprise Journey**: 4-layer 3D topology canvas (Business, Application, Data, Infrastructure) with live particle telemetry, latency bottlenecks, and health degradation. In the arena the map takes half the width; the other half lists the elements of the selected plane (most fragile first) or the selected element's details.
 - **Autonomous AI Stakeholders**: Executive personas (CFO, VP Product, Chief Enterprise Architect, Compliance Officer) with dynamic trust scoring, hidden agendas, and live proposal negotiations.
 - **AI-Powered Game Studio**: Plain-text generative scenario authoring module capable of synthesizing validated arenas, stakeholders, topology graphs, and round timelines on demand.
 - **Facilitator War Room Cockpit**: Real-time telemetry monitoring all competing teams, master timer controls, black swan crisis injection, and post-simulation debriefing radar scorecards.
 - **Pluggable AI Abstraction Layer ("Bring Your Own AI")**: Seamless runtime switching between Local Ollama (Gemma 4/2), Google Gemini, Anthropic Claude, OpenAI, and a zero-dependency heuristic fallback engine.
-- **Hybrid System 1 / System 2 Decisions**: A non-autoregressive decision model (Clef-flash, Jev-compatible) decides stakeholder verdicts, trust shifts and board votes as calibrated probabilities; the LLM only writes the dialogue.
+- **Hybrid System 1 / System 2 Decisions**: A non-autoregressive decision model (Clef-flash, Jev-compatible) decides stakeholder verdicts, trust shifts and board votes as calibrated probabilities; the LLM only writes the dialogue. Each system is configured separately in the admin console (Ollama, Gemini, Claude, OpenAI or any OpenAI-compatible API), and System 1 models can be compared side by side on the same judgment.
 - **Competitive market & P&L**: teams sell into the same customer segments, against each other and scripted rivals. Customers choose on price, quality, capacity, reliability and marketing, so debt, resilience and compliance become measurable competitive advantages. Revenue, margin, market share and cumulative profit feed the verdict.
 - **AI-era learning loop**: a coach explains every quarter from the engine's own breakdown (the LLM only rephrases it), a "what if" replay changes one past decision and replays the whole game exactly, an automatic debrief gives the facilitator each team's decisive quarters and the questions to ask, and executives remember the promises a team kept or broke.
 - **Any business case, not only IT**: each scenario declares a domain (IT, industrial, market expansion, sourcing/offshore, generic) and its own vocabulary, so a plant acquisition talks about *asset ageing* and *production capacity* while the engine stays the same.
@@ -97,10 +97,10 @@ Design, synthesize, and validate playable enterprise simulations from plain-text
   <img src="docs/screenshots/studio-generation.gif" alt="GemSim AI Game Studio Generation" width="95%" style="border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);" />
 </p>
 
-| 3D Topology Preview & Synthesis | 👥 C-Suite Personas & Agendas | 📅 4-Quarter Timeline & Fog of War |
+| 3D Topology Preview & Synthesis | 👥 C-Suite Personas & Agendas | 📅 Quarter Timeline (1 to 4) & Fog of War |
 | :---: | :---: | :---: |
 | <img src="docs/screenshots/studio-scenario-inspector.png" alt="Studio 3D Topology Preview" width="100%" /> | <img src="docs/screenshots/studio-stakeholders.png" alt="Studio Stakeholder Personas" width="100%" /> | <img src="docs/screenshots/studio-timeline.png" alt="Studio Strategic Timeline" width="100%" /> |
-| *Interactive 3D WebGL preview of generated architecture nodes and layer planes.* | *Psychological profiling, cognitive biases, and hidden agendas (Dr. Sarah Lin & David Thornton).* | *Strategic evolution across Q1-Q4 with Author View vs Player Fog of War toggles.* |
+| *Interactive 3D WebGL preview of generated architecture nodes and layer planes.* | *Psychological profiling, cognitive biases, and hidden agendas (Dr. Sarah Lin & David Thornton).* | *Strategic evolution quarter by quarter (1 to 4) with Author View vs Player Fog of War toggles.* |
 
 - **Natural Language Synthesis**: Enter industry briefs or complex multi-paragraph corporate cases (Healthcare EHR, Core Banking Modernization, Mirage Offshore Sourcing).
 - **5-Phase Generation Pipeline**: Progressive real-time compilation from topology graph and competing stakeholder dialectics to crisis roadmaps and mathematical constraint validation.
@@ -172,10 +172,13 @@ graph TD
    - Built-in automatic fallback cascade ensuring 100% operational resilience.
 3. **System One Decision Layer (`server/src/ai/systemone.ts`, `server/src/ai/stakeholder-judge.ts`)**:
    - Typed `noul` / `choice` / `score` judgments from a non-autoregressive model; decides negotiation outcomes before the LLM writes dialogue.
+   - Configured apart from System 2: an Ollama decision model (Clef) natively, or a general LLM (any other Ollama model, Gemini, Claude, OpenAI, OpenAI-compatible) that emulates the same typed answers in JSON.
 4. **AI Game Studio (`server/src/ai/studio-generator.ts`)**:
    - Synthesizes validated, playable scenario schemas from natural language prompts.
 5. **Interactive 3D Topology Canvas (`client/src/components/3d/`)**:
    - High-performance Three.js spatial graph with raycast node inspection, isometric layering, and animated particle data pipelines.
+   - Ground layout computed per layer (one row per plane, columns wider than a label, staggered labels) and camera fitted to the layout, so buildings and labels never overlap; the renderer follows its container (ResizeObserver). The plane filter and the status legend share one wrapping strip.
+   - In the arena (`client/src/components/arena/MapSidePanel.tsx`) the map sits in a two-column grid next to a side panel: the elements of the selected plane, sorted by debt, or the selected element's health, debt, flow, cost and dependencies.
 6. **Facilitator Telemetry Cockpit (`client/src/components/warroom/`)**:
    - Multi-team synchronization, timer controls, live event injection, comparative radar chart, rankings by win-condition score, and JSON / Markdown debrief exports.
 7. **Client State (`client/src/stores/useSimulationStore.ts`)**:
@@ -280,7 +283,7 @@ A language model is good at writing a case and bad at inventing coherent numbers
 
 | Step | Who | What |
 | :--- | :--- | :--- |
-| ① Write | **System 2** (active LLM) | Story, context, map elements (with a condition: modern, ageing, fragile, critical), executives, one crisis per quarter with its answers, initiatives, market segments with **real prices**, fictional rivals, vocabulary, currency. Each element is **qualified** in closed categories (answer = quick fix / lasting / avoidance; initiative = transformation / improvement / quick win / trap, small / medium / large; severity of each starting problem). **No effect numbers.** What is missing (4 executives, 6 initiatives with a transformation and a trap, 4 crises with 2+ answers, 6 elements) is asked again, and only that; an unusable answer is written again once. |
+| ① Write | **System 2** (active LLM) | Story, context, map elements (with a condition: modern, ageing, fragile, critical), executives, one crisis per quarter with its answers, initiatives, market segments with **real prices**, fictional rivals, vocabulary, currency. Each element is **qualified** in closed categories (answer = quick fix / lasting / avoidance; initiative = transformation / improvement / quick win / trap, small / medium / large; severity of each starting problem). **No effect numbers.** What is missing (4 executives, 6 initiatives with a transformation and a trap, one crisis per quarter of the chosen length (1 to 4) with 2+ answers, 6 elements) is asked again, and only that; an unusable answer is written again once. |
 | ② Judge | **System 1** (Clef, one forward pass, typed answers with probabilities) | Re-classifies every crisis answer, judges each initiative with three yes/no questions (shortcut that backfires? quick gain without lasting effect? more than a quarter of deep change?) and its size, scores each executive's priorities (finance, speed, rigour, compliance) from their biography, and the severity of the starting problems from the context. Above 70% confidence the judge overrides the author's tag; below, the author's tag stays and the element is listed for review. Batches of 10 questions with a 2-minute limit and one retry; a batch that still fails leaves only its elements to the author. Without System 1 the author's tags and the author's own view of each executive's priorities are used. |
 | ③ Compute | **Engine** | Calibrated templates turn categories into numbers, so effects always agree with the text (quick fix: cheap, adds debt; lasting: costlier, removes debt and repairs the element; trap: big gain now, debt, fragility and non-compliance later; transformation: two quarters). Executives' weights come from System 1's scores. Prices become thousands, the market is scaled to the organisation's run costs and calibrated. One transformation and exactly one trap are guaranteed (when several initiatives look like traps, the author's trap is kept, otherwise the one System 1 believes most). |
 | ④ Calibrate | **Engine** | Plays the case (beam search, disciplined, prudent and shortcut bots) and moves targets — or the starting cash when the reference play ends insolvent — until the requested difficulty holds: Entry/Intermediate = disciplined play wins; Executive = only an optimised path wins and disciplined play reaches a partial success; Crisis chief = only an optimised path wins. Shortcuts must lose. |
@@ -429,7 +432,9 @@ export interface AIProvider {
    - Anthropic messages API supporting `claude-3-5-sonnet-20241022`.
 4. **OpenAI (BYOK)**:
    - JSON-object structured outputs supporting `gpt-4o` and `gpt-4o-mini`.
-5. **Deterministic Heuristic Engine (Offline Zero-Dependency Fallback)**:
+5. **Other OpenAI-compatible API (BYOK)**:
+   - Mistral, Groq, OpenRouter, Together, LM Studio, vLLM…: API address (`CUSTOM_AI_BASE_URL`, usually ending in `/v1`), key (`CUSTOM_AI_API_KEY`, optional for a local server) and model (`CUSTOM_AI_MODEL`).
+6. **Deterministic Heuristic Engine (Offline Zero-Dependency Fallback)**:
    - Built-in heuristic engine providing coherent, roleplay-accurate dialogues and scenario schemas without external keys or downloads.
 
 ---
@@ -440,7 +445,8 @@ Stakeholder negotiations split the work between two kinds of model:
 
 | | System 1: decision model | System 2: LLM |
 | :--- | :--- | :--- |
-| **Model** | Clef-flash (or any Jev/SystemOne-compatible model) | Ollama, Gemini, Claude, OpenAI, or the heuristic fallback |
+| **Model** | Clef-flash (or any Jev/SystemOne-compatible model), or a general LLM emulating it | Ollama, Gemini, Claude, OpenAI, any OpenAI-compatible API, or the heuristic fallback |
+| **Configured in** | Settings › System 1 · judgments | Settings › System 2 · writing |
 | **Output** | Probabilities per option, zero generated tokens | Free text |
 | **Decides** | Verdict, trust delta, empathy / financial / strategic scores, low-effort and rehash detection | Nothing. It voices the decision in character (dialogue, rationale, concession) |
 
@@ -460,6 +466,19 @@ If the decision model is unreachable or disabled, GemSim falls back to the LLM-o
 
 `ProposalEvaluation` gains two optional fields: `verdictProbabilities` (the distribution) and `decisionEngine` (the model that decided).
 
+### Choosing and comparing System 1 models (admin console)
+
+The settings dialog has two tabs, one per engine. The **System 1 · judgments** tab sets the provider (Ollama, Gemini, Claude, OpenAI, Other OpenAI-compatible), model, API address, key and timeout, and switches System 1 off (the engine rules then decide). Clef is not a provider: it is an Ollama model.
+
+| Model | How it answers |
+| :--- | :--- |
+| **Ollama model with the `decision` capability** (Clef) | Native (`POST /v1/systemone`): one forward pass, calibrated probabilities, no text. The capability is read from Ollama (`/api/show`); these models come first in the list, marked "decision model". |
+| **Any other model** (other Ollama models, Gemini, Claude, OpenAI, Other) | Emulation: the same typed questions are sent as a prompt and the model answers with JSON probabilities, normalised into the same answers (`emulationPrompt`, `parseEmulation`). Slower and less calibrated than Clef, but any model can be tried. |
+
+**Tester ce modèle / Test this model** runs one fixed judgment (a cautious CFO weighs a 300 K$ request with a cost-cutting commitment) with the configuration on screen, **without applying it**, and adds a row to a comparison table: verdict, confidence, perceived effort, trade-off seen, time, and whether the answer was native or emulated. Example on a Mac: Clef-flash (native) 0.7 s once loaded, 5 s cold; gemma4:12b (emulated) 7 s; qwen3.5:9b (emulated) 4 s, and qwen accepts outright where the others accept with conditions. **Apply to System 1** switches the live game to it. Runtime changes last until the server restarts; the `.env` variables below are the permanent defaults.
+
+Endpoints (facilitator PIN for changes): `GET /api/ai/systemone/settings`, `POST /api/ai/systemone/settings`, `GET /api/ai/systemone/models?baseUrl=`, `POST /api/ai/systemone/sample`, `GET /api/ai/systemone/health`.
+
 ### Setup
 
 ```bash
@@ -471,8 +490,10 @@ curl -s http://localhost:8089/api/ai/systemone/health
 | Variable | Default | Purpose |
 | :--- | :--- | :--- |
 | `SYSTEMONE_ENABLED` | `true` | Set to `false` to force LLM-only evaluation |
-| `SYSTEMONE_BASE_URL` | `OLLAMA_BASE_URL` | Endpoint serving `/v1/systemone` |
-| `SYSTEMONE_MODEL` | `clef-flash` | Decision model name |
+| `SYSTEMONE_PROVIDER` | `ollama` | `ollama`, `gemini`, `claude`, `openai` or `custom` |
+| `SYSTEMONE_BASE_URL` | `OLLAMA_BASE_URL` | Ollama server (Clef served on `/v1/systemone`) or the OpenAI-compatible API (custom) |
+| `SYSTEMONE_MODEL` | `clef-flash` | Decision model name (per-provider default otherwise) |
+| `SYSTEMONE_API_KEY` | | Key for gemini, claude, openai or custom |
 | `SYSTEMONE_TIMEOUT_MS` | `20000` | Per-call timeout (covers a cold model load when Ollama swaps models) |
 | `SYSTEMONE_STOCHASTIC` | `false` | `true` samples the verdict from its distribution (roulette wheel) for less predictable stakeholders |
 
@@ -529,7 +550,8 @@ podman-compose up -d
 podman exec -it gemsim-ollama ollama pull gemma:2b
 
 # 3. In the GemSim Web UI:
-# Navigate to Settings (Gear icon) -> Select "Ollama" -> Click "Test Ping" -> Apply Configuration.
+# Settings -> "System 2 · writing" tab -> select "Ollama" -> Test -> Apply.
+# System 1 (judgments) is set in the "System 1 · judgments" tab.
 ```
 
 ---
@@ -552,7 +574,7 @@ podman exec -it gemsim-ollama ollama pull gemma:2b
 5. **Executive Debrief**: Review comparative radar charts, determine the winning strategy, and export executive JSON/Markdown reports. The debrief guide in the facilitator kit gives the questions to ask.
 
 ### 3. Game Studio Authoring Journey (Scenario Designer)
-1. **Generative Prompt**: Pick a domain (or a preset) and describe the industry and business challenge in plain text.
+1. **Generative Prompt**: Pick a domain (or a preset), the case length (1 to 4 quarters, one crisis per quarter) and describe the industry and business challenge in plain text.
 2. **One-Click Synthesis**: The AI Gateway generates a validated multi-tier scenario schema.
 3. **Inspect & Tweak**: Preview the 3D topology graph, adjust stakeholder personas, and edit round timelines.
 4. **Publish**: Save directly into the game library for immediate multiplayer play.
@@ -572,7 +594,7 @@ Test Results:
 ```
  ✓ server/src/ai/stakeholder-judge.test.ts (6 tests)
  ✓ server/test/math.test.ts (8 tests)
- ✓ client/src/i18n/i18n.test.ts (7 tests)
+ ✓ client/src/i18n/i18n.test.ts (8 tests)
  ✓ server/test/scenario-generation.test.ts (3 tests)
  ✓ server/src/ai/production-enhancements.test.ts (4 tests)
  ✓ server/test/game-rules.test.ts (25 tests)
@@ -580,14 +602,15 @@ Test Results:
  ✓ server/test/phase2.test.ts (9 tests)
  ✓ server/test/teaching-note.test.ts (11 tests)
  ✓ server/test/translation.test.ts (10 tests)
- ✓ server/test/studio-pipeline.test.ts (12 tests)
+ ✓ server/test/studio-pipeline.test.ts (13 tests)
  ✓ server/test/pilot.test.ts (5 tests)
+ ✓ server/test/systemone.test.ts (3 tests)
 
- Test Files  12 passed (12)
-      Tests  117 passed (117)
+ Test Files  13 passed (13)
+      Tests  121 passed (121)
 ```
 
-`game-rules.test.ts` covers the budget and capacity rules, one-time and multi-quarter initiatives, run-budget economics, insolvency, pacts, crisis injection, seeded incidents, win/loss verdicts, request validation (Zod) and the balance check of every seeded scenario. `pilot.test.ts` checks the questionnaire content in both languages, scoring, gain and normalised gain, per-question and per-team results, satisfaction, the success criteria (and that nothing is reported before it can be measured), that players never receive answers, and request validation. `studio-pipeline.test.ts` checks the draft sanitizer and completion merge, that computed numbers always agree with the judged categories (quick fixes cheaper and adding debt, lasting answers removing it, one transformation and one trap), System 1 arbitration (confident judge overrides, hesitant judge keeps the author) and its fallback, difficulty calibration for Entry and Executive, and the whole pipeline with simulated models. `translation.test.ts` checks text extraction and re-application, the rejection of translations that drop, add or alter figures, localisation with up-to-date or stale translations (the balance is unchanged), the chunked translator with a simulated model, its retry and refusal of the fallback, quarter labels and currency formatting. `teaching-note.test.ts` generates the note of every seeded scenario in both languages (every section, every hidden agenda and crisis, one winning-path line per quarter, market section only for market cases, no raw engine ids) and of a Studio case. `phase2.test.ts` checks that a replay reproduces a three-team market game exactly (with an injected crisis, negotiations, promises and a board mandate), that an alternative changes the outcome and that illegal ones are refused, promise detection and their trust effects, the coach's causes and advice, and the automatic debrief's moments, patterns and questions. `market.test.ts` covers market sharing, price and quality effects, capacity caps and lost sales, entries, price bounds and budget, determinism, a shared-market quarter through `advanceSession`, scaled objectives, request validation, Studio market generation and bounds, the balance and tournament of both market scenarios, and the player view that hides other teams' decisions. `i18n.test.ts` checks that French and English define the same keys and placeholders, that every message code emitted by the engine is translated, and that every domain names every metric, layer and posture. `npm test` works from the repository root or from `server/`.
+`game-rules.test.ts` covers the budget and capacity rules, one-time and multi-quarter initiatives, run-budget economics, insolvency, pacts, crisis injection, seeded incidents, win/loss verdicts, request validation (Zod) and the balance check of every seeded scenario. `pilot.test.ts` checks the questionnaire content in both languages, scoring, gain and normalised gain, per-question and per-team results, satisfaction, the success criteria (and that nothing is reported before it can be measured), that players never receive answers, and request validation. `studio-pipeline.test.ts` checks the draft sanitizer and completion merge, that computed numbers always agree with the judged categories (quick fixes cheaper and adding debt, lasting answers removing it, one transformation and one trap), System 1 arbitration (confident judge overrides, hesitant judge keeps the author) and its fallback, difficulty calibration for Entry and Executive, shorter cases (1, 2 or 3 quarters: as many crises, still playable after calibration, completeness checked against the chosen length), and the whole pipeline with simulated models. `systemone.test.ts` checks the System 1 emulation by a general LLM: the prompt asks every question with the expected JSON shape, probabilities become typed answers, and loose answers (a named option, a number, a boolean, nothing) are handled. `translation.test.ts` checks text extraction and re-application, the rejection of translations that drop, add or alter figures, localisation with up-to-date or stale translations (the balance is unchanged), the chunked translator with a simulated model, its retry and refusal of the fallback, quarter labels and currency formatting. `teaching-note.test.ts` generates the note of every seeded scenario in both languages (every section, every hidden agenda and crisis, one winning-path line per quarter, market section only for market cases, no raw engine ids) and of a Studio case. `phase2.test.ts` checks that a replay reproduces a three-team market game exactly (with an injected crisis, negotiations, promises and a board mandate), that an alternative changes the outcome and that illegal ones are refused, promise detection and their trust effects, the coach's causes and advice, and the automatic debrief's moments, patterns and questions. `market.test.ts` covers market sharing, price and quality effects, capacity caps and lost sales, entries, price bounds and budget, determinism, a shared-market quarter through `advanceSession`, scaled objectives, request validation, Studio market generation and bounds, the balance and tournament of both market scenarios, and the player view that hides other teams' decisions. `i18n.test.ts` checks that French and English define the same keys and placeholders, that every message code emitted by the engine is translated, and that every domain names every metric, layer and posture. `npm test` works from the repository root or from `server/`.
 
 ---
 

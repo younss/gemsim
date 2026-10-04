@@ -131,6 +131,18 @@ export const boardroomSchema = z.object({
   playerMessage: z.string().trim().min(1).max(4000),
 });
 
+export const systemOneSettingsSchema = z.object({
+  provider: z.enum(['ollama', 'gemini', 'claude', 'openai', 'custom']).optional(),
+  baseUrl: z.union([z.literal(''), z.string().trim().url().max(300)]).optional(),
+  model: z.string().trim().min(1).max(200).optional(),
+  apiKey: z.string().trim().max(500).optional(),
+  timeoutMs: z.number().int().min(1000).max(120000).optional(),
+  enabled: z.boolean().optional(),
+});
+
+// The test runs a candidate configuration without applying it
+export const systemOneSampleSchema = systemOneSettingsSchema;
+
 export const studioGenerateSchema = z.object({
   industry: z.string().trim().min(1).max(200),
   businessChallenge: z.string().trim().min(1).max(20000),
@@ -139,6 +151,7 @@ export const studioGenerateSchema = z.object({
   customDirectives: z.string().max(5000).optional(),
   domain: z.enum(['IT', 'INDUSTRIAL', 'MARKET_EXPANSION', 'SOURCING', 'GENERIC']).optional(),
   withMarket: z.boolean().optional(),
+  rounds: z.number().int().min(1).max(4).optional(),
 }).passthrough();
 
 /** Express middleware: replaces req.body with the parsed value or answers 400. */

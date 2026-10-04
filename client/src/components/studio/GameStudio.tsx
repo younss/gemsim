@@ -59,6 +59,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
   const [businessChallenge, setBusinessChallenge] = useState(() => t('studio.preset.banking.challenge'));
   const [domain, setDomain] = useState<ScenarioDomain>('IT');
   const [withMarket, setWithMarket] = useState(false);
+  const [rounds, setRounds] = useState(4);
   const [difficulty, setDifficulty] = useState<'ENTRY' | 'INTERMEDIATE' | 'EXECUTIVE' | 'CRISIS_CHIEF'>('INTERMEDIATE');
   const [customDirectives, setCustomDirectives] = useState(() => t('studio.defaultDirectives'));
 
@@ -162,7 +163,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
       let received = 0;
       const STEP: Record<string, number> = { writing: 1, completing: 3, judging: 4, quantifying: 4, calibrating: 5 };
       const { scenario, pipeline } = await api.generateStudioScenarioStream(
-        { industry, businessChallenge, difficulty, customDirectives, domain, withMarket },
+        { industry, businessChallenge, difficulty, customDirectives, domain, withMarket, rounds },
         chunk => {
           received += chunk.length;
           // Keep the tail of the stream visible and move the phase bar with real progress
@@ -448,14 +449,20 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                 </div>
 
                 <div>
-                  <label className="text-slate-400 font-semibold block mb-1">{t('studio.rounds')}</label>
-                  <input
-                    type="text"
-                    disabled
-                    aria-label={t('studio.rounds')}
-                    value={t('studio.rounds.value')}
-                    className="w-full bg-dark-900 border border-slate-800 rounded-lg px-2.5 py-2 text-slate-500 text-xs font-mono"
-                  />
+                  <label htmlFor="studio-rounds" className="text-slate-400 font-semibold block mb-1">{t('studio.rounds')}</label>
+                  <select
+                    id="studio-rounds"
+                    value={rounds}
+                    onChange={e => setRounds(Number(e.target.value))}
+                    disabled={isGenerating}
+                    className="w-full bg-dark-900 border border-slate-700 rounded-lg px-2.5 py-2 text-slate-100 text-xs font-mono"
+                  >
+                    {[1, 2, 3, 4].map(n => (
+                      <option key={n} value={n}>
+                        {n === 1 ? t('studio.rounds.one') : t('studio.rounds.many', { n })}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

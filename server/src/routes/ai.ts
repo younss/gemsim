@@ -10,8 +10,8 @@ import { DatabaseRepository } from '../db/index.js';
 import { AIProviderType, ChatMessage, ProposalEvaluation, BoardResolution, Scenario, SimulationSession, StakeholderPersona, Team } from '../types/index.js';
 import { broadcastToSession } from '../socket/handler.js';
 import { judgeProposal, judgeBoard, mergeDecision } from '../ai/stakeholder-judge.js';
-import { SystemOneClient } from '../ai/systemone.js';
-import { boardroomSchema, coachSchema, negotiateSchema, validateBody } from '../validation.js';
+import { SystemOneClient, SYSTEMONE_DEFAULTS } from '../ai/systemone.js';
+import { boardroomSchema, coachSchema, negotiateSchema, systemOneSampleSchema, systemOneSettingsSchema, validateBody } from '../validation.js';
 import { requireFacilitator } from '../auth.js';
 import { describeBoardMandate } from '../engine/rules.js';
 import { resolveVocabulary } from '../engine/vocabulary.js';
@@ -213,6 +213,37 @@ export const aiRouter = Router();
 // GET /api/ai/systemone/health (System One decision model probe)
 aiRouter.get('/systemone/health', async (req, res) => {
   res.json(await SystemOneClient.getInstance().checkHealth());
+});
+
+// System 1 (judgments) is configured apart from System 2 (writing, /api/ai/settings)
+async function systemOneView() {
+  const client = SystemOneClient.getInstance();
+  const config = client.getConfig();
+  // Installed Ollama models, decision models (Clef) first, as a picker in the console
+  const models = config.provider === 'ollama' ? await client.listModels() : [];
+  return { ...config, models, defaults: SYSTEMONE_DEFAULTS };
+}
+
+// GET /api/ai/systemone/settings
+aiRouter.get('/systemone/settings', async (req, res) => {
+  res.json(await systemOneView());
+});
+
+// GET /api/ai/systemone/models?baseUrl=: installed models of a local server before switching to it
+aiRouter.get('/systemone/models', requireFacilitator, async (req, res) => {
+  const baseUrl = typeof req.query.baseUrl === 'string' && /^https?:\/\//.test(req.query.baseUrl) ? req.query.baseUrl : undefined;
+  res.json({ models: await SystemOneClient.getInstance().listModels(baseUrl) });
+});
+
+// POST /api/ai/systemone/settings: provider, model, address, key, timeout, on/off
+aiRouter.post('/systemone/settings', requireFacilitator, validateBody(systemOneSettingsSchema), async (req, res) => {
+  SystemOneClient.getInstance().configure(req.body);
+  res.json(await systemOneView());
+});
+
+// POST /api/ai/systemone/sample: the same sample judgment with a candidate configuration, to compare
+aiRouter.post('/systemone/sample', requireFacilitator, validateBody(systemOneSampleSchema), async (req, res) => {
+  res.json(await SystemOneClient.getInstance().sample(req.body));
 });
 
 aiRouter.get('/settings', (req, res) => {

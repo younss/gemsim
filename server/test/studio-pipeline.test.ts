@@ -115,6 +115,19 @@ describe('Engine quantification', () => {
     // Targets are only set by the calibration: after it, the case is playable
     expect(checkScenarioBalance(calibrateDifficulty(scenario).scenario).playable).toBe(true);
   });
+  it('honours a shorter case length chosen in the Studio', () => {
+    for (const rounds of [1, 2, 3]) {
+      const d = draft();
+      const { scenario } = quantify(d, authorJudgment(d), { ...meta, rounds });
+      expect(scenario.totalRounds).toBe(rounds);
+      expect(scenario.roundEvents.map(e => e.roundNumber)).toEqual(Array.from({ length: rounds }, (_, i) => i + 1));
+      expect(checkScenarioBalance(calibrateDifficulty(scenario).scenario).playable).toBe(true);
+    }
+    // A 2-quarter draft is complete with 2 crises, a 4-quarter one is not
+    const short = sanitizeDraft({ ...RAW, crises: RAW.crises.slice(0, 2) }, 'fr');
+    expect(missingParts(short, true, 2).some(m => m.includes('cris'))).toBe(false);
+    expect(missingParts(short, true, 4).some(m => m.includes('cris'))).toBe(true);
+  });
 });
 
 describe('System 1 judge', () => {

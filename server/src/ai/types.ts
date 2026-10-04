@@ -55,6 +55,7 @@ export interface ScenarioGenerationPrompt {
   customDirectives?: string;
   domain?: 'IT' | 'INDUSTRIAL' | 'MARKET_EXPANSION' | 'SOURCING' | 'GENERIC';
   withMarket?: boolean; // add a competitive market (segments, rivals, P&L)
+  rounds?: number; // number of quarters, 1 to 4 (default 4)
 }
 
 export interface AIProvider {
