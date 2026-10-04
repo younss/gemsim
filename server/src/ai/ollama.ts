@@ -191,19 +191,30 @@ export class OllamaProvider extends BaseAIProvider {
         formattedMessages.push({ role: m.role, content: m.content });
       }
 
-      const response = await fetch(`${this.baseUrl}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: this.model,
-          messages: formattedMessages,
-          stream: true,
-          options: {
-            temperature: options?.temperature ?? 0.6,
-          },
-        }),
-        signal: controller.signal,
-      });
+      const body: Record<string, any> = {
+        model: this.model,
+        messages: formattedMessages,
+        stream: true,
+        options: {
+          temperature: options?.temperature ?? 0.6,
+          // Long structured outputs (Studio drafts) need a larger context window
+          ...(options?.responseFormat === 'json' ? { num_ctx: 16384 } : {}),
+        },
+      };
+      if (options?.responseFormat === 'json') body.format = 'json';
+      if (options?.reasoning === false) body.think = false;
+      const post = (payload: Record<string, any>) =>
+        fetch(`${this.baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+      let response = await post(body);
+      if (!response.ok && 'think' in body && /think/i.test(await response.clone().text())) {
+        delete body.think;
+        response = await post(body);
+      }
 
       if (!response.ok || !response.body) {
         throw new Error(`Ollama stream error: ${response.statusText}`);

@@ -23,6 +23,10 @@ Le scénario **« Usine de Vénissieux »** est fourni comme exemple industriel 
 5. Lisez le **rapport d'équilibrage** : le cas doit être **jouable** (une victoire existe, la stratégie « raccourci » perd).
 6. Ajustez si besoin (JSON du scénario), puis publiez.
 
+## Comment le Studio construit un cas
+
+Le Studio répartit le travail : le **modèle de langue** écrit le cas (récit, décideurs, crises, initiatives, marché) et qualifie chaque élément (réponse rapide ou durable, initiative de fond ou piège…) sans fixer de chiffres ; **System 1 (Clef)** vérifie ces qualifications à partir du texte et déduit les priorités de chaque décideur de sa biographie ; le **moteur** calcule tous les chiffres, complète ce qui manque et ajuste les objectifs jusqu'à respecter la difficulté demandée. Le rapport « Comment ce cas a été construit » liste les éléments à relire : ceux où l'auteur et le juge ne sont pas d'accord.
+
 ## Langue et devise
 
 Écrivez votre cas dans votre langue : le Studio le **traduit automatiquement** dans l'autre langue dès sa publication (avec le modèle d'IA configuré), et la **bibliothèque de cas** du Studio permet de le retraduire. Seuls les textes sont traduits ; les chiffres et l'équilibrage ne changent pas. La devise (euro, dollar, livre, franc suisse, dollar canadien) est choisie selon le pays du cas.

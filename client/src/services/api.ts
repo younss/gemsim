@@ -17,8 +17,9 @@ import {
   WSClientMessage,
 } from '../types/index';
 import type { WhatIfResult } from '../../../server/src/engine/whatif';
+import type { PipelineReport } from '../../../server/src/studio/report';
 
-export type { WhatIfResult };
+export type { WhatIfResult, PipelineReport };
 
 const API_BASE = '/api';
 
@@ -240,8 +241,9 @@ export const api = {
   // Game Studio
   async generateStudioScenarioStream(
     prompt: { industry: string; businessChallenge: string; difficulty?: string; customDirectives?: string; domain?: string; withMarket?: boolean },
-    onChunk: (text: string) => void
-  ): Promise<{ scenario: Scenario; balance?: ScenarioBalanceSummary }> {
+    onChunk: (text: string) => void,
+    onStage?: (stage: string, detail?: string) => void
+  ): Promise<{ scenario: Scenario; balance?: ScenarioBalanceSummary; pipeline?: PipelineReport }> {
     const res = await apiFetch(`${API_BASE}/studio/generate/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -264,7 +266,8 @@ export const api = {
         if (!event.startsWith('data: ')) continue;
         const data = JSON.parse(event.slice(6));
         if (data.type === 'chunk') onChunk(data.text);
-        else if (data.type === 'done') return { scenario: data.scenario, balance: data.balance };
+        else if (data.type === 'stage') onStage?.(data.stage, data.detail);
+        else if (data.type === 'done') return { scenario: data.scenario, balance: data.balance, pipeline: data.pipeline };
         else if (data.type === 'error') throw new Error(data.error);
       }
     }

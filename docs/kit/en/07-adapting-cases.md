@@ -23,6 +23,10 @@ The **"Vénissieux plant"** scenario ships as an industrial example (plant acqui
 5. Read the **balance report**: the case must be **playable** (a victory exists, the shortcut strategy loses).
 6. Adjust if needed (scenario JSON), then publish.
 
+## How the Studio builds a case
+
+The Studio splits the work: the **language model** writes the case (story, executives, crises, initiatives, market) and qualifies each element (quick or lasting answer, deep initiative or trap…) without setting numbers; **System 1 (Clef)** checks those qualifications against the text and derives each executive's priorities from their biography; the **engine** computes every number, completes what is missing and adjusts the targets until the requested difficulty holds. The "How this case was built" report lists the elements to review: those where author and judge disagree.
+
 ## Language and currency
 
 Write your case in your own language: the Studio **translates it automatically** into the other language as soon as it is published (with the configured AI model), and the Studio's **case library** lets you translate it again. Only texts are translated; figures and balance never change. The currency (euro, dollar, pound, Swiss franc, Canadian dollar) follows the case's country.

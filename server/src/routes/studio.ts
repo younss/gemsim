@@ -12,6 +12,7 @@ import { studioGenerateSchema, validateBody } from '../validation.js';
 import { requireFacilitator } from '../auth.js';
 import { checkScenarioBalance } from '../engine/balance.js';
 import { NoTranslatorError, translateScenario } from '../ai/scenario-translator.js';
+import { NoAuthorError, runAuthoringPipeline } from '../studio/pipeline.js';
 
 const otherLang = (lang?: 'fr' | 'en'): 'fr' | 'en' => (lang === 'en' ? 'fr' : 'en');
 const translating = new Set<string>(); // scenario ids being translated, to avoid duplicate runs
@@ -65,9 +66,20 @@ studioRouter.post('/generate/stream', requireFacilitator, validateBody(studioGen
   const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
 
   try {
-    console.log(`[GameStudio] Streaming scenario generation for ${prompt.industry}...`);
-    const scenario = await StudioScenarioGenerator.generateStream(prompt, chunk => send({ type: 'chunk', text: chunk }));
-    send({ type: 'done', scenario, balance: summarizeBalance(scenario) });
+    console.log(`[GameStudio] Authoring pipeline for ${prompt.industry}...`);
+    try {
+      // System 2 writes, System 1 judges, the engine quantifies and calibrates
+      const { scenario, report } = await runAuthoringPipeline(prompt, {
+        onStage: (stage, detail) => send({ type: 'stage', stage, detail }),
+        onChunk: text => send({ type: 'chunk', text }),
+      });
+      send({ type: 'done', scenario, balance: summarizeBalance(scenario), pipeline: report });
+    } catch (err) {
+      if (!(err instanceof NoAuthorError)) throw err;
+      // No LLM: the heuristic blueprint generator still produces a playable case
+      const scenario = await StudioScenarioGenerator.generateStream(prompt, chunk => send({ type: 'chunk', text: chunk }));
+      send({ type: 'done', scenario, balance: summarizeBalance(scenario) });
+    }
   } catch (err: any) {
     console.error('[GameStudio] Streaming generation error:', err);
     send({ type: 'error', error: err.message || 'Failed to synthesize scenario' });

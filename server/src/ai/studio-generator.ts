@@ -88,7 +88,7 @@ function sanitizeMarket(raw: any): MarketModel | undefined {
 }
 
 /** Keeps only well-formed string labels from the model's vocabulary output. */
-function sanitizeVocabulary(raw: any): ScenarioVocabulary | undefined {
+export function sanitizeVocabulary(raw: any): ScenarioVocabulary | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const str = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : undefined);
   const metrics: ScenarioVocabulary['metrics'] = {};

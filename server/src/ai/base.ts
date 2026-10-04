@@ -14,12 +14,12 @@ import { AIProviderType, ProposalEvaluation, Scenario } from '../types/index.js'
 import { executeWithRepairLoop, sanitizeAndParseJSON } from './repair-loop.js';
 import { INITIATIVE_CATEGORIES } from '../types/index.js';
 
-const DOMAIN_GUIDANCE: Record<string, string> = {
+export const DOMAIN_GUIDANCE: Record<string, string> = {
   IT: 'Nodes are IT systems (applications, data stores, infrastructure). The debt metric is technical debt.',
   INDUSTRIAL: 'Nodes are plants, production lines, warehouses, suppliers and control systems. The debt metric is asset ageing / maintenance backlog, velocity is production capacity, resilience is supply chain resilience, compliance is HSE/ESG. Prefer categories CAPACITY_EXPANSION, OPERATIONS_EXCELLENCE, SOURCING_PARTNERSHIP, RISK_MITIGATION, PEOPLE_CHANGE, QUICK_WIN.',
   MARKET_EXPANSION: 'Nodes are markets, subsidiaries, stores or offices, and shared services. The debt metric is integration debt (gap to the target operating model), velocity is growth pace, compliance is local regulatory compliance. Prefer categories MARKET_EXPANSION, OPERATIONS_EXCELLENCE, PEOPLE_CHANGE, RISK_MITIGATION, QUICK_WIN.',
   SOURCING: 'Nodes are internal teams, offshore/nearshore delivery centres, vendors and governance bodies. The debt metric is dependency debt (lost know-how, lock-in), compliance covers data sovereignty and contracts. Prefer categories SOURCING_PARTNERSHIP, PEOPLE_CHANGE, RISK_MITIGATION, OPERATIONS_EXCELLENCE, QUICK_WIN.',
-  GENERIC: 'Nodes are the main components of the organisation (units, assets, processes). The debt metric is structural debt / underinvestment.',
+  GENERIC: 'Nodes are the main components of the organisation (units, assets, processes). The debt metric is structural debt / underinvestment. Prefer categories OPERATIONS_EXCELLENCE, CAPACITY_EXPANSION, MARKET_EXPANSION, SOURCING_PARTNERSHIP, RISK_MITIGATION, PEOPLE_CHANGE, QUICK_WIN.',
 };
 import { getAITimeout } from './timeout.js';
 

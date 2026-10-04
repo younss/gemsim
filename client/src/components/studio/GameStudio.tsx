@@ -7,19 +7,24 @@
 import { useSimulationStore } from '../../stores/useSimulationStore';
 import { translationStatus, currencySuffix } from '../../engine';
 import { CaseLibrary } from './CaseLibrary';
+import { PipelineReportCard } from './PipelineReportCard';
 import React, { useState, useEffect } from 'react';
 import { Scenario, AISettingsState, AIProviderType } from '../../types/index';
-import { api, ScenarioBalanceSummary } from '../../services/api';
+import { api, ScenarioBalanceSummary, PipelineReport } from '../../services/api';
 import { useGameText } from '../../i18n/game';
 import type { TranslationKey } from '../../i18n';
 import type { ScenarioDomain } from '../../types/index';
 
-const PRESETS: Array<{ id: string; icon: string; domain: ScenarioDomain }> = [
-  { id: 'banking', icon: '💳', domain: 'IT' },
-  { id: 'health', icon: '🏥', domain: 'IT' },
-  { id: 'plant', icon: '🏭', domain: 'INDUSTRIAL' },
-  { id: 'expansion', icon: '🌎', domain: 'MARKET_EXPANSION' },
-  { id: 'offshore', icon: '🌍', domain: 'SOURCING' },
+const PRESETS: Array<{ id: string; icon: string; domain: ScenarioDomain; market: boolean }> = [
+  { id: 'banking', icon: '💳', domain: 'IT', market: false },
+  { id: 'health', icon: '🏥', domain: 'IT', market: false },
+  { id: 'plant', icon: '🏭', domain: 'INDUSTRIAL', market: true },
+  { id: 'expansion', icon: '🌎', domain: 'MARKET_EXPANSION', market: true },
+  { id: 'offshore', icon: '🌍', domain: 'SOURCING', market: false },
+  { id: 'merger', icon: '🤝', domain: 'GENERIC', market: true },
+  { id: 'turnaround', icon: '🔄', domain: 'GENERIC', market: true },
+  { id: 'esg', icon: '🌱', domain: 'INDUSTRIAL', market: false },
+  { id: 'cyber', icon: '🛡️', domain: 'IT', market: false },
 ];
 const DOMAINS: ScenarioDomain[] = ['IT', 'INDUSTRIAL', 'MARKET_EXPANSION', 'SOURCING', 'GENERIC'];
 import { EnterpriseCanvas } from '../3d/EnterpriseCanvas';
@@ -69,6 +74,8 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
     balance?: ScenarioBalanceSummary;
   } | null>(null);
   const [streamPreview, setStreamPreview] = useState('');
+  const [stage, setStage] = useState<string | null>(null);
+  const [pipelineReport, setPipelineReport] = useState<PipelineReport | null>(null);
   const [activeInspectorTab, setActiveInspectorTab] = useState<'TOPOLOGY' | 'STAKEHOLDERS' | 'TIMELINE' | 'INITIATIVES' | 'JSON'>('TOPOLOGY');
   const [timelineViewMode, setTimelineViewMode] = useState<'AUTHOR' | 'PLAYER_FOG'>('AUTHOR');
   const [copied, setCopied] = useState(false);
@@ -98,7 +105,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
     setIndustry(t(`studio.preset.${preset.id}.industry` as TranslationKey));
     setBusinessChallenge(t(`studio.preset.${preset.id}.challenge` as TranslationKey));
     setDomain(preset.domain);
-    setWithMarket(preset.domain === 'MARKET_EXPANSION' || preset.domain === 'INDUSTRIAL');
+    setWithMarket(preset.market);
   };
 
   const handleProviderSwitch = async (provider: AIProviderType) => {
@@ -150,16 +157,24 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
 
     try {
       setStreamPreview('');
+      setStage(null);
+      setPipelineReport(null);
       let received = 0;
-      const { scenario } = await api.generateStudioScenarioStream(
+      const STEP: Record<string, number> = { writing: 1, completing: 3, judging: 4, quantifying: 4, calibrating: 5 };
+      const { scenario, pipeline } = await api.generateStudioScenarioStream(
         { industry, businessChallenge, difficulty, customDirectives, domain, withMarket },
         chunk => {
           received += chunk.length;
           // Keep the tail of the stream visible and move the phase bar with real progress
           setStreamPreview(prev => (prev + chunk).slice(-700));
-          setGenerationStep(Math.min(4, 1 + Math.floor(received / 2500)));
+          setGenerationStep(Math.min(2, 1 + Math.floor(received / 4000)));
+        },
+        (name, detail) => {
+          setStage(detail ? `${name}|${detail}` : name);
+          setGenerationStep(STEP[name] ?? 2);
         }
       );
+      setPipelineReport(pipeline ?? null);
 
       setGenerationStep(5);
       setSynthesizedScenario(scenario);
@@ -497,7 +512,9 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                 </div>
 
                 <p className="text-[11px] text-slate-300 font-mono leading-relaxed">
-                  {stepLabels[generationStep] || t('studio.step.2')}
+                  {stage
+                    ? t(`studio.stage.${stage.split('|')[0]}` as TranslationKey, { detail: stage.split('|')[1] ?? '' })
+                    : stepLabels[generationStep] || t('studio.step.2')}
                 </p>
                 {streamPreview && (
                   <pre className="text-[10px] text-cyan-200/80 font-mono bg-dark-950 border border-slate-800 rounded p-2 max-h-40 overflow-hidden whitespace-pre-wrap break-all">
@@ -506,6 +523,8 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                 )}
               </div>
             )}
+
+            {pipelineReport && !isGenerating && <PipelineReportCard report={pipelineReport} />}
 
             {/* Validation Feedback */}
             {validationResult && !isGenerating && (

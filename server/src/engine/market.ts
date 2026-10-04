@@ -31,6 +31,7 @@ const MARKETING_SCALE_SHARE = 0.02; // marketing scale = 2% of the segment's ref
 const DEMAND_SHOCK = 0.1; // ±5% seeded demand variation per segment and quarter
 const RIVAL_PRICE_CUT = 0.03; // per quarter, times the rival's aggressiveness
 const RIVAL_CAPABILITY = 0.6; // rivals' availability and reliability (0-1)
+const MARGIN_OVER_RUN = 1.6; // starting gross margin a generated market must reach, relative to the run budget
 
 type Drivers = MarketSegmentResult['drivers'];
 
@@ -332,18 +333,33 @@ const round2 = (x: number) => Math.round(x * 100) / 100;
  */
 export function calibrateMarket(scenario: Scenario): Scenario {
   if (!scenario.market) return scenario;
-  const probe: Scenario = { ...scenario, market: { ...scenario.market, fixedCosts: 0 } };
   const team = {
     id: 'calibration',
     metrics: { ...scenario.baselineMetrics },
     marketPresence: undefined,
     lastMarketDecision: undefined,
   } as unknown as Team;
-  const start = clearMarket(probe, [{ team }], 1).calibration;
+  const probe = (market: MarketModel) => clearMarket({ ...scenario, market: { ...market, fixedCosts: 0 } }, [{ team }], 1).calibration;
   const runAllocation = calculateOpEx(scenario.topology.nodes, scenario.baselineMetrics.technicalDebtIndex, 0);
+
+  // The business must be able to fund its run budget: when the starting margin is too small for
+  // this organisation's costs, volumes and capacity grow together (prices stay as written)
+  let market: MarketModel = scenario.market;
+  let start = probe(market);
+  const needed = runAllocation * MARGIN_OVER_RUN;
+  if (start.grossMargin > 0 && start.grossMargin < needed) {
+    const k = needed / start.grossMargin;
+    market = {
+      ...market,
+      segments: market.segments.map(seg => ({ ...seg, baseDemand: Math.round(seg.baseDemand * k) })),
+      unitsPerCapacityPoint: Math.round(market.unitsPerCapacityPoint * k * 100) / 100,
+    };
+    start = probe(market);
+  }
+
   const fixedCosts = Math.max(0, Math.round(start.grossMargin - runAllocation));
   const conditions = { ...scenario.winLossConditions };
   if (conditions.minMarketShare === undefined) conditions.minMarketShare = Math.round(start.marketShare + 8);
   if (conditions.minCumulativeProfit === undefined) conditions.minCumulativeProfit = Math.round(scenario.baselineMetrics.budgetRemaining * 1.5);
-  return { ...scenario, market: { ...scenario.market, fixedCosts }, winLossConditions: conditions };
+  return { ...scenario, market: { ...market, fixedCosts }, winLossConditions: conditions };
 }

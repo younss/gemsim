@@ -133,7 +133,8 @@ function legalDecisions(scenario: Scenario, team: Team, round: number): TeamDeci
     for (const subset of [...subsets]) if (subset.length < capacity) subsets.push([...subset, id]);
   }
   const event = getRoundEvent(scenario, round);
-  const choices: Array<string | undefined> = event?.choices.length ? event.choices.map(c => c.id) : [undefined];
+  // Not answering the crisis is always a legal move (and the only one when cash runs out)
+  const choices: Array<string | undefined> = event?.choices.length ? [...event.choices.map(c => c.id), undefined] : [undefined];
   const postures: TeamDecision['governancePosture'][] = ['BYPASS_ARCH', 'BALANCED_AGILE', 'STRICT_GOVERNANCE', 'ACCELERATED_MODERN'];
 
   // Market variants: the bots' three selling styles
@@ -169,6 +170,7 @@ export function searchBestTeam(scenario: Scenario, beamWidth = 40): Team {
         next.push({ team: resolved, score: evaluateOutcome(scenario, resolved.metrics).score });
       }
     }
+    if (!next.length) break; // no legal move left: keep the best teams reached so far
     next.sort((a, b) => b.score - a.score);
     beam = next.slice(0, beamWidth).map(n => n.team);
   }

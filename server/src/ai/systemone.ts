@@ -67,7 +67,8 @@ export class SystemOneClient {
 
   public async decide<Qs extends Record<string, SystemOneQuestion>>(
     state: unknown,
-    questions: Qs
+    questions: Qs,
+    options: { timeoutMs?: number } = {}
   ): Promise<SystemOneResult<Qs>> {
     if (!this.enabled) {
       throw new Error('System One is disabled (SYSTEMONE_ENABLED=false)');
@@ -79,7 +80,7 @@ export class SystemOneClient {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: this.model, state, questions }),
-        signal: AbortSignal.timeout(this.timeoutMs),
+        signal: AbortSignal.timeout(options.timeoutMs ?? this.timeoutMs),
       });
 
       if (!response.ok) {
