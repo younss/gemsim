@@ -4,7 +4,8 @@
 // Rules are computed from the scenario so they always match what the engine applies.
 // ============================================================================
 
-import React, { useEffect, useState } from 'react';
+import { useDialogFocus } from '../common/useDialogFocus';
+import React, { useState } from 'react';
 import { Scenario, Team, SimulationSession, TeamMetrics } from '../../types/index';
 import { FileText, Target, Users, AlertTriangle, X, Layers, ArrowRight, BookOpen, ListChecks } from 'lucide-react';
 import { evaluateOutcome, DEFAULT_MAX_INITIATIVES_PER_ROUND } from '../../engine';
@@ -29,12 +30,7 @@ export const ExecutiveBriefingModal: React.FC<Props> = ({ isOpen, onClose, scena
   const setGlossaryOpen = useHelpStore(s => s.setGlossaryOpen);
   const [activeTab, setActiveTab] = useState<Tab>('CASE');
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose]);
+  const dialogRef = useDialogFocus(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -107,6 +103,8 @@ export const ExecutiveBriefingModal: React.FC<Props> = ({ isOpen, onClose, scena
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md" onClick={onClose}>
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="brief-title"
@@ -172,7 +170,7 @@ export const ExecutiveBriefingModal: React.FC<Props> = ({ isOpen, onClose, scena
           ))}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+        <div tabIndex={0} className="focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 flex-1 overflow-y-auto p-6 space-y-5">
           {activeTab === 'CASE' && (
             <div className="space-y-5">
               <section className="bg-dark-850 p-5 rounded-xl border border-slate-800 space-y-3">

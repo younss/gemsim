@@ -324,6 +324,27 @@ The Studio has a domain selector and presets for banking, health, a plant acquis
 
 ---
 
+## ♿ Accessibility (WCAG 2.2 AA)
+
+Audited with axe-core (rules WCAG 2.0/2.1/2.2 A and AA) on every screen — arena tabs, case file tabs, glossary, commented demo, docs, facilitator cockpit (teams, crisis injection, debrief), invitations, Studio, settings, new session — plus manual checks. From 640+ issues on the first pass to **zero automated violations**.
+
+| Criterion | What was done |
+| :--- | :--- |
+| 1.4.3 Contrast | Secondary text colour raised from `#64748b` to `#7a889c` (≥ 4.5:1 on every dark surface); dimmed unselected postures and crisis answers no longer use opacity; darker greys removed from text. Disabled controls keep their dimmed look (exempt). |
+| 2.5.8 Target size | Help buttons (ⓘ) have a 24 × 24 px target; checkboxes enlarged; spacing where help buttons stacked. |
+| 4.1.2 / nested controls | No help button inside a clickable card (war room). |
+| 2.1.1 Keyboard | Scrollable dialog contents are focusable; keyboard element list for the 3D map; tabs, radio groups and dialogs operable by keyboard. |
+| 2.1.2, 2.4.3 Dialogs | `useDialogFocus`: focus moves into every modal (case file, glossary, demo, settings, new session, invitations, unlock), Tab stays inside, Escape closes, focus returns to the opener. |
+| 2.4.1 Bypass blocks | "Skip to content" link to the `main` landmark. |
+| 2.4.7 Focus visible | A global `:focus-visible` outline that components cannot remove. |
+| 1.4.10 Reflow | No horizontal page scroll at 320 px: the navigation bar wraps, help buttons stay visible next to truncated labels. |
+| 4.1.3 Status messages | Live announcements use `role="status"`. |
+| 2.3.3 Motion | `prefers-reduced-motion` stops animations and transitions. |
+
+**Re-run the audit**: start the dev server, open the app with `?a11y` (for example `http://localhost:3000/?a11y`), then in the browser console `await window.__axe.run(document, { runOnly: ['wcag2a','wcag2aa','wcag21a','wcag21aa','wcag22aa'] })`. axe-core is a dev dependency and is never loaded in production.
+
+**Limits**: the 3D map is a visual aid; its content is available as a keyboard list. No session with real assistive-technology users (screen reader, switch access) has been run yet: that belongs to the pilot.
+
 ## 🔐 Facilitator Security
 
 - The facilitator PIN (`FACILITATOR_PIN`) is never sent to clients: it is stripped from every REST and WebSocket payload.

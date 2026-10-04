@@ -998,4 +998,7 @@ export const en: Record<keyof typeof fr, string> = {
   'studio.pipeline.reviewLine': "author: {author} · judge: {judge} ({confidence}% confidence)",
   'studio.pipeline.keptJudge': "the judge prevails",
   'studio.pipeline.keptAuthor': "the author is kept, to review",
+
+  // --- Accessibility ---
+  'app.skip': "Skip to content",
 };

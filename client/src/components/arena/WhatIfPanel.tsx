@@ -114,7 +114,7 @@ export const WhatIfPanel: React.FC<Props> = ({ scenario, session, team }) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
           {scenario.initiativesCatalog.map(init => (
             <label key={init.id} className="flex items-center gap-2 text-slate-300">
-              <input type="checkbox" checked={decision.selectedInitiativeIds.includes(init.id)} onChange={() => toggle(init.id)} className="accent-amber-500" />
+              <input type="checkbox" checked={decision.selectedInitiativeIds.includes(init.id)} onChange={() => toggle(init.id)} className="w-5 h-5 shrink-0 accent-amber-500" />
               <span>{init.name}</span>
               <span className="text-slate-500 font-mono">{money(init.capExCost)}</span>
             </label>

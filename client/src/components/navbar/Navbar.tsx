@@ -94,7 +94,7 @@ export const Navbar: React.FC<Props> = ({
     <header className="w-full bg-dark-950/90 backdrop-blur-md border-b border-slate-800/80 px-4 py-2.5 sticky top-0 z-40">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
         {/* Brand & Active Session Info */}
-        <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-start">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 w-full md:w-auto justify-between md:justify-start">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-indigo-600 flex items-center justify-center text-xl shadow-[0_0_15px_rgba(0,240,255,0.4)] ring-1 ring-white/20">
               💎
@@ -152,7 +152,7 @@ export const Navbar: React.FC<Props> = ({
         </div>
 
         {/* Navigation View Tabs */}
-        <nav aria-label="GemSim" className="flex items-center gap-1 bg-dark-900 p-1 rounded-xl border border-slate-800 text-xs font-mono">
+        <nav aria-label="GemSim" className="flex flex-wrap justify-center items-center gap-1 bg-dark-900 p-1 rounded-xl border border-slate-800 text-xs font-mono max-w-full">
           <button
             onClick={() => setActiveView('ARENA')}
             className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
@@ -207,7 +207,7 @@ export const Navbar: React.FC<Props> = ({
         </nav>
 
         {/* Live Round Telemetry, Team Selector & Settings */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap justify-center items-center gap-2 sm:gap-3 max-w-full">
           {session && (
             <>
               {/* Active Team Switcher (Player View) */}
@@ -244,7 +244,7 @@ export const Navbar: React.FC<Props> = ({
                 <span className="text-slate-400 font-bold">
                   {t('common.quarterShort', { n: session.currentRound })}
                 </span>
-                <span className="text-slate-600">|</span>
+                <span className="text-slate-500">|</span>
                 <div className="flex items-center gap-1.5">
                   <Clock className={`w-3.5 h-3.5 ${session.isTimerRunning ? 'text-cyan-400 animate-pulse' : 'text-slate-500'}`} />
                   <span className={`font-bold ${session.isTimerRunning ? 'text-cyan-300' : 'text-slate-400'}`}>

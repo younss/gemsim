@@ -3,6 +3,7 @@
 // Dynamic Provider Switching, API Key Configuration, and Health Diagnostics
 // ============================================================================
 
+import { useDialogFocus } from '../common/useDialogFocus';
 import React, { useState, useEffect } from 'react';
 import { AISettingsState, AIProviderType, AIProviderConfig } from '../../types/index';
 import { api } from '../../services/api';
@@ -76,6 +77,8 @@ export const SettingsModal: React.FC<Props> = ({
     }
   }, [isOpen]);
 
+  const dialogRef = useDialogFocus(isOpen, onClose);
+
   if (!isOpen) return null;
 
   const handleTestConnection = async (type: AIProviderType) => {
@@ -130,7 +133,9 @@ export const SettingsModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div role="dialog" aria-modal="true" aria-labelledby="settings-title" className="bg-dark-850 w-full max-w-3xl rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div ref={dialogRef}
+        tabIndex={-1}
+        role="dialog" aria-modal="true" aria-labelledby="settings-title" className="bg-dark-850 w-full max-w-3xl rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="p-5 border-b border-slate-800 bg-dark-900 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -168,7 +173,7 @@ export const SettingsModal: React.FC<Props> = ({
                   }`}
                 >
                   <div className="font-bold uppercase text-[11px]">{type}</div>
-                  <div className="text-[9px] text-slate-500 mt-0.5">
+                  <div className="text-[9px] text-slate-400 mt-0.5">
                     {type === 'fallback' ? t('settings.kind.offline') : type === 'ollama' ? t('settings.kind.local') : t('settings.kind.cloud')}
                   </div>
                 </button>

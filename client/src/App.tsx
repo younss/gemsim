@@ -3,6 +3,7 @@
 // State Management, View Orchestration, Real-time Synchronization
 // ============================================================================
 
+import { useDialogFocus } from './components/common/useDialogFocus';
 import React, { useState, useEffect } from 'react';
 import {
   Scenario,
@@ -59,6 +60,12 @@ export const App: React.FC = () => {
   const [isUnlockModalOpen, setIsUnlockModalOpen] = useState(false);
   const [unlockPasscode, setUnlockPasscode] = useState('');
   const [unlockError, setUnlockError] = useState<string | null>(null);
+  const closeUnlock = () => {
+    setIsUnlockModalOpen(false);
+    setUnlockError(null);
+    setUnlockPasscode('');
+  };
+  const unlockRef = useDialogFocus(isUnlockModalOpen, closeUnlock);
 
   const { t } = useI18n();
   const shownScenario = useLocalizedScenario(currentScenario);
@@ -203,6 +210,13 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-dark-900 text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-black">
+      {/* Skip link: first stop for keyboard users (WCAG 2.4.1) */}
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-cyan-500 focus:text-black focus:font-bold"
+      >
+        {t('app.skip')}
+      </a>
       {/* Top Executive Navigation Bar */}
       <Navbar
         activeView={activeView}
@@ -229,14 +243,14 @@ export const App: React.FC = () => {
 
       {/* Global Live Announcement Toast Banner */}
       {liveAnnouncement && (
-        <div className="bg-gradient-to-r from-cyan-600 via-indigo-600 to-purple-600 px-4 py-2 text-white text-xs font-mono font-bold flex items-center justify-center gap-2 shadow-lg animate-bounce z-30">
+        <div role="status" aria-live="polite" className="bg-gradient-to-r from-cyan-600 via-indigo-600 to-purple-600 px-4 py-2 text-white text-xs font-mono font-bold flex items-center justify-center gap-2 shadow-lg animate-bounce z-30">
           <Radio className="w-4 h-4 animate-pulse" />
           <span>{liveAnnouncement}</span>
         </div>
       )}
 
       {/* Main Viewport Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col">
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col focus:outline-none">
         {activeView === 'ARENA' && currentSession && currentScenario && currentTeam && (
           <PlayerArena
             session={currentSession}
@@ -264,7 +278,7 @@ export const App: React.FC = () => {
       {/* Facilitator Passcode Unlock Modal */}
       {isUnlockModalOpen && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div role="dialog" aria-modal="true" aria-labelledby="unlock-title" className="bg-dark-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+          <div ref={unlockRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="unlock-title" className="bg-dark-900 border border-slate-700 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2 text-rose-400">
                 <Lock className="w-5 h-5" />
@@ -272,11 +286,7 @@ export const App: React.FC = () => {
               </div>
               <button
                 aria-label={t('common.close')}
-                onClick={() => {
-                  setIsUnlockModalOpen(false);
-                  setUnlockError(null);
-                  setUnlockPasscode('');
-                }}
+                onClick={closeUnlock}
                 className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200"
               >
                 <X className="w-4 h-4" />
@@ -303,7 +313,7 @@ export const App: React.FC = () => {
                   onChange={e => setUnlockPasscode(e.target.value)}
                   placeholder={t('app.unlock.placeholder')}
                   autoFocus
-                  className="w-full bg-dark-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm font-mono text-cyan-300 focus:outline-none focus:border-cyan-500 placeholder:text-slate-600"
+                  className="w-full bg-dark-950 border border-slate-800 rounded-xl px-4 py-2.5 text-sm font-mono text-cyan-300 focus:outline-none focus:border-cyan-500 placeholder:text-slate-500"
                 />
                 {unlockError && (
                   <p className="text-xs text-rose-400 mt-1.5 font-mono flex items-center gap-1">

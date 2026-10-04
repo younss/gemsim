@@ -996,4 +996,7 @@ export const fr = {
   'studio.pipeline.reviewLine': "auteur : {author} · juge : {judge} ({confidence} % de confiance)",
   'studio.pipeline.keptJudge': "le juge l'emporte",
   'studio.pipeline.keptAuthor': "l'auteur est conservé, à relire",
+
+  // --- Accessibilité ---
+  'app.skip': "Aller au contenu",
 } as const;

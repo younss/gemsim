@@ -389,7 +389,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                 </select>
                 <p className="text-[11px] text-slate-500 mb-3">{t(`studio.domain.${domain}.hint` as TranslationKey)}</p>
                 <label className="flex items-start gap-2 mb-3 cursor-pointer">
-                  <input type="checkbox" checked={withMarket} onChange={e => setWithMarket(e.target.checked)} className="mt-0.5 accent-cyan-500" />
+                  <input type="checkbox" checked={withMarket} onChange={e => setWithMarket(e.target.checked)} className="w-5 h-5 shrink-0 mt-0.5 accent-cyan-500" />
                   <span>
                     <span className="text-slate-300 font-semibold block">{t('studio.market')}</span>
                     <span className="text-[11px] text-slate-500">{t('studio.market.hint')}</span>

@@ -45,9 +45,9 @@ export const ObjectivesTracker: React.FC<{ outcome: SimulationOutcome; scenario:
             key={o.key}
             className={`px-2 py-1.5 rounded-lg border text-[11px] font-mono ${o.met ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-rose-500/30 bg-rose-500/5'}`}
           >
-            <div className="text-slate-400 flex items-center">
+            <div className="text-slate-400 flex items-center min-w-0">
               <span className="truncate">{objective(o.key)}</span>
-              <InfoTip text={description(o.key)} label={objective(o.key)} />
+              <InfoTip text={description(o.key)} label={objective(o.key)} className="shrink-0" />
             </div>
             <div className={o.met ? 'text-emerald-300 font-bold' : 'text-rose-300 font-bold'}>
               {formatValue(o, o.actual, money)}{' '}

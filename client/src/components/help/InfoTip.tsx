@@ -21,7 +21,7 @@ export const InfoTip: React.FC<Props> = ({ text, label, className = '', align = 
         type="button"
         aria-label={label ? `${label} : ${text}` : text}
         aria-describedby={id}
-        className="ml-1 text-slate-500 hover:text-cyan-300 focus:text-cyan-300 focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 rounded-full"
+        className="ml-0.5 -my-1.5 p-1.5 text-slate-500 hover:text-cyan-300 focus:text-cyan-300 focus:outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 rounded-full"
       >
         <Info className="w-3 h-3" aria-hidden="true" />
       </button>

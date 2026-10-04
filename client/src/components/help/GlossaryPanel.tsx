@@ -3,7 +3,8 @@
 // Metric definitions in the current scenario's vocabulary, then game concepts.
 // ============================================================================
 
-import React, { useEffect, useState } from 'react';
+import { useDialogFocus } from '../common/useDialogFocus';
+import React, { useState } from 'react';
 import { BookOpen, Search, X } from 'lucide-react';
 import { GLOSSARY } from '../../i18n/glossary';
 import { useGameText, useLocalizedScenario } from '../../i18n/game';
@@ -30,12 +31,7 @@ export const GlossaryPanel: React.FC = () => {
   const { t, lang, vocab } = useGameText(scenario);
   const [query, setQuery] = useState('');
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, setOpen]);
+  const dialogRef = useDialogFocus(open, () => setOpen(false));
 
   if (!open) return null;
 
@@ -47,6 +43,8 @@ export const GlossaryPanel: React.FC = () => {
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="glossary-title"
@@ -72,12 +70,12 @@ export const GlossaryPanel: React.FC = () => {
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder={t('glossary.search')}
-              className="bg-transparent flex-1 text-sm text-slate-200 focus:outline-none placeholder:text-slate-600"
+              className="bg-transparent flex-1 text-sm text-slate-200 focus:outline-none placeholder:text-slate-500"
             />
           </label>
         </div>
 
-        <div className="overflow-y-auto p-4 space-y-5">
+        <div tabIndex={0} className="focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 overflow-y-auto p-4 space-y-5">
           <section>
             <h3 className="text-xs font-mono font-bold text-cyan-400 uppercase tracking-wider mb-1">{t('glossary.metrics')}</h3>
             <p className="text-[11px] text-slate-500 mb-3">{t('glossary.metricsNote')}</p>

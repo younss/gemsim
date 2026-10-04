@@ -2,6 +2,7 @@
 // GEMSIM: NEW SIMULATION SESSION MODAL
 // ============================================================================
 
+import { useDialogFocus } from './useDialogFocus';
 import { useLocalizedScenarios } from '../../i18n/game';
 import React, { useState } from 'react';
 import { Scenario, SimulationSession } from '../../types/index';
@@ -29,6 +30,8 @@ export const NewSessionModal: React.FC<Props> = ({
   const [teamCount, setTeamCount] = useState<number>(3);
   const [roundDurationMinutes, setRoundDurationMinutes] = useState<number>(20);
   const [isCreating, setIsCreating] = useState(false);
+
+  const dialogRef = useDialogFocus(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -58,7 +61,9 @@ export const NewSessionModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fadeIn">
-      <div role="dialog" aria-modal="true" aria-labelledby="new-session-title" className="bg-dark-850 w-full max-w-lg rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
+      <div ref={dialogRef}
+        tabIndex={-1}
+        role="dialog" aria-modal="true" aria-labelledby="new-session-title" className="bg-dark-850 w-full max-w-lg rounded-2xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col">
         <div className="p-5 border-b border-slate-800 bg-dark-900 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">

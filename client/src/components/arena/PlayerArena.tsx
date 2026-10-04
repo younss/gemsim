@@ -342,9 +342,10 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
         {hud.map(item => (
           <div key={item.key} className="bg-dark-850 p-3.5 rounded-xl border border-slate-800 shadow-lg relative">
             <div className="flex items-center justify-between text-slate-400 text-xs font-mono mb-1">
-              <span className="uppercase truncate flex items-center">
-                {item.label}
-                <InfoTip text={item.help} label={item.label} />
+              {/* The label truncates, never its help button */}
+              <span className="flex items-center min-w-0">
+                <span className="uppercase truncate">{item.label}</span>
+                <InfoTip text={item.help} label={item.label} className="shrink-0" />
               </span>
               <item.icon className="w-4 h-4 text-cyan-400 shrink-0" aria-hidden="true" />
             </div>
@@ -517,13 +518,13 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
               <h3 className="text-base font-bold text-slate-100">{t('arena.portfolio.title')}</h3>
               <p className="text-xs text-slate-400">{t('arena.portfolio.subtitle')}</p>
             </div>
-            <div data-tour="constraints" className="md:text-right font-mono text-xs space-y-0.5">
+            <div data-tour="constraints" className="md:text-right font-mono text-xs space-y-2">
               <div>
                 <span className="text-slate-500">{t('arena.portfolio.committed')} </span>
                 <span className={decisionCheck.committedCost > decisionCheck.budgetAvailable ? 'text-rose-400 font-bold' : 'text-cyan-400 font-bold'}>
                   {money(decisionCheck.committedCost)}
                 </span>
-                <span className="text-slate-600"> {t('arena.portfolio.ofCash', { cash: Math.max(0, team.metrics.budgetRemaining) })}</span>
+                <span className="text-slate-500"> {t('arena.portfolio.ofCash', { cash: Math.max(0, team.metrics.budgetRemaining) })}</span>
                 <InfoTip text={t('arena.portfolio.committedHelp')} align="right" />
               </div>
               <div>
@@ -531,7 +532,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
                 <span className="text-cyan-400 font-bold">
                   {selectedInitiatives.length}/{decisionCheck.capacity}
                 </span>
-                <span className="text-slate-600"> {t('arena.portfolio.capacityUnit')}</span>
+                <span className="text-slate-500"> {t('arena.portfolio.capacityUnit')}</span>
                 <InfoTip text={t('arena.portfolio.capacityHelp')} align="right" />
               </div>
               <div>
@@ -545,7 +546,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
                     {t(`mandate.${boardMandate.verdict}` as TranslationKey)} — {mandateEffects()}
                   </span>
                 ) : (
-                  <span className="text-slate-600">{t('mandate.none')}</span>
+                  <span className="text-slate-500">{t('mandate.none')}</span>
                 )}
               </div>
             </div>
@@ -687,7 +688,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
                   key={gov.id}
                   onClick={() => !team.decisionSubmitted && setGovernancePosture(gov.id)}
                   className={`w-full text-left p-4 rounded-xl border transition-all ${gov.color} ${
-                    governancePosture === gov.id ? 'ring-2 ring-cyan-400' : 'opacity-70 hover:opacity-100'
+                    governancePosture === gov.id ? 'ring-2 ring-cyan-400' : 'hover:ring-1 hover:ring-slate-600'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2 mb-1">
@@ -752,7 +753,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
                           ? 'bg-dark-900 border-emerald-500/30 hover:border-emerald-500/60'
                           : isCurrent
                           ? 'bg-rose-950/40 border-rose-500/50 hover:border-rose-400'
-                          : 'bg-dark-900/60 border-slate-800 hover:border-slate-700 opacity-60 hover:opacity-100'
+                          : 'bg-dark-900/60 border-slate-800 hover:border-slate-600'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-0.5">

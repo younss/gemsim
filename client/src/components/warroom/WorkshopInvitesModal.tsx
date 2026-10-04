@@ -4,6 +4,7 @@
 // The facilitator PIN is never included: share it separately, by another channel.
 // ============================================================================
 
+import { useDialogFocus } from '../common/useDialogFocus';
 import React, { useState } from 'react';
 import { SimulationSession } from '../../types/index';
 import { Copy, Check, Shield, Users, Radio, Lock, ExternalLink, X, Share2 } from 'lucide-react';
@@ -19,6 +20,8 @@ export const WorkshopInvitesModal: React.FC<Props> = ({ isOpen, onClose, session
   const { t } = useI18n();
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
+
+  const dialogRef = useDialogFocus(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -51,6 +54,8 @@ export const WorkshopInvitesModal: React.FC<Props> = ({ isOpen, onClose, session
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md" onClick={onClose}>
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="invites-title"

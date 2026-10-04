@@ -10,6 +10,8 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Secondary text: lighter than Tailwind's slate-500 (#64748b) to reach 4.5:1 on every dark surface (WCAG AA)
+        slate: { 500: '#7a889c' },
         dark: {
           950: '#04070d',
           900: '#070b13',

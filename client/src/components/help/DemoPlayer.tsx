@@ -4,6 +4,7 @@
 // the real engine, with commentary. Runs entirely in the browser.
 // ============================================================================
 
+import { useDialogFocus } from '../common/useDialogFocus';
 import React, { useEffect, useMemo, useState } from 'react';
 import { PlayCircle, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { replayStrategy, BotStrategy, StrategyReplay } from '../../../../server/src/engine/balance';
@@ -32,17 +33,15 @@ export const DemoPlayer: React.FC = () => {
   const { t, vocab, code, category, objective, cur, money } = useGameText(scenario);
 
   useEffect(() => {
-    if (!open) return;
-    setStep(0);
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, setOpen]);
+    if (open) setStep(0);
+  }, [open]);
 
   const replays = useMemo<Record<BotStrategy, StrategyReplay> | null>(() => {
     if (!open || !scenario) return null;
     return Object.fromEntries(STRATEGIES.map(s => [s, replayStrategy(scenario, s)])) as Record<BotStrategy, StrategyReplay>;
   }, [open, scenario]);
+
+  const dialogRef = useDialogFocus(open && !!scenario && !!replays, () => setOpen(false));
 
   if (!open || !scenario || !replays) return null;
 
@@ -103,6 +102,8 @@ export const DemoPlayer: React.FC = () => {
   return (
     <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setOpen(false)}>
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="demo-title"
@@ -152,7 +153,7 @@ export const DemoPlayer: React.FC = () => {
           ))}
         </nav>
 
-        <div className="overflow-y-auto p-4 space-y-4" aria-live="polite">
+        <div tabIndex={0} className="focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500/60 overflow-y-auto p-4 space-y-4" aria-live="polite">
           {step === 0 && (
             <div className="space-y-3 text-sm text-slate-300 leading-relaxed">
               <p>{t('demo.intro', { title: scenario.title })}</p>

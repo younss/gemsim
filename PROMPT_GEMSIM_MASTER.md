@@ -407,5 +407,14 @@ Player manual, learning objectives with references, workshop agenda (3h30 and 2h
 
 ---
 
+## 20. ACCESSIBILITY (WCAG 2.2 AA)
+
+- Zero axe-core violations (WCAG 2.0/2.1/2.2 A + AA) on every screen; audit hook in development only (`?a11y` loads axe-core, `window.__axe.run(...)`).
+- Secondary text `slate-500` overridden to `#7a889c` in the Tailwind theme; no opacity dimming of readable, enabled content; 24 px help-button targets; no interactive control nested in another.
+- `useDialogFocus(open, onClose)` for every modal: initial focus inside, Tab trap, Escape, focus restored to the opener. Scrollable dialog regions are focusable.
+- Skip link to `main#main`; global `:focus-visible` outline; `role="status"` live announcements; `prefers-reduced-motion` honoured; navigation reflows at 320 px.
+
+---
+
 ## EXECUTION INSTRUCTIONS
 Generate clean, modular, and fully tested TypeScript code. Unit-test the System 1 answer-to-evaluation mapping without a live model. Ensure all Three.js materials, mathematical state transitions, AI streaming handlers, and UI dashboards compile without errors (`npm run build` client & server with 0 errors, `npm test` passing 100%).

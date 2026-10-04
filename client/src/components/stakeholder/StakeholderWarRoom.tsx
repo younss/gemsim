@@ -369,6 +369,11 @@ export const StakeholderWarRoom: React.FC<Props> = ({
 
         <div className="flex items-center gap-2 px-1 pt-2 border-t border-slate-800 text-[10px] font-mono text-slate-500 uppercase tracking-wider">
           <span>{t('war.oneOnOne')}</span>
+          {/* Patience explained once here: a help button inside each card button would nest interactive controls */}
+          <span className="ml-auto flex items-center normal-case tracking-normal">
+            {t('war.patience')}
+            <InfoTip text={t('war.patienceHelp')} align="right" />
+          </span>
         </div>
 
         {stakeholders.map(sh => {
@@ -424,10 +429,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
                 const patience = team.stakeholderPatience?.[sh.id] ?? 100;
                 return (
                   <div className="mt-2 flex items-center gap-2 text-[10px] font-mono text-slate-500">
-                    <span className="flex items-center">
-                      {t('war.patience')}
-                      <InfoTip text={t('war.patienceHelp')} />
-                    </span>
+                    <span>{t('war.patience')}</span>
                     <div className="flex-1 bg-dark-900 h-1.5 rounded-full overflow-hidden border border-slate-800">
                       <div className="h-full rounded-full bg-violet-500 transition-all duration-500" style={{ width: `${patience}%` }} />
                     </div>
@@ -514,7 +516,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
               <div key={msg.id || idx} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
                 <div className="flex items-center gap-2 mb-1 px-1">
                   <span className="text-[10px] font-mono font-semibold text-slate-400">{msg.senderName}</span>
-                  <span className="text-[10px] text-slate-600 font-mono">
+                  <span className="text-[10px] text-slate-500 font-mono">
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
