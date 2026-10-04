@@ -36,6 +36,8 @@ const MODERNIZED_DEBT_THRESHOLD = 50;
 const DEBT_REDUCTION_REALIZATION = 0.6;
 const FEATURE_DEBT_DIVISOR = 10; // +1 TDI per 10 velocity points per quarter
 const RESILIENCE_EROSION = 4; // unmaintained estates lose fault tolerance every quarter
+const PROMISE_KEPT_TRUST = 4; // trust won with an executive when a promise is kept (half for the board)
+const PROMISE_BROKEN_TRUST = 8; // trust lost when it is broken (half for each board member)
 
 /** Quarterly run budget funded by the business: the OpEx of the scenario's starting estate. */
 export function getRunAllocation(scenario: Scenario): number {
@@ -291,6 +293,20 @@ export class SimulationResolver {
     const newTco = Math.round(metricsBefore.tco + changeOutflow);
     const insolvent = newBudgetRemaining < 0;
 
+    // 11b. Promises due this quarter: kept when every promised initiative is launched or delivered
+    const launched = new Set([...completedInitiativeIds, ...stillActive.map(a => a.initiativeId)]);
+    const promiseTrust: Record<string, number> = {};
+    const promiseOutcomes: NonNullable<RoundResult['promises']> = [];
+    const promises = (team.promises ?? []).map(promise => {
+      if (promise.status !== 'PENDING' || promise.round > roundNumber) return promise;
+      const kept = promise.initiativeIds.every(id => launched.has(id));
+      const board = promise.stakeholderId === 'BOARD';
+      const targets = board ? scenario.stakeholders.map(sh => sh.id) : [promise.stakeholderId];
+      for (const id of targets) promiseTrust[id] = (promiseTrust[id] ?? 0) + (kept ? PROMISE_KEPT_TRUST : -PROMISE_BROKEN_TRUST) / (board ? 2 : 1);
+      promiseOutcomes.push({ id: promise.id, stakeholderId: promise.stakeholderId, status: kept ? 'KEPT' : 'BROKEN' });
+      return { ...promise, status: kept ? ('KEPT' as const) : ('BROKEN' as const) };
+    });
+
     // 12. Stakeholder Sentiment updates
     const stakeholderReactions: RoundResult['stakeholderReactions'] = [];
     const updatedTrustMap: Record<string, number> = { ...team.stakeholderTrustMap };
@@ -319,6 +335,8 @@ export class SimulationResolver {
       );
 
       let extra = (eventTrustImpacts[stakeholder.id] || 0) + (initiativeTrust[stakeholder.id] || 0);
+      const promiseDelta = Math.round(promiseTrust[stakeholder.id] ?? 0);
+      extra += promiseDelta;
       const notes: string[] = [reactionNote];
       const reactionCodes: MessageCode[] = [
         {
@@ -326,6 +344,9 @@ export class SimulationResolver {
           params: { name: stakeholder.name },
         },
       ];
+
+      if (promiseDelta < 0) reactionCodes.push({ code: 'reaction.promiseBroken', params: { penalty: -promiseDelta } });
+      if (promiseDelta > 0) reactionCodes.push({ code: 'reaction.promiseKept', params: { bonus: promiseDelta } });
 
       for (const pact of pacts.filter(p => p.stakeholderId === stakeholder.id)) {
         const bonus = Math.max(5, Math.min(15, Math.round(5 + pact.committedBudget / 20)));
@@ -409,6 +430,10 @@ export class SimulationResolver {
       if (market.programCashDelta < 0) notes.push({ code: 'note.marketCashDrain', params: { amount: -market.programCashDelta } });
       else if (market.programCashDelta > 0) notes.push({ code: 'note.marketCashIn', params: { amount: market.programCashDelta } });
     }
+    const broken = promiseOutcomes.filter(p => p.status === 'BROKEN').length;
+    const kept = promiseOutcomes.length - broken;
+    if (broken) notes.push({ code: 'note.promisesBroken', params: { count: broken } });
+    if (kept) notes.push({ code: 'note.promisesKept', params: { count: kept } });
     if (stillActive.length > 0) {
       facilitatorFeedback += `${stillActive.length} multi-quarter initiative(s) still in delivery. `;
       notes.push({ code: 'note.inDelivery', params: { count: stillActive.length } });
@@ -466,6 +491,42 @@ export class SimulationResolver {
         ...(market ? { marketCash } : {}),
       },
       ...(market ? { market } : {}),
+      decision: {
+        ...decisions,
+        ...(scenario.market ? { market: effectiveMarketDecision(scenario, team, decisions.market) } : {}),
+      },
+      mandate: mandate?.verdict,
+      trustMapBefore: { ...team.stakeholderTrustMap },
+      trustMapAfter: { ...updatedTrustMap },
+      ...(scenario.market ? { marketPresenceBefore: teamPresence(scenario, team) } : {}),
+      breakdown: {
+        debt: {
+          drift: Math.round(driftAmount),
+          initiatives: Math.round(initiativeTdiDelta),
+          governance: governanceTdiSurge,
+          delivery: featureDebt,
+          crisis: eventTdi,
+        },
+        velocity: {
+          debtDrag: -Math.round(BASE_VELOCITY - calculateEffectiveVelocity(BASE_VELOCITY, newTdi, 0).effectiveVelocity),
+          capabilities: persistentVelocityBonus,
+          initiatives: oneOffVelocity - boardVelocityBonus,
+          board: boardVelocityBonus,
+          governance: governanceVelocityBonus,
+          crisis: eventVelocity,
+          incidents: -incidentVelocityPenalty,
+        },
+        cash: {
+          investments: -totalCapEx,
+          crisis: -eventCapEx,
+          incidents: -incidentCostTotal,
+          fines: -regulatoryFine,
+          pacts: -pactCost,
+          runOverrun: -opExOverrun,
+          market: marketCash,
+        },
+      },
+      ...(promiseOutcomes.length ? { promises: promiseOutcomes } : {}),
       incidentsTriggered,
       debtCompoundedAmount: driftAmount,
       activeInitiativesProgress: [
@@ -483,7 +544,7 @@ export class SimulationResolver {
 
     const updatedTeam: Team = {
       ...team,
-      metrics: metricsAfter,
+      metrics: { ...metricsAfter }, // a copy: later changes to the team must not rewrite the history
       stakeholderTrustMap: updatedTrustMap,
       decisionSubmitted: false, // Reset for next round
       currentRoundDecisions: {
@@ -501,6 +562,7 @@ export class SimulationResolver {
       completedInitiativeIds,
       honoredPacts: [...(team.honoredPacts ?? []), ...pacts],
       history: [...team.history, roundResult],
+      ...(team.promises ? { promises } : {}),
       nodeHealthOverrides: updatedNodeOverrides,
     };
 

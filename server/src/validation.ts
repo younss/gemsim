@@ -17,6 +17,36 @@ export const createSessionSchema = z.object({
   roundDurationSeconds: z.number().int().min(30).max(7200).optional(),
 });
 
+const decisionSchema = z.object({
+  selectedInitiativeIds: z.array(id).max(20),
+  eventChoiceId: id.optional(),
+  governancePosture: governancePostureSchema,
+  customPacts: z.array(z.unknown()).optional().default([]),
+  market: z
+    .object({
+      prices: z.record(id, z.number().finite().positive()).default({}),
+      marketing: z.record(id, z.number().finite().min(0).max(1_000_000)).default({}),
+      enter: z.array(id).max(20).optional(),
+    })
+    .optional(),
+});
+
+/** "What if" replay: one past quarter with another decision (pacts keep what was signed). */
+export const whatIfSchema = z.object({
+  teamId: id,
+  round: z.number().int().min(1).max(12).optional(),
+  decision: decisionSchema.omit({ customPacts: true }).optional(),
+});
+
+/** The coach's facts, already in the player's language, for the LLM to rephrase. */
+export const coachSchema = z.object({
+  lang: z.enum(['fr', 'en']),
+  teamName: z.string().trim().min(1).max(120),
+  round: z.number().int().min(1).max(12),
+  insights: z.array(z.string().max(400)).max(10),
+  advice: z.array(z.string().max(400)).max(5),
+});
+
 export const submitDecisionsSchema = z.object({
   teamId: id,
   decisions: z.object({

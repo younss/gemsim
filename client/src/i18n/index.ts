@@ -48,6 +48,10 @@ export function translate(lang: Lang, key: TranslationKey, vars?: Record<string,
   return vars ? template.replace(/\{(\w+)\}/g, (_, name) => (name in vars ? String(vars[name]) : `{${name}}`)) : template;
 }
 
+export function isTranslationKey(value: string): value is TranslationKey {
+  return value in DICTIONARIES.fr;
+}
+
 /** React hook: current language, setter and translator. */
 export function useI18n() {
   const lang = useLangStore(state => state.lang);

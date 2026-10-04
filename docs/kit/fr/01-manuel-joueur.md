@@ -60,6 +60,12 @@ Chaque décideur a une **personnalité**, un **biais**, un **agenda caché** et 
   - **Quorum sous conditions** : initiatives à risque EXTRÊME interdites ;
   - **Rejeté** : -1 initiative, initiatives à risque HAUT et EXTRÊME interdites.
 
+## Apprendre de chaque trimestre
+
+- **Le coach** : dans chaque compte rendu, l'analyse du coach classe les causes de ce qui a changé (dette, capacité, trésorerie, incidents, décideurs, marché) et propose les prochaines étapes. Elle est calculée par le moteur ; le bouton « Rédiger avec l'IA » la reformule si un modèle est configuré.
+- **Et si… ?** : en haut de l'historique, changez une décision passée (posture, initiatives, réponse à la crise, niveau de prix) et rejouez toute la partie. Le reste est conservé tel qu'il s'est passé, y compris les autres équipes.
+- **Les promesses** : quand un décideur ou le conseil accepte une proposition qui cite des initiatives, c'est une promesse. Si vous ne lancez pas ces initiatives dans le trimestre, la confiance baisse et les décideurs s'en souviennent dans les échanges suivants.
+
 ## Comment gagner
 
 Le verdict compte **7 objectifs** : dette, confiance, vélocité, résilience, coût total, éléments modernisés, trésorerie positive. Les scénarios avec marché en ajoutent deux : **part de marché** (la cible s'ajuste au nombre d'équipes) et **résultat cumulé**.

@@ -14,6 +14,8 @@ import {
 import { api } from '../../services/api';
 import { evaluateOutcome } from '../../engine';
 import { TeamRadarChart } from './TeamRadarChart';
+import { AutoDebrief, useDebriefText } from './AutoDebrief';
+import { buildDebrief } from '../../engine';
 import { buildCrisisTemplates, CrisisTemplate } from './crisisTemplates';
 import { useGameText } from '../../i18n/game';
 import type { TranslationKey } from '../../i18n';
@@ -52,6 +54,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
   onSessionUpdated,
 }) => {
   const { t, vocab, objective, severity, code } = useGameText(scenario);
+  const { text: debriefText } = useDebriefText(scenario);
   const crisisTemplates = buildCrisisTemplates(scenario, t);
   const [broadcastText, setBroadcastText] = useState('');
   const [isAdvancing, setIsAdvancing] = useState(false);
@@ -195,6 +198,19 @@ export const FacilitatorCockpit: React.FC<Props> = ({
         const notes = h.notes?.length ? h.notes.map(n => code(n)).join(' ') : h.facilitatorFeedback;
         const inits = h.activeInitiativesProgress.map(p => `${p.name}${p.completed ? '' : ` (${t('cockpit.md.left', { n: p.remainingRounds })})`}`).join(', ') || t('demo.none');
         lines.push(`- **${t('common.quarterShort', { n: h.roundNumber })}** : ${notes} ${t('cockpit.md.incidents', { n: h.incidentsTriggered.length })} ${t('cockpit.md.initiatives', { list: inits })}`);
+      }
+    }
+    // Automatic debrief: questions to ask and each team's decisive quarters
+    if (session.teams.some(tm => tm.history.length)) {
+      const debrief = buildDebrief(scenario, session);
+      lines.push('', `## ${t('debrief.auto.title')}`, '', `### ${t('debrief.auto.questions')}`, '');
+      debrief.questions.forEach((q, i) => lines.push(`${i + 1}. ${debriefText(q)}`));
+      for (const td of debrief.teams) {
+        lines.push('', `### ${td.teamName} — ${t('debrief.auto.trajectory')} ${td.scores.join(' → ')}`, '');
+        if (td.patterns.length) lines.push(`- ${td.patterns.map(p => t(`debrief.pattern.${p}` as TranslationKey)).join(', ')}`);
+        for (const mo of td.moments) {
+          lines.push(`- **${t('debrief.auto.moment', { n: mo.round, delta: mo.scoreDelta > 0 ? `+${mo.scoreDelta}` : `${mo.scoreDelta}` })}** ${mo.decision.map(debriefText).join(' · ')}. ${mo.causes.map(debriefText).join(' ')}`);
+        }
       }
     }
     const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
@@ -764,6 +780,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
               )}
 
               <TeamRadarChart teams={session.teams} scenario={scenario} />
+              <AutoDebrief scenario={scenario} session={session} />
 
               {/* Comparative Table for Live Session */}
               <div className="overflow-x-auto rounded-xl border border-slate-800 bg-dark-850">

@@ -3,6 +3,7 @@
 // Runtime provider switching, connection testing, and live persona evaluation
 // ============================================================================
 
+import { describePromises, recordPromise } from '../engine/promises.js';
 import { Router } from 'express';
 import { AIRegistry } from '../ai/registry.js';
 import { DatabaseRepository } from '../db/index.js';
@@ -10,7 +11,7 @@ import { AIProviderType, ChatMessage, ProposalEvaluation, BoardResolution, Scena
 import { broadcastToSession } from '../socket/handler.js';
 import { judgeProposal, judgeBoard, mergeDecision } from '../ai/stakeholder-judge.js';
 import { SystemOneClient } from '../ai/systemone.js';
-import { boardroomSchema, negotiateSchema, validateBody } from '../validation.js';
+import { boardroomSchema, coachSchema, negotiateSchema, validateBody } from '../validation.js';
 import { requireFacilitator } from '../auth.js';
 import { describeBoardMandate } from '../engine/rules.js';
 import { resolveVocabulary } from '../engine/vocabulary.js';
@@ -99,7 +100,7 @@ function promptMetricLabels(scenario: Scenario) {
  * Describes the team's submitted quarter decisions and last round outcome so
  * stakeholders can judge actual actions, not only the chat message.
  */
-export function describeTeamDecisions(scenario: Scenario, session: SimulationSession, team: Team): string[] {
+export function describeTeamDecisions(scenario: Scenario, session: SimulationSession, team: Team, stakeholderId?: string): string[] {
   const lines: string[] = [];
   const vocab = resolveVocabulary(scenario, 'en');
   const d = team.currentRoundDecisions;
@@ -131,6 +132,8 @@ export function describeTeamDecisions(scenario: Scenario, session: SimulationSes
     }
     lines.push(team.decisionSubmitted ? 'These decisions are submitted for this quarter.' : 'These decisions are a draft, not yet submitted.');
   }
+  // Executives remember what this team promised them and whether it delivered
+  for (const line of describePromises(scenario, team, stakeholderId)) lines.push(`Promise memory: ${line}`);
   const last = team.history[team.history.length - 1];
   if (last) {
     const md = last.metricDeltas;
@@ -275,6 +278,33 @@ aiRouter.get('/chat/:sessionId/:teamId', (req, res) => {
 });
 
 // POST /api/ai/negotiate
+// POST /api/ai/coach — rephrases the engine's analysis of a quarter as a short coaching note.
+// The facts come from the deterministic coach; without an LLM the client keeps them as they are.
+aiRouter.post('/coach', validateBody(coachSchema), async (req, res) => {
+  try {
+    const { lang, teamName, round, insights, advice } = req.body as { lang: 'fr' | 'en'; teamName: string; round: number; insights: string[]; advice: string[] };
+    const registry = AIRegistry.getInstance();
+    const system =
+      lang === 'fr'
+        ? "Tu es un coach de direction générale bienveillant et exigeant. Rédige en français, en 4 à 6 phrases, une analyse du trimestre pour l'équipe. N'utilise QUE les faits fournis, n'invente aucun chiffre. Explique les causes et leurs liens, puis termine par la priorité du prochain trimestre. Pas de liste, pas de titre."
+        : 'You are a supportive but demanding executive coach. Write, in English, 4 to 6 sentences analysing the quarter for the team. Use ONLY the facts provided, never invent a number. Explain the causes and how they connect, then end with the priority for next quarter. No list, no heading.';
+    const user = `Team: ${teamName}\nQuarter: ${round}\nFacts:\n${insights.map(i => `- ${i}`).join('\n')}\nNext steps:\n${advice.map(a => `- ${a}`).join('\n') || '- (none)'}`;
+    const { result, usedProvider } = await registry.executeWithFallback(provider =>
+      provider.generateText(
+        [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+        { temperature: 0.4, maxTokens: 400 }
+      )
+    );
+    // The heuristic provider cannot write prose: the client shows the facts instead
+    res.json({ narrative: usedProvider === 'fallback' ? null : String(result).trim(), usedProvider });
+  } catch (err: any) {
+    res.json({ narrative: null, error: err.message });
+  }
+});
+
 aiRouter.post('/negotiate', validateBody(negotiateSchema), async (req, res) => {
   try {
     const { sessionId, teamId, stakeholderId, playerMessage } = req.body as {
@@ -472,7 +502,7 @@ aiRouter.post('/negotiate', validateBody(negotiateSchema), async (req, res) => {
       technicalDebtIndex: team.metrics.technicalDebtIndex,
       deliveryVelocity: team.metrics.deliveryVelocity,
     };
-    const teamDecisions = describeTeamDecisions(scenario, session, team);
+    const teamDecisions = describeTeamDecisions(scenario, session, team, stakeholderId);
     const metricLabels = promptMetricLabels(scenario);
 
     // System 1: fast typed decision. System 2 (LLM) then only voices it.
@@ -511,6 +541,8 @@ aiRouter.post('/negotiate', validateBody(negotiateSchema), async (req, res) => {
     const newTrust = Math.max(5, Math.min(100, currentTrust + (result.evaluation.trustDelta || 0)));
     team.stakeholderTrustMap[stakeholderId] = newTrust;
     spendPatience(team, stakeholderId, PATIENCE_COST[result.evaluation.verdict] ?? PATIENCE_COST.REJECTED);
+    // An accepted proposal that names initiatives becomes a promise checked at the end of the quarter
+    recordPromise(scenario, team, stakeholderId, playerMessage, session.currentRound, result.evaluation.verdict);
 
     // Recalculate average trust
     const trusts = Object.values(team.stakeholderTrustMap);
@@ -753,7 +785,7 @@ aiRouter.post('/negotiate/stream', validateBody(negotiateSchema), async (req, re
       technicalDebtIndex: team.metrics.technicalDebtIndex,
       deliveryVelocity: team.metrics.deliveryVelocity,
     };
-    const teamDecisions = describeTeamDecisions(scenario, session, team);
+    const teamDecisions = describeTeamDecisions(scenario, session, team, stakeholderId);
     const metricLabels = promptMetricLabels(scenario);
 
     // System 1 decides before the first dialogue token is streamed
@@ -804,6 +836,8 @@ aiRouter.post('/negotiate/stream', validateBody(negotiateSchema), async (req, re
     const newTrust = Math.max(5, Math.min(100, currentTrust + (result.evaluation.trustDelta || 0)));
     team.stakeholderTrustMap[stakeholderId] = newTrust;
     spendPatience(team, stakeholderId, PATIENCE_COST[result.evaluation.verdict] ?? PATIENCE_COST.REJECTED);
+    // An accepted proposal that names initiatives becomes a promise checked at the end of the quarter
+    recordPromise(scenario, team, stakeholderId, playerMessage, session.currentRound, result.evaluation.verdict);
     const trusts = Object.values(team.stakeholderTrustMap);
     team.metrics.stakeholderTrust = Math.round(trusts.reduce((a, b) => a + b, 0) / (trusts.length || 1));
     db.saveSession(session);
@@ -1119,6 +1153,7 @@ aiRouter.post('/boardroom', validateBody(boardroomSchema), async (req, res) => {
 
     // The latest board resolution shapes what the team may do this quarter
     team.boardMandate = { round: session.currentRound, verdict: boardVerdict, consensusScore };
+    recordPromise(scenario, team, 'BOARD', playerMessage, session.currentRound, boardVerdict);
     db.saveSession(session);
 
     const boardResolution = {

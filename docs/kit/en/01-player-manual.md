@@ -60,6 +60,12 @@ Each executive has a **personality**, a **bias**, a **hidden agenda** and **prio
   - **Conditional quorum**: EXTREME-risk initiatives blocked;
   - **Rejected**: -1 initiative, HIGH and EXTREME-risk initiatives blocked.
 
+## Learning from every quarter
+
+- **The coach**: in each quarter's report, the coach's analysis ranks the causes of what changed (debt, capacity, cash, incidents, executives, market) and suggests next steps. It is computed by the engine; *Write it up with AI* rephrases it when a model is configured.
+- **What if…?**: at the top of the history, change a past decision (posture, initiatives, crisis answer, price level) and replay the whole game. Everything else is kept as it happened, including the other teams.
+- **Promises**: when an executive or the board accepts a proposal that names initiatives, it is a promise. If you do not launch them that quarter, trust drops and the executives remember it in later conversations.
+
 ## How to win
 
 The verdict counts **7 objectives**: debt, trust, velocity, resilience, total cost, elements modernised, positive cash. Market scenarios add two: **market share** (the target scales with the number of teams) and **cumulative profit**.

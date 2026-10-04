@@ -25,3 +25,7 @@ export {
   productQuality,
   MARKET_PRICE_BOUNDS,
 } from '../../server/src/engine/market';
+export { coachQuarter, priceIndex } from '../../server/src/engine/coach';
+export type { CoachReport } from '../../server/src/engine/coach';
+export { buildDebrief } from '../../server/src/engine/debrief';
+export type { SessionDebrief, TeamDebrief, DebriefPattern } from '../../server/src/engine/debrief';

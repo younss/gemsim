@@ -46,6 +46,26 @@ describe('Interface translations', () => {
     expect([...codes].filter(c => !(c in fr))).toEqual([]);
   });
 
+  it('coach causes, debrief questions and patterns are translated', () => {
+    const serverSrc = path.resolve(__dirname, '../../../server/src');
+    const keys = new Set<string>();
+    for (const file of listFiles(serverSrc)) {
+      const text = fs.readFileSync(file, 'utf8');
+      for (const m of text.matchAll(/'((?:coach|debrief|whatif)\.[A-Za-z.]+[A-Za-z])'/g)) keys.add(m[1]);
+    }
+    const breakdown = {
+      debt: ['drift', 'initiatives', 'governance', 'delivery', 'crisis'],
+      velocity: ['debtDrag', 'capabilities', 'initiatives', 'board', 'governance', 'crisis', 'incidents'],
+      cash: ['investments', 'crisis', 'incidents', 'fines', 'pacts', 'runOverrun', 'market'],
+    };
+    for (const [group, parts] of Object.entries(breakdown)) for (const part of parts) keys.add(`coach.cause.${group}.${part}`);
+    for (const p of ['PRICE_WAR', 'SHORTCUTS', 'INSOLVENCY', 'LOST_SALES', 'IGNORED_CRISIS', 'BROKEN_PROMISES', 'LATE_START', 'STRONG_FINISH', 'EARNED_SHARE']) {
+      keys.add(`debrief.pattern.${p}`);
+    }
+    expect(keys.size).toBeGreaterThan(60);
+    expect([...keys].filter(k => !(k in fr))).toEqual([]);
+  });
+
   it('the glossary is complete in both languages', () => {
     for (const entry of GLOSSARY) {
       expect(entry.term.fr && entry.term.en && entry.definition.fr && entry.definition.en).toBeTruthy();

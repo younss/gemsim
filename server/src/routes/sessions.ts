@@ -17,7 +17,8 @@ import {
   ArchivedSimulationRun,
 } from '../types/index.js';
 import { broadcastToSession } from '../socket/handler.js';
-import { broadcastSchema, timerSchema, createSessionSchema, injectEventSchema, pactSchema, submitDecisionsSchema, validateBody } from '../validation.js';
+import { broadcastSchema, timerSchema, createSessionSchema, injectEventSchema, pactSchema, submitDecisionsSchema, validateBody, whatIfSchema } from '../validation.js';
+import { whatIf } from '../engine/whatif.js';
 import { isValidFacilitatorPin, playerView, requireFacilitator, requireFacilitatorUnlessSolo } from '../auth.js';
 
 export const sessionsRouter = Router();
@@ -453,6 +454,22 @@ sessionsRouter.post('/:id/broadcast', requireFacilitator, validateBody(broadcast
 });
 
 // GET /api/sessions/:id/runs
+// POST /api/sessions/:id/whatif — replay a team's game, optionally with one quarter decided differently
+sessionsRouter.post('/:id/whatif', validateBody(whatIfSchema), (req, res) => {
+  try {
+    const { teamId, round, decision } = req.body as { teamId: string; round?: number; decision?: TeamDecision };
+    const db = DatabaseRepository.getInstance();
+    const session = db.getSession(req.params.id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    const scenario = db.getScenario(session.scenarioId);
+    if (!scenario) return res.status(404).json({ error: 'Scenario not found' });
+    const override = round && decision ? { round, decision: { ...decision, customPacts: [] } } : undefined;
+    res.json(whatIf(scenario, session, teamId, override));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 sessionsRouter.get('/:id/runs', (req, res) => {
   try {
     const db = DatabaseRepository.getInstance();
@@ -553,6 +570,7 @@ sessionsRouter.post('/:id/reset', requireFacilitator, (req, res) => {
       team.boardMandate = undefined;
       team.nodeHealthOverrides = {};
       team.marketPresence = undefined;
+      team.promises = [];
       team.lastMarketDecision = undefined;
       team.currentRoundDecisions = {
         selectedInitiativeIds: [],

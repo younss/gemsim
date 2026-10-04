@@ -15,6 +15,8 @@ Faites raconter chaque équipe, chiffres à l'appui (onglet Historique) :
 - « Quel trimestre a fait basculer votre partie ? »
 - « Comment le conseil a-t-il voté, et qu'est-ce que ça a changé ? »
 
+Avant de commencer, ouvrez le **débriefing automatique** du cockpit (onglet « Debrief & classement ») : il donne pour chaque équipe sa trajectoire de score, ses trois moments décisifs avec leurs causes, les schémas repérés et les questions à poser. Proposez aux équipes de tester une alternative avec **« Et si… ? »** dans leur historique : comparer la partie jouée à une variante rend les causes tangibles.
+
 ## 3. Pourquoi (15 min)
 
 Reliez les résultats aux mécaniques, puis aux concepts :

@@ -22,6 +22,7 @@ The platform features:
 - **Pluggable AI Abstraction Layer ("Bring Your Own AI")**: Seamless runtime switching between Local Ollama (Gemma 4/2), Google Gemini, Anthropic Claude, OpenAI, and a zero-dependency heuristic fallback engine.
 - **Hybrid System 1 / System 2 Decisions**: A non-autoregressive decision model (Clef-flash, Jev-compatible) decides stakeholder verdicts, trust shifts and board votes as calibrated probabilities; the LLM only writes the dialogue.
 - **Competitive market & P&L**: teams sell into the same customer segments, against each other and scripted rivals. Customers choose on price, quality, capacity, reliability and marketing, so debt, resilience and compliance become measurable competitive advantages. Revenue, margin, market share and cumulative profit feed the verdict.
+- **AI-era learning loop**: a coach explains every quarter from the engine's own breakdown (the LLM only rephrases it), a "what if" replay changes one past decision and replays the whole game exactly, an automatic debrief gives the facilitator each team's decisive quarters and the questions to ask, and executives remember the promises a team kept or broke.
 - **Any business case, not only IT**: each scenario declares a domain (IT, industrial, market expansion, sourcing/offshore, generic) and its own vocabulary, so a plant acquisition talks about *asset ageing* and *production capacity* while the engine stays the same.
 - **Learning by design**: FR/EN interface, glossary and contextual tooltips, a guided tutorial with a practice game, a commented demo, and a facilitator kit (learning objectives, agenda, debrief guide, assessment rubric, pilot protocol).
 - **Rootless Podman Containerization**: Fully unprivileged multi-container compose architecture running under UID `10001`.
@@ -262,6 +263,16 @@ A scenario may declare a `market`: customer segments (demand, growth, reference 
 | **Secrecy** | Players never receive other teams' pending decisions (REST and WebSocket player views); the facilitator with the PIN sees everything. |
 
 The player's **Market** tab sets prices, marketing and entries per segment and projects demand, share, capacity use, the drivers of customer choice and the P&L with the same clearing function as the server (other teams at last quarter's public prices). The history shows each quarter's P&L, the cockpit adds market columns, a market radar axis and a share/profit-by-quarter table for the debrief. The Studio can generate a market (*Competitive market* checkbox): numbers are bounded and calibrated (fixed costs so the starting company breaks even, objectives derived from the starting position), and the balance report includes the tournament.
+
+## 🧭 Coach, "What If" Replay, Automatic Debrief & Promise Memory
+
+| Feature | How it works | Where |
+| :--- | :--- | :--- |
+| **Quarter breakdown** | The resolver records where each change came from: debt (interest, initiatives, posture, delivery, crisis), capacity (debt drag, capabilities, initiatives, board, posture, crisis, incidents) and cash (investments, crisis, incidents, fines, pacts, run overrun, market). It also keeps the decision, the board mandate, trust before/after and market presence. | `RoundResult.breakdown`, `engine/resolver.ts` |
+| **Coach** | Ranks the quarter's causes (debt, capacity, cash, incidents, executives, promises, market share drivers, lost sales, losses, competitors' price cuts) and gives up to three next steps for the latest quarter. Shown in each quarter's report, translated. *Write it up with AI* sends the translated facts to the active LLM, instructed to use only them; without an LLM the facts stay. | `engine/coach.ts`, `CoachPanel.tsx`, `POST /api/ai/coach` |
+| **"What if" replay** | Replays the team's whole game with one past quarter decided differently (posture, initiatives, crisis answer, price level). Other teams' recorded capabilities and prices, injected crises, trust won in negotiations, board mandates and promises are kept as they happened; random draws are seeded, so an unchanged replay reproduces the game exactly. Illegal alternatives return the rule issues. | `engine/whatif.ts`, `WhatIfPanel.tsx`, `POST /api/sessions/:id/whatif` |
+| **Automatic debrief** | Score trajectory per team, its three decisive quarters (largest score swings, with the decision and the coach's causes), patterns (price war, repeated shortcuts, negative cash, lost sales, ignored crisis, broken promises, late start, strong finish, share earned at a profit), the leader on each objective and up to six targeted questions. In the cockpit and the Markdown export. | `engine/debrief.ts`, `AutoDebrief.tsx` |
+| **Promise memory** | When an executive or the board accepts a proposal that names initiatives, it becomes a promise. At the end of the quarter it is kept if they were launched (+4 trust, +2 per board member) or broken (−8, −4 per board member). Executives' prompts and the System One judge receive the promise history. | `engine/promises.ts`, `Team.promises` |
 
 ## 🎓 Learning Design: Making the Case Playable for Everyone
 
@@ -512,12 +523,13 @@ Test Results:
  ✓ server/src/ai/production-enhancements.test.ts (4 tests)
  ✓ server/test/game-rules.test.ts (25 tests)
  ✓ server/test/market.test.ts (16 tests)
+ ✓ server/test/phase2.test.ts (9 tests)
 
- Test Files  7 passed (7)
-      Tests  69 passed (69)
+ Test Files  8 passed (8)
+      Tests  79 passed (79)
 ```
 
-`game-rules.test.ts` covers the budget and capacity rules, one-time and multi-quarter initiatives, run-budget economics, insolvency, pacts, crisis injection, seeded incidents, win/loss verdicts, request validation (Zod) and the balance check of every seeded scenario. `market.test.ts` covers market sharing, price and quality effects, capacity caps and lost sales, entries, price bounds and budget, determinism, a shared-market quarter through `advanceSession`, scaled objectives, request validation, Studio market generation and bounds, the balance and tournament of both market scenarios, and the player view that hides other teams' decisions. `i18n.test.ts` checks that French and English define the same keys and placeholders, that every message code emitted by the engine is translated, and that every domain names every metric, layer and posture. `npm test` works from the repository root or from `server/`.
+`game-rules.test.ts` covers the budget and capacity rules, one-time and multi-quarter initiatives, run-budget economics, insolvency, pacts, crisis injection, seeded incidents, win/loss verdicts, request validation (Zod) and the balance check of every seeded scenario. `phase2.test.ts` checks that a replay reproduces a three-team market game exactly (with an injected crisis, negotiations, promises and a board mandate), that an alternative changes the outcome and that illegal ones are refused, promise detection and their trust effects, the coach's causes and advice, and the automatic debrief's moments, patterns and questions. `market.test.ts` covers market sharing, price and quality effects, capacity caps and lost sales, entries, price bounds and budget, determinism, a shared-market quarter through `advanceSession`, scaled objectives, request validation, Studio market generation and bounds, the balance and tournament of both market scenarios, and the player view that hides other teams' decisions. `i18n.test.ts` checks that French and English define the same keys and placeholders, that every message code emitted by the engine is translated, and that every domain names every metric, layer and posture. `npm test` works from the repository root or from `server/`.
 
 ---
 

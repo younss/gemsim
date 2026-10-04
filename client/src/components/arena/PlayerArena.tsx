@@ -30,6 +30,8 @@ import { ExecutiveBriefingModal } from '../briefing/ExecutiveBriefingModal';
 import { ObjectivesTracker, FinalVerdict } from './OutcomePanels';
 import { activeBoardMandate, checkDecisions, effectiveMarketDecision, evaluateOutcome, lockedInitiativeIds } from '../../engine';
 import { MarketPanel, PnL } from './MarketPanel';
+import { CoachPanel } from './CoachPanel';
+import { WhatIfPanel } from './WhatIfPanel';
 import { BOARD_MANDATE_EFFECTS } from '../../../../server/src/engine/rules';
 import { useSimulationStore } from '../../stores/useSimulationStore';
 import { useHelpStore } from '../../stores/useHelpStore';
@@ -914,7 +916,8 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
             <div className="bg-dark-850 p-8 rounded-xl border border-slate-800 text-center text-slate-500 text-xs">{t('arena.history.empty')}</div>
           ) : (
             <div className="space-y-4">
-              {team.history.map(hist => (
+              <WhatIfPanel scenario={scenario} session={session} team={team} />
+              {[...team.history].reverse().map(hist => (
                 <article key={hist.roundNumber} className="bg-dark-850 p-5 rounded-xl border border-slate-800 space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="font-bold text-sm text-cyan-400 font-mono">{t('arena.history.report', { n: hist.roundNumber })}</h4>
@@ -932,6 +935,8 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
                   ) : (
                     <p className="text-xs text-slate-300 bg-dark-900 p-3 rounded-lg border border-slate-800">{hist.facilitatorFeedback}</p>
                   )}
+
+                  <CoachPanel scenario={scenario} session={session} team={team} round={hist.roundNumber} />
 
                   {hist.economics && (
                     <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-[11px] font-mono">

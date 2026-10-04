@@ -75,6 +75,10 @@ gemsim/
 │   │   │   ├── balance.ts                         # Bot strategies, beam search, replayStrategy (demo)
 │   │   │   ├── vocabulary.ts                      # Per-domain FR/EN labels for metrics, layers, postures
 │   │   │   ├── market.ts                          # Competitive market: logit choice, capacity, P&L, calibration
+│   │   │   ├── coach.ts                           # Ranked causes of a quarter + next steps (message codes)
+│   │   │   ├── debrief.ts                         # Decisive moments, patterns, leaders, questions
+│   │   │   ├── whatif.ts                          # Exact replay with one quarter changed
+│   │   │   ├── promises.ts                        # Promise detection, memory for the executives
 │   │   │   └── session-service.ts                 # Advance a session (patience recovery, final outcomes)
 │   │   ├── services/round-service.ts              # Single round path for REST, WebSocket, BullMQ
 │   │   ├── queue/index.ts                         # BullMQ queues & workers
@@ -365,6 +369,16 @@ Player manual, learning objectives with references, workshop agenda (3h30 and 2h
 - **Seeds**: the Vénissieux plant (pumps: industry & automotive, rail & energy, Middle-East export) and **Maison Dumas** (cookware maker opening Germany and Canada against a German premium brand, a low-cost marketplace seller and a Canadian leader). Both: best path VICTORY A+, architect bot alone PARTIAL B, cowboy DEFEAT F; in the tournament the architect wins.
 - **UI**: Market tab (prices, marketing, entries, projected share, capacity use, choice drivers, competitors, P&L), market HUD card, P&L in history, market objectives in the tracker and case file, market rule, tutorial step, cockpit columns, radar axis and share/profit-by-quarter debrief table, demo rows and commentary, glossary entries.
 - **Secrecy**: REST answers (`playerView` middleware, `x-gemsim-team` header) and WebSocket messages (per-connection replacer) hide other teams' pending decisions from players; a WebSocket join with a valid PIN gets the full view.
+
+---
+
+## 16. COACH, "WHAT IF" REPLAY, AUTOMATIC DEBRIEF & PROMISE MEMORY
+
+- **Recorded per quarter** (`RoundResult`): `decision` (market decision with defaults), `mandate`, `trustMapBefore`, `trustMapAfter`, `marketPresenceBefore`, `promises` outcomes and `breakdown` `{ debt: { drift, initiatives, governance, delivery, crisis }, velocity: { debtDrag, capabilities, initiatives, board, governance, crisis, incidents }, cash: { investments, crisis, incidents, fines, pacts, runOverrun, market } }`. The team's metrics are a copy of `metricsAfter` so later changes (crisis injection) never rewrite history.
+- **Coach** (`coachQuarter`, pure, shared): weighted insights from the breakdown (main cause in the direction of each change; capacity compared with the previous quarter's breakdown), incidents, best/worst executive reaction, broken promises, market share change explained by the driver that moved most, lost sales, operating loss (price, marketing or volume), competitors whose price index fell under 0.92. Top 5 insights; up to 3 next steps for the latest quarter only (debt initiative, promises, capacity initiative, prices, compliance, resilience, cash, lowest-trust executive). Message codes whose params may themselves be translation keys. `POST /api/ai/coach` receives the translated facts and asks the LLM for 4–6 sentences using only them; it returns null with the heuristic provider.
+- **What if** (`whatIf`): rebuilds the starting team, then for each recorded quarter re-applies what happened between quarters (metric deltas from crisis injections, trust deltas from negotiations, downed nodes, the recorded mandate), uses the recorded or overridden decision (checked by `checkDecisions`), clears the market with the other teams' recorded `metricsBefore`, presence and decisions, and resolves with the same seeds. Promises are reset to pending and judged again. Unchanged replay = game as played (tested).
+- **Automatic debrief** (`buildDebrief`): projected score after each quarter, 3 decisive quarters per team, patterns PRICE_WAR, SHORTCUTS, INSOLVENCY, LOST_SALES, IGNORED_CRISIS, BROKEN_PROMISES, LATE_START, STRONG_FINISH, EARNED_SHARE, leaders per objective, up to 6 questions naming the teams.
+- **Promises** (`recordPromise` after an accepted negotiation or an approving board vote): initiatives detected by id, full name or enough significant words; one open promise per executive and quarter. At resolution: kept = every promised initiative launched or delivered (+4 trust; board: +2 each), broken = −8 (board: −4 each), with reaction and note codes. `describePromises` feeds the executives' and the judge's context.
 
 ---
 

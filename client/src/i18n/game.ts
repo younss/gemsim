@@ -6,7 +6,7 @@
 import { useMemo } from 'react';
 import type { MessageCode, OutcomeObjective, Scenario } from '../types/index';
 import { resolveVocabulary } from '../../../server/src/engine/vocabulary';
-import { TranslationKey, translate, useI18n } from './index';
+import { TranslationKey, translate, useI18n, isTranslationKey } from './index';
 import type { Lang } from './index';
 
 const OBJECTIVE_METRIC: Record<OutcomeObjective['key'], keyof ReturnType<typeof resolveVocabulary>['metrics'] | null> = {
@@ -21,11 +21,14 @@ const OBJECTIVE_METRIC: Record<OutcomeObjective['key'], keyof ReturnType<typeof 
   cumulativeProfit: 'cumulativeProfit',
 };
 
-/** Translates an engine message code; verdict-like params are translated too. */
+/** Translates an engine message code; verdict-like params and params that are themselves keys are translated too. */
 export function translateCode(lang: Lang, message: MessageCode): string {
   const params = { ...(message.params ?? {}) };
   if (typeof params.verdict === 'string') params.verdict = translate(lang, `mandate.${params.verdict}` as TranslationKey);
   if (typeof params.risk === 'string') params.risk = translate(lang, `risk.${params.risk}` as TranslationKey);
+  for (const [key, value] of Object.entries(params)) {
+    if (typeof value === 'string' && isTranslationKey(value)) params[key] = translate(lang, value);
+  }
   return translate(lang, message.code as TranslationKey, params);
 }
 

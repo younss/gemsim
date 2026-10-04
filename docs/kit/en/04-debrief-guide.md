@@ -15,6 +15,8 @@ Ask each team to tell its story, with numbers (History tab):
 - "Which quarter tipped your game?"
 - "How did the board vote, and what did it change?"
 
+Before you start, open the cockpit's **automatic debrief** ("Debrief & rankings" tab): for each team it gives the score trajectory, the three decisive quarters with their causes, the patterns found and the questions to ask. Invite teams to test an alternative with **"What if…?"** in their history: comparing the game as played with a variant makes causes tangible.
+
 ## 3. Why (15 min)
 
 Link results to mechanics, then to concepts:

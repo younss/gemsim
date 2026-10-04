@@ -16,6 +16,9 @@ import {
   WSServerMessage,
   WSClientMessage,
 } from '../types/index';
+import type { WhatIfResult } from '../../../server/src/engine/whatif';
+
+export type { WhatIfResult };
 
 const API_BASE = '/api';
 
@@ -453,6 +456,29 @@ export const api = {
     const res = await apiFetch(`${API_BASE}/docs?lang=${encodeURIComponent(lang)}`);
     const data = await res.json();
     return data.docs;
+  },
+
+  // "What if": replays the team's game, optionally with one quarter decided differently
+  async whatIf(sessionId: string, teamId: string, round?: number, decision?: Omit<TeamDecision, 'customPacts'>): Promise<WhatIfResult> {
+    const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/whatif`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamId, round, decision }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Replay failed');
+    return data;
+  },
+
+  // The coach's facts rephrased by the active LLM (null without one)
+  async coachNarrative(payload: { lang: string; teamName: string; round: number; insights: string[]; advice: string[] }): Promise<string | null> {
+    const res = await apiFetch(`${API_BASE}/ai/coach`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    return typeof data.narrative === 'string' && data.narrative ? data.narrative : null;
   },
 };
 

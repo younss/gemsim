@@ -347,6 +347,14 @@ export interface RoundResult {
     marketCash?: number; // business result credited to the program, minus market entries
   };
   market?: TeamMarketResult;
+  // Replay & coaching data (sessions resolved before they existed do not have them)
+  decision?: TeamDecision; // the decision resolved this quarter (market decision with its defaults)
+  mandate?: BoardMandate['verdict']; // board resolution in force this quarter
+  trustMapBefore?: Record<string, number>;
+  trustMapAfter?: Record<string, number>;
+  marketPresenceBefore?: string[];
+  breakdown?: QuarterBreakdown;
+  promises?: Array<{ id: string; stakeholderId: string; status: 'KEPT' | 'BROKEN' }>;
   incidentsTriggered: Array<{
     id: string;
     title: string;
@@ -375,6 +383,23 @@ export interface RoundResult {
   }>;
 }
 
+/** Where each change of the quarter came from, for the coach and the debrief. */
+export interface QuarterBreakdown {
+  debt: { drift: number; initiatives: number; governance: number; delivery: number; crisis: number };
+  velocity: { debtDrag: number; capabilities: number; initiatives: number; board: number; governance: number; crisis: number; incidents: number };
+  cash: { investments: number; crisis: number; incidents: number; fines: number; pacts: number; runOverrun: number; market: number };
+}
+
+/** A commitment the team made to an executive (or the board) that the executive accepted. */
+export interface TeamPromise {
+  id: string;
+  stakeholderId: string; // 'BOARD' for a board resolution
+  round: number;
+  initiativeIds: string[];
+  excerpt: string;
+  status: 'PENDING' | 'KEPT' | 'BROKEN';
+}
+
 export interface Team {
   id: string;
   sessionId: string;
@@ -397,6 +422,7 @@ export interface Team {
   outcome?: SimulationOutcome;
   nodeHealthOverrides: Record<string, { health: number; technicalDebt: number; status: NodeHealthStatus }>;
   marketPresence?: string[]; // segments the team sells in (default: segments open at start)
+  promises?: TeamPromise[];
   lastMarketDecision?: MarketDecision; // carried over when a quarter's decision has none
 }
 
