@@ -3,6 +3,7 @@
 // Multi-Team Oversight, Master Round Controls, Event Injection, and Post-Mortem Debrief
 // ============================================================================
 
+import { PilotPanel } from './PilotPanel';
 import React, { useState, useEffect } from 'react';
 import {
   SimulationSession,
@@ -39,6 +40,7 @@ import {
   Archive,
   History,
   Calendar,
+  ClipboardCheck,
 } from 'lucide-react';
 import { WorkshopInvitesModal } from './WorkshopInvitesModal';
 
@@ -58,7 +60,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
   const crisisTemplates = buildCrisisTemplates(scenario, t);
   const [broadcastText, setBroadcastText] = useState('');
   const [isAdvancing, setIsAdvancing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'TELEMETRY' | 'CONTROLS' | 'INJECTION' | 'DEBRIEF'>('TELEMETRY');
+  const [activeTab, setActiveTab] = useState<'TELEMETRY' | 'CONTROLS' | 'INJECTION' | 'DEBRIEF' | 'PILOT'>('TELEMETRY');
   const [isInvitesOpen, setIsInvitesOpen] = useState(false);
   const [archivedRuns, setArchivedRuns] = useState<ArchivedSimulationRun[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<'CURRENT' | string>('CURRENT');
@@ -388,6 +390,18 @@ export const FacilitatorCockpit: React.FC<Props> = ({
           <Trophy className="w-4 h-4 text-amber-400" />
           <span>{t('cockpit.tab.debrief')}</span>
         </button>
+
+        <button
+          onClick={() => setActiveTab('PILOT')}
+          className={`px-4 py-2 rounded-lg text-xs font-bold font-mono flex items-center gap-2 transition-colors ${
+            activeTab === 'PILOT'
+              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+              : 'text-slate-400 hover:bg-slate-800'
+          }`}
+        >
+          <ClipboardCheck className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+          <span>{t('cockpit.tab.pilot')}</span>
+        </button>
       </div>
 
       {/* Broadcast Announcement Bar */}
@@ -618,6 +632,8 @@ export const FacilitatorCockpit: React.FC<Props> = ({
       )}
 
       {/* TAB 3: Post-Simulation Debrief & Rankings */}
+      {activeTab === 'PILOT' && <PilotPanel session={session} onSessionUpdated={onSessionUpdated} />}
+
       {activeTab === 'DEBRIEF' && (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

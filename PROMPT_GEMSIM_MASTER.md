@@ -416,5 +416,14 @@ Player manual, learning objectives with references, workshop agenda (3h30 and 2h
 
 ---
 
+## 21. PILOT TOOLING
+
+- `engine/pilot.ts` (shared): `PILOT_QUIZ` (the protocol's 7 questions, FR/EN, 3 options, correct index), `PILOT_SATISFACTION` (5 Likert items), `PILOT_CRITERIA` (gain ≥ 2, clarity ≥ 4, lessons ≥ 70%), `quizScore`, `pilotResults(session)` → counts, mean scores before/after, gain, normalised gain (post − pre)/(7 − pre), share correct per question, per-team means, satisfaction means, lessons, hindrances, criteria (null until measurable).
+- `SimulationSession.pilot = { preOpen, postOpen, responses: PilotResponse[] }`; `PilotResponse = { id, teamId, phase PRE | POST, respondentId, answers, satisfaction?, hindrance?, lesson?, submittedAt }`. Players' views keep `preOpen`/`postOpen` and an empty `responses`.
+- `POST /api/sessions/:id/pilot/phase` (PIN) opens/closes a phase; `POST /api/sessions/:id/pilot/responses` (Zod) accepts one answer per respondent and phase while it is open (409 otherwise). Both broadcast the session.
+- Player: a banner while a phase is open and this browser has not answered (localStorage), and an accessible questionnaire dialog. Facilitator: cockpit **Pilot** tab with toggles, live results, criteria, CSV and Markdown exports.
+
+---
+
 ## EXECUTION INSTRUCTIONS
 Generate clean, modular, and fully tested TypeScript code. Unit-test the System 1 answer-to-evaluation mapping without a live model. Ensure all Three.js materials, mathematical state transitions, AI streaming handlers, and UI dashboards compile without errors (`npm run build` client & server with 0 errors, `npm test` passing 100%).

@@ -458,6 +458,27 @@ export interface SimulationOutcome {
 
 export type SessionState = 'WAITING' | 'ACTIVE' | 'PAUSED' | 'COMPLETED';
 
+export type PilotPhase = 'PRE' | 'POST';
+
+/** One anonymous answer to the pilot questionnaire, attached to a team only. */
+export interface PilotResponse {
+  id: string;
+  teamId: string;
+  phase: PilotPhase;
+  respondentId: string; // random id kept by the browser, to avoid answering twice
+  answers: number[]; // chosen option per quiz question (-1 = no answer)
+  satisfaction?: number[]; // 1-5 per item (after the workshop)
+  hindrance?: string;
+  lesson?: string;
+  submittedAt: string;
+}
+
+export interface SessionPilot {
+  preOpen: boolean;
+  postOpen: boolean;
+  responses: PilotResponse[]; // hidden from players
+}
+
 export interface SimulationSession {
   id: string;
   name: string;
@@ -472,6 +493,7 @@ export interface SimulationSession {
   isTimerRunning: boolean;
   teams: Team[];
   injectedEvents?: RoundEvent[];
+  pilot?: SessionPilot;
   activeCrisis?: RoundEvent | null;
   createdAt: string;
   updatedAt: string;

@@ -33,6 +33,11 @@ export function viewerReplacer(viewerTeamId: string | undefined) {
     if (key === 'currentRoundDecisions' && this && typeof this === 'object' && 'decisionSubmitted' in this) {
       return (this as { id?: string }).id === viewerTeamId ? value : HIDDEN_DECISIONS;
     }
+    // Players only see whether a pilot questionnaire is open, never the answers
+    if (key === 'pilot' && value && typeof value === 'object') {
+      const { preOpen, postOpen } = value as { preOpen: boolean; postOpen: boolean };
+      return { preOpen, postOpen, responses: [] };
+    }
     return value;
   };
 }

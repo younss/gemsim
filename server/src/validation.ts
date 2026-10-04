@@ -47,6 +47,21 @@ export const coachSchema = z.object({
   advice: z.array(z.string().max(400)).max(5),
 });
 
+export const pilotPhaseSchema = z.object({
+  phase: z.enum(['PRE', 'POST']),
+  open: z.boolean(),
+});
+
+export const pilotResponseSchema = z.object({
+  teamId: id,
+  phase: z.enum(['PRE', 'POST']),
+  respondentId: z.string().trim().min(8).max(64),
+  answers: z.array(z.number().int().min(-1).max(5)).max(20),
+  satisfaction: z.array(z.number().int().min(1).max(5)).max(10).optional(),
+  hindrance: z.string().max(1000).optional(),
+  lesson: z.string().max(1000).optional(),
+});
+
 export const submitDecisionsSchema = z.object({
   teamId: id,
   decisions: z.object({

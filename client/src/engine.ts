@@ -31,3 +31,5 @@ export { buildDebrief } from '../../server/src/engine/debrief';
 export type { SessionDebrief, TeamDebrief, DebriefPattern } from '../../server/src/engine/debrief';
 export { localizeScenario, translationStatus } from '../../server/src/engine/scenario-text';
 export { currencySuffix, CURRENCIES } from '../../server/src/engine/currency';
+export { PILOT_QUIZ, PILOT_SATISFACTION, PILOT_CRITERIA, pilotResults, quizScore } from '../../server/src/engine/pilot';
+export type { PilotResults } from '../../server/src/engine/pilot';

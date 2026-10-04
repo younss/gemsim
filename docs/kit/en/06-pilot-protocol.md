@@ -8,6 +8,10 @@ Goal: before using the game in a course, check that it teaches what it claims to
 - An observer in addition to the facilitator: they record blockers, rule questions and moments of confusion.
 - Same scenario for all teams.
 
+## In GemSim
+
+The questionnaires below are built into the app: in the cockpit's **Pilot** tab, open the *before* questionnaire just before the first quarter, then the *after* questionnaire once the debrief is over. Each participant answers from their team's screen, anonymously (only the team is recorded, a browser answers once). The tab shows the before/after score, the gain, the normalised gain, correct answers per question and per team, satisfaction, comments and the status of the success criteria live; it exports the answers (CSV) and a report (Markdown).
+
 ## Pre / post questionnaire (5 minutes)
 
 Same questions before and after. Scored out of 7 (one correct answer = 1 point).
@@ -27,6 +31,7 @@ Same questions before and after. Scored out of 7 (one correct answer = 1 point).
 - The AI executives were credible.
 - I learned something applicable to my work.
 - I would recommend this workshop.
+- Open question: "One lesson you will apply in your work" (measures the fourth criterion).
 - Open question: "What bothered you most?"
 
 ## Success criteria

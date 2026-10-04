@@ -12,12 +12,15 @@ import {
   SimulationSession,
   Team,
   TeamDecision,
+  PilotPhase,
+  PilotResponse,
   RoundResult,
   RoundEvent,
   ArchivedSimulationRun,
 } from '../types/index.js';
 import { broadcastToSession } from '../socket/handler.js';
-import { broadcastSchema, timerSchema, createSessionSchema, injectEventSchema, pactSchema, submitDecisionsSchema, validateBody, whatIfSchema } from '../validation.js';
+import { broadcastSchema, timerSchema, createSessionSchema, injectEventSchema, pactSchema, pilotPhaseSchema, pilotResponseSchema, submitDecisionsSchema, validateBody, whatIfSchema } from '../validation.js';
+import { PILOT_QUIZ } from '../engine/pilot.js';
 import { whatIf } from '../engine/whatif.js';
 import { isValidFacilitatorPin, playerView, requireFacilitator, requireFacilitatorUnlessSolo } from '../auth.js';
 
@@ -454,6 +457,46 @@ sessionsRouter.post('/:id/broadcast', requireFacilitator, validateBody(broadcast
 });
 
 // GET /api/sessions/:id/runs
+// POST /api/sessions/:id/pilot/phase — the facilitator opens or closes a pilot questionnaire
+sessionsRouter.post('/:id/pilot/phase', requireFacilitator, validateBody(pilotPhaseSchema), (req, res) => {
+  const { phase, open } = req.body as { phase: PilotPhase; open: boolean };
+  const db = DatabaseRepository.getInstance();
+  const session = db.getSession(req.params.id);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  const pilot = session.pilot ?? { preOpen: false, postOpen: false, responses: [] };
+  session.pilot = { ...pilot, [phase === 'PRE' ? 'preOpen' : 'postOpen']: open };
+  session.updatedAt = new Date().toISOString();
+  db.saveSession(session);
+  broadcastToSession(session.id, { type: 'SESSION_STATE', session });
+  res.json({ session });
+});
+
+// POST /api/sessions/:id/pilot/responses — one anonymous answer per browser and phase
+sessionsRouter.post('/:id/pilot/responses', validateBody(pilotResponseSchema), (req, res) => {
+  const body = req.body as Omit<PilotResponse, 'id' | 'submittedAt'>;
+  const db = DatabaseRepository.getInstance();
+  const session = db.getSession(req.params.id);
+  if (!session) return res.status(404).json({ error: 'Session not found' });
+  const pilot = session.pilot;
+  const open = body.phase === 'PRE' ? pilot?.preOpen : pilot?.postOpen;
+  if (!pilot || !open) return res.status(409).json({ error: 'This questionnaire is not open', code: 'PILOT_CLOSED' });
+  if (!session.teams.some(t => t.id === body.teamId)) return res.status(404).json({ error: 'Team not found in session' });
+  if (pilot.responses.some(r => r.phase === body.phase && r.respondentId === body.respondentId)) {
+    return res.status(409).json({ error: 'Already answered', code: 'PILOT_DUPLICATE' });
+  }
+  if (body.answers.length !== PILOT_QUIZ.length) return res.status(400).json({ error: `Expected ${PILOT_QUIZ.length} answers` });
+  pilot.responses.push({
+    ...body,
+    ...(body.phase === 'PRE' ? { satisfaction: undefined, hindrance: undefined, lesson: undefined } : {}),
+    id: `pilot-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    submittedAt: new Date().toISOString(),
+  });
+  session.updatedAt = new Date().toISOString();
+  db.saveSession(session);
+  broadcastToSession(session.id, { type: 'SESSION_STATE', session });
+  res.status(201).json({ ok: true });
+});
+
 // POST /api/sessions/:id/whatif — replay a team's game, optionally with one quarter decided differently
 sessionsRouter.post('/:id/whatif', validateBody(whatIfSchema), (req, res) => {
   try {

@@ -32,6 +32,7 @@ import { activeBoardMandate, checkDecisions, effectiveMarketDecision, evaluateOu
 import { MarketPanel, PnL } from './MarketPanel';
 import { CoachPanel } from './CoachPanel';
 import { WhatIfPanel } from './WhatIfPanel';
+import { PilotQuiz } from './PilotQuiz';
 import { BOARD_MANDATE_EFFECTS } from '../../../../server/src/engine/rules';
 import { useSimulationStore } from '../../stores/useSimulationStore';
 import { useHelpStore } from '../../stores/useHelpStore';
@@ -336,6 +337,9 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
           <span>{t('arena.dossier')}</span>
         </button>
       </div>
+
+      {/* Pilot questionnaire, when the facilitator opens it */}
+      <PilotQuiz session={session} team={team} />
 
       {/* Metrics HUD */}
       <div data-tour="hud" className={`grid grid-cols-2 sm:grid-cols-3 ${scenario.market ? 'lg:grid-cols-7' : 'lg:grid-cols-6'} gap-3`}>

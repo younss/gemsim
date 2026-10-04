@@ -500,6 +500,33 @@ export const api = {
     return data.docs;
   },
 
+  // Pilot questionnaires: the facilitator opens or closes a phase; players answer anonymously
+  async setPilotPhase(sessionId: string, phase: 'PRE' | 'POST', open: boolean): Promise<SimulationSession> {
+    const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/pilot/phase`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phase, open }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Pilot update failed');
+    return data.session;
+  },
+
+  async submitPilotResponse(
+    sessionId: string,
+    payload: { teamId: string; phase: 'PRE' | 'POST'; respondentId: string; answers: number[]; satisfaction?: number[]; hindrance?: string; lesson?: string }
+  ): Promise<void> {
+    const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/pilot/responses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw Object.assign(new Error(data.error || 'Answer not saved'), { code: data.code });
+    }
+  },
+
   // "What if": replays the team's game, optionally with one quarter decided differently
   async whatIf(sessionId: string, teamId: string, round?: number, decision?: Omit<TeamDecision, 'customPacts'>): Promise<WhatIfResult> {
     const res = await apiFetch(`${API_BASE}/sessions/${sessionId}/whatif`, {

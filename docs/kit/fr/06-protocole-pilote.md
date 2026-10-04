@@ -8,6 +8,10 @@ Objectif : vérifier, avant un déploiement en cours, que le jeu fait apprendre 
 - Un observateur en plus du facilitateur : il note les blocages, les questions de règles et les moments de confusion.
 - Même scénario pour toutes les équipes.
 
+## Dans GemSim
+
+Les questionnaires ci-dessous sont intégrés à l'application : dans le cockpit, onglet **Pilote**, ouvrez le questionnaire *avant* juste avant le premier trimestre, puis le questionnaire *après* une fois le débriefing terminé. Chaque participant répond depuis l'écran de son équipe, de façon anonyme (seule l'équipe est enregistrée, un navigateur ne répond qu'une fois). L'onglet affiche en direct le score avant/après, la progression, le gain relatif, les bonnes réponses par question et par équipe, la satisfaction, les commentaires et l'état des critères de succès ; il exporte les réponses (CSV) et un rapport (Markdown).
+
 ## Questionnaire avant / après (5 minutes)
 
 Les mêmes questions avant et après l'atelier. Note sur 7 (une bonne réponse = 1 point).
@@ -27,6 +31,7 @@ Les mêmes questions avant et après l'atelier. Note sur 7 (une bonne réponse =
 - Les décideurs IA étaient crédibles.
 - J'ai appris quelque chose d'applicable à mon travail.
 - Je recommanderais cet atelier.
+- Question ouverte : « Un enseignement que vous appliquerez dans votre travail » (mesure le 4e critère).
 - Question ouverte : « Qu'est-ce qui vous a le plus gêné ? »
 
 ## Critères de succès
