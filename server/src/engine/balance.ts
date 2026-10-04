@@ -5,10 +5,11 @@
 // punishes bypassing architecture.
 // ============================================================================
 
-import type { RoundResult, Scenario, SimulationOutcome, Team, TeamDecision } from '../types/index.js';
+import type { MarketDecision, RoundResult, Scenario, SimulationOutcome, Team, TeamDecision } from '../types/index.js';
 import { SimulationResolver } from './resolver.js';
 import { evaluateOutcome } from './outcome.js';
 import { checkDecisions, getRoundEvent, lockedInitiativeIds } from './rules.js';
+import { clearMarket, teamPresence } from './market.js';
 
 export type BotStrategy = 'ARCHITECT' | 'PRUDENT' | 'COWBOY';
 
@@ -17,6 +18,54 @@ export interface BalanceReport {
   issues: string[];
   results: Record<BotStrategy, SimulationOutcome>;
   bestAchievable: SimulationOutcome; // beam search over quarter decisions
+  tournament?: Record<BotStrategy, SimulationOutcome>; // the three bots in one shared market
+}
+
+type MarketStyle = { priceIndex: number; marketingShare: number; enter: boolean };
+
+// How each bot sells: the architect prices at the reference and invests in its brand,
+// the prudent bot charges a premium without marketing, the cowboy buys share.
+const BOT_MARKET: Record<BotStrategy, MarketStyle> = {
+  ARCHITECT: { priceIndex: 1, marketingShare: 0.02, enter: true },
+  PRUDENT: { priceIndex: 1.08, marketingShare: 0, enter: false },
+  COWBOY: { priceIndex: 0.85, marketingShare: 0.05, enter: true },
+};
+
+function marketDecision(scenario: Scenario, team: Team, style: MarketStyle): MarketDecision | undefined {
+  const market = scenario.market;
+  if (!market) return undefined;
+  const presence = teamPresence(scenario, team);
+  const enter = style.enter ? market.segments.filter(s => !presence.includes(s.id)).map(s => s.id) : [];
+  const prices: Record<string, number> = {};
+  const marketing: Record<string, number> = {};
+  for (const seg of market.segments) {
+    prices[seg.id] = Math.round(seg.referencePrice * style.priceIndex * 100) / 100;
+    const open = presence.includes(seg.id) || enter.includes(seg.id);
+    marketing[seg.id] = open ? Math.round(seg.baseDemand * seg.referencePrice * style.marketingShare) : 0;
+  }
+  return { prices, marketing, enter };
+}
+
+/** Adds the market decision, dropping segment entries then marketing while the budget does not allow them. */
+function withMarket(scenario: Scenario, team: Team, decision: TeamDecision, round: number, style: MarketStyle): TeamDecision {
+  const market = marketDecision(scenario, team, style);
+  if (!market) return decision;
+  const attempts: MarketDecision[] = [
+    market,
+    { ...market, enter: [] , marketing: Object.fromEntries(Object.entries(market.marketing).map(([k, v]) => [k, (market.enter ?? []).includes(k) ? 0 : v])) },
+    { ...market, enter: [], marketing: {} },
+  ];
+  for (const m of attempts) {
+    const attempt = { ...decision, market: m };
+    if (checkDecisions(scenario, team, attempt, round).ok) return attempt;
+  }
+  return { ...decision, market: { prices: market.prices, marketing: {}, enter: [] } };
+}
+
+/** Resolves one quarter for a team alone in the market (against the scripted rivals). */
+function resolveSolo(scenario: Scenario, team: Team, decision: TeamDecision, round: number) {
+  const market = clearMarket(scenario, [{ team, decision: decision.market }], round, team.sessionId);
+  return SimulationResolver.resolveRound(scenario, { ...team, currentRoundDecisions: decision }, round, undefined, market[team.id]);
 }
 
 function botDecision(strategy: BotStrategy, scenario: Scenario, team: Team, round: number): TeamDecision {
@@ -48,7 +97,7 @@ function botDecision(strategy: BotStrategy, scenario: Scenario, team: Team, roun
     const attempt = { ...decision, selectedInitiativeIds: [...decision.selectedInitiativeIds, init.id] };
     if (checkDecisions(scenario, team, attempt, round).ok) decision.selectedInitiativeIds = attempt.selectedInitiativeIds;
   }
-  return decision;
+  return withMarket(scenario, team, decision, round, BOT_MARKET[strategy]);
 }
 
 function initialTeam(scenario: Scenario, id: string): Team {
@@ -87,12 +136,16 @@ function legalDecisions(scenario: Scenario, team: Team, round: number): TeamDeci
   const choices: Array<string | undefined> = event?.choices.length ? event.choices.map(c => c.id) : [undefined];
   const postures: TeamDecision['governancePosture'][] = ['BYPASS_ARCH', 'BALANCED_AGILE', 'STRICT_GOVERNANCE', 'ACCELERATED_MODERN'];
 
+  // Market variants: the bots' three selling styles
+  const styles: Array<MarketStyle | undefined> = scenario.market ? Object.values(BOT_MARKET) : [undefined];
+
   const out: TeamDecision[] = [];
   for (const selectedInitiativeIds of subsets) {
     for (const governancePosture of postures) {
       for (const eventChoiceId of choices) {
-        const d: TeamDecision = { selectedInitiativeIds, governancePosture, eventChoiceId, customPacts: [] };
-        if (checkDecisions(scenario, team, d, round).ok) out.push(d);
+        const base: TeamDecision = { selectedInitiativeIds, governancePosture, eventChoiceId, customPacts: [] };
+        if (!checkDecisions(scenario, team, base, round).ok) continue;
+        for (const style of styles) out.push(style ? withMarket(scenario, team, base, round, style) : base);
       }
     }
   }
@@ -107,7 +160,7 @@ export function searchBestOutcome(scenario: Scenario, beamWidth = 40): Simulatio
     const next: Array<{ team: Team; score: number }> = [];
     for (const team of beam) {
       for (const decision of legalDecisions(scenario, team, round)) {
-        const resolved = SimulationResolver.resolveRound(scenario, { ...team, currentRoundDecisions: decision }, round).updatedTeam;
+        const resolved = resolveSolo(scenario, team, decision, round).updatedTeam;
         next.push({ team: resolved, score: evaluateOutcome(scenario, resolved.metrics).score });
       }
     }
@@ -131,7 +184,7 @@ export function replayStrategy(scenario: Scenario, strategy: BotStrategy): Strat
   for (let round = 1; round <= (scenario.totalRounds || 4); round++) {
     const decision = botDecision(strategy, scenario, team, round);
     const before = { ...team.metrics };
-    const { updatedTeam, roundResult } = SimulationResolver.resolveRound(scenario, { ...team, currentRoundDecisions: decision }, round);
+    const { updatedTeam, roundResult } = resolveSolo(scenario, team, decision, round);
     quarters.push({ round, decision, before, result: roundResult });
     team = updatedTeam;
   }
@@ -159,10 +212,21 @@ export function simulateStrategy(scenario: Scenario, strategy: BotStrategy): Sim
   };
 
   for (let round = 1; round <= (scenario.totalRounds || 4); round++) {
-    team = { ...team, currentRoundDecisions: botDecision(strategy, scenario, team, round) };
-    team = SimulationResolver.resolveRound(scenario, team, round).updatedTeam;
+    team = resolveSolo(scenario, team, botDecision(strategy, scenario, team, round), round).updatedTeam;
   }
   return evaluateOutcome(scenario, team.metrics);
+}
+
+/** The three bots compete in one shared market, as three teams of a session would. */
+export function playTournament(scenario: Scenario): Record<BotStrategy, SimulationOutcome> {
+  const strategies: BotStrategy[] = ['ARCHITECT', 'PRUDENT', 'COWBOY'];
+  let teams = strategies.map(s => ({ ...initialTeam(scenario, `t-${s}`), sessionId: `tournament-${scenario.id}` }));
+  for (let round = 1; round <= (scenario.totalRounds || 4); round++) {
+    const decided = teams.map((team, i) => ({ ...team, currentRoundDecisions: botDecision(strategies[i], scenario, team, round) }));
+    const market = clearMarket(scenario, decided.map(team => ({ team, decision: team.currentRoundDecisions.market })), round, `tournament-${scenario.id}`);
+    teams = decided.map(team => SimulationResolver.resolveRound(scenario, team, round, undefined, market[team.id]).updatedTeam);
+  }
+  return Object.fromEntries(strategies.map((s, i) => [s, evaluateOutcome(scenario, teams[i].metrics, teams.length)])) as Record<BotStrategy, SimulationOutcome>;
 }
 
 export function checkScenarioBalance(scenario: Scenario): BalanceReport {
@@ -193,5 +257,13 @@ export function checkScenarioBalance(scenario: Scenario): BalanceReport {
     issues.push('No debt-reducing initiative in the catalog.');
   }
 
-  return { playable: issues.length === 0, issues, results, bestAchievable };
+  let tournament: BalanceReport['tournament'];
+  if (scenario.market) {
+    tournament = playTournament(scenario);
+    if (tournament.COWBOY.score >= tournament.ARCHITECT.score) {
+      issues.push('In a shared market, buying share with low prices beats the balanced strategy.');
+    }
+  }
+
+  return { playable: issues.length === 0, issues, results, bestAchievable, tournament };
 }

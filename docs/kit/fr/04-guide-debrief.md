@@ -27,6 +27,9 @@ Reliez les résultats aux mécaniques, puis aux concepts :
 | Décideur à court de patience | « Qu'aviez-vous apporté de neuf à chaque échange ? » | Crédibilité, coût de la répétition |
 | Incidents en série | « Quels signaux aviez-vous vus sur la carte 3D ? » | Fiabilité, risque, boucles de rétroaction (Meadows) |
 | Pactes signés trop vite | « Que vous a coûté la paix sociale ou politique ? » | Concessions et engagements crédibles |
+| Part de marché achetée par les prix, résultat négatif | « Qu'avez-vous gagné, et qu'avez-vous détruit ? » | Guerre des prix, marge et création de valeur (Porter) |
+| Ventes perdues faute de capacité | « Pourquoi vendre ce que vous ne pouviez pas livrer ? » | Capacité, goulots d'étranglement (Goldratt) |
+| Équipe disciplinée qui finit par dominer le marché | « Quand la qualité est-elle devenue un avantage commercial ? » | Avantage concurrentiel fondé sur les capacités |
 
 ## 4. Et dans la vraie vie ? (8 min)
 
@@ -46,3 +49,7 @@ Chaque participant écrit **un enseignement** et **une action** qu'il appliquera
 - Répéter la même proposition au lieu de l'enrichir.
 - Ne garder aucune marge pour la crise du trimestre.
 - Moderniser partout un peu au lieu de finir des chantiers.
+- (Marché) Baisser les prix pour gagner de la part sans regarder la marge.
+- (Marché) Ouvrir de nouveaux pays avant d'avoir la capacité de les servir.
+
+Dans les scénarios avec marché, appuyez-vous sur le tableau « Marché : part et résultat par trimestre » du cockpit : il montre en une ligne qui a acheté sa part et qui l'a gagnée.

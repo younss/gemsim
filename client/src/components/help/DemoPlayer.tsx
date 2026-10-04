@@ -58,6 +58,12 @@ export const DemoPlayer: React.FC = () => {
     [vocab.metrics.budgetRemaining.label, delta(before.budgetRemaining, after.budgetRemaining, 'K$')],
     [vocab.metrics.stakeholderTrust.label, delta(before.stakeholderTrust, after.stakeholderTrust)],
     [vocab.metrics.resilienceIndex.label, delta(before.resilienceIndex, after.resilienceIndex)],
+    ...(after.marketShare !== undefined
+      ? [
+          [vocab.metrics.marketShare.label, `${after.marketShare} %`],
+          [vocab.metrics.operatingProfit.label, `${(after.operatingProfit ?? 0).toLocaleString()}K$`],
+        ]
+      : []),
   ];
 
   const a = replays.ARCHITECT;
@@ -87,7 +93,11 @@ export const DemoPlayer: React.FC = () => {
       debtGap === 0 ? t('demo.gap.debtSame', labels) : t(debtGap > 0 ? 'demo.gap.debtMore' : 'demo.gap.debtLess', { n: Math.abs(debtGap), ...labels }),
       cashGap >= 0 ? t('demo.gap.cashArchitect', { n: cashGap }) : t('demo.gap.cashShortcut', { n: -cashGap }),
     ];
-    return `${lesson} ${t('demo.gap.intro')} ${parts.join(', ')}.`;
+    const market =
+      ra.marketShare !== undefined && rc.marketShare !== undefined
+        ? ' ' + t('demo.gap.market', { shareA: ra.marketShare, shareC: rc.marketShare, profitA: ra.operatingProfit ?? 0, profitC: rc.operatingProfit ?? 0 })
+        : '';
+    return `${lesson} ${t('demo.gap.intro')} ${parts.join(', ')}.${market}`;
   };
 
   return (

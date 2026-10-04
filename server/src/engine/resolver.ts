@@ -13,6 +13,7 @@ import {
   InitiativeTemplate,
   RoundEvent,
   TopologyNode,
+  TeamMarketResult,
 } from '../types/index.js';
 import {
   calculateCompoundDebtDrift,
@@ -23,6 +24,7 @@ import {
   seededRoll,
 } from './math.js';
 import { BOARD_MANDATE_EFFECTS, activeBoardMandate, getRoundEvent } from './rules.js';
+import { effectiveMarketDecision, teamPresence } from './market.js';
 
 const BASE_VELOCITY = 65;
 // Share of a completed initiative's velocity gain that persists in later quarters
@@ -42,13 +44,15 @@ export function getRunAllocation(scenario: Scenario): number {
 
 export class SimulationResolver {
   /**
-   * Resolves a single round for a given team in the scenario.
+   * Resolves a single round for a given team in the scenario. `market` is the team's
+   * share of the quarter's market clearing (competitive scenarios only).
    */
   public static resolveRound(
     scenario: Scenario,
     team: Team,
     roundNumber: number,
-    injectedEvents?: RoundEvent[]
+    injectedEvents?: RoundEvent[],
+    market?: TeamMarketResult
   ): { updatedTeam: Team; roundResult: RoundResult } {
     const decisions = team.currentRoundDecisions || {
       selectedInitiativeIds: [],
@@ -280,7 +284,9 @@ export class SimulationResolver {
 
     // 11. Budget and TCO: change spending plus run overruns (the funded run baseline is excluded)
     const changeOutflow = totalCapEx + eventCapEx + incidentCostTotal + regulatoryFine + pactCost + opExOverrun;
-    const newBudgetRemaining = Math.round(metricsBefore.budgetRemaining - changeOutflow);
+    // The business reinvests part of its result in the program; marketing and entries are paid from it
+    const marketCash = market?.programCashDelta ?? 0;
+    const newBudgetRemaining = Math.round(metricsBefore.budgetRemaining - changeOutflow + marketCash);
     const newCapExSpent = Math.round(metricsBefore.capExSpent + totalCapEx + Math.max(0, eventCapEx) + incidentCostTotal);
     const newTco = Math.round(metricsBefore.tco + changeOutflow);
     const insolvent = newBudgetRemaining < 0;
@@ -290,7 +296,9 @@ export class SimulationResolver {
     const updatedTrustMap: Record<string, number> = { ...team.stakeholderTrustMap };
 
     const spendRatio = changeOutflow / Math.max(1, metricsBefore.budgetRemaining);
-    const financialDelta = insolvent ? -1 : Math.max(-1, Math.min(1, 0.8 - 1.6 * spendRatio));
+    // Finance-minded executives also read the business result: margin on sales moves their view
+    const marketSignal = market && market.revenue > 0 ? Math.max(-0.5, Math.min(0.5, (market.operatingProfit / market.revenue) * 2)) : 0;
+    const financialDelta = insolvent ? -1 : Math.max(-1, Math.min(1, 0.8 - 1.6 * spendRatio + marketSignal));
     const velocityDeltaNorm = (effectiveVelocity - metricsBefore.deliveryVelocity) / 25;
     const architectureDelta = (metricsBefore.technicalDebtIndex - newTdi) / 15 + (newResilience - metricsBefore.resilienceIndex) / 20;
     const complianceDeltaNorm = (newCompliance - metricsBefore.complianceScore) / 20;
@@ -367,6 +375,14 @@ export class SimulationResolver {
       resilienceIndex: newResilience,
       complianceScore: newCompliance,
       modernizedNodesCount: modernizedCount,
+      ...(market
+        ? {
+            revenue: market.revenue,
+            operatingProfit: market.operatingProfit,
+            cumulativeProfit: (metricsBefore.cumulativeProfit ?? 0) + market.operatingProfit,
+            marketShare: market.marketShare,
+          }
+        : {}),
     };
 
     // Facilitator Feedback
@@ -382,6 +398,16 @@ export class SimulationResolver {
     if (mandate) {
       facilitatorFeedback += `Board resolution this quarter: ${mandate.verdict} (${mandate.consensusScore}% consensus)${boardVelocityBonus ? `, +${boardVelocityBonus} velocity` : ''}. `;
       notes.push({ code: 'note.board', params: { verdict: mandate.verdict, consensus: mandate.consensusScore, velocity: boardVelocityBonus } });
+    }
+    if (market) {
+      facilitatorFeedback += `Market: ${market.marketShare}% share, revenue $${market.revenue}K, operating result $${market.operatingProfit}K. `;
+      notes.push({ code: 'note.market', params: { share: market.marketShare, revenue: market.revenue, profit: market.operatingProfit } });
+      if (market.lostSales > 0) {
+        facilitatorFeedback += `${market.lostSales} units of demand lost for lack of capacity. `;
+        notes.push({ code: 'note.lostSales', params: { units: market.lostSales } });
+      }
+      if (market.programCashDelta < 0) notes.push({ code: 'note.marketCashDrain', params: { amount: -market.programCashDelta } });
+      else if (market.programCashDelta > 0) notes.push({ code: 'note.marketCashIn', params: { amount: market.programCashDelta } });
     }
     if (stillActive.length > 0) {
       facilitatorFeedback += `${stillActive.length} multi-quarter initiative(s) still in delivery. `;
@@ -437,7 +463,9 @@ export class SimulationResolver {
         eventCost: eventCapEx,
         pactCost,
         regulatoryFine,
+        ...(market ? { marketCash } : {}),
       },
+      ...(market ? { market } : {}),
       incidentsTriggered,
       debtCompoundedAmount: driftAmount,
       activeInitiativesProgress: [
@@ -463,6 +491,12 @@ export class SimulationResolver {
         governancePosture: decisions.governancePosture,
         customPacts: [],
       },
+      ...(scenario.market
+        ? {
+            marketPresence: [...new Set([...teamPresence(scenario, team), ...(decisions.market?.enter ?? [])])],
+            lastMarketDecision: { ...effectiveMarketDecision(scenario, team, decisions.market), enter: [] },
+          }
+        : {}),
       activeInitiatives: stillActive,
       completedInitiativeIds,
       honoredPacts: [...(team.honoredPacts ?? []), ...pacts],

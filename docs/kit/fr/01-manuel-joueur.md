@@ -9,9 +9,10 @@ Vous dirigez une transformation pendant **4 trimestres**. Chaque trimestre, votr
 | Zone | À quoi elle sert |
 | --- | --- |
 | **Bandeau d'indicateurs** | Trésorerie, dette, vélocité, confiance, résilience, conformité. Survolez un libellé pour sa définition. |
-| **Conditions de victoire** | Les 7 objectifs à atteindre à la fin, en vert quand ils sont tenus aujourd'hui. Le verdict projeté indique où vous en êtes. |
+| **Conditions de victoire** | Les objectifs à atteindre à la fin (7, ou 9 avec un marché), en vert quand ils sont tenus aujourd'hui. Le verdict projeté indique où vous en êtes. |
 | **Carte 3D** | Les éléments de l'organisation (systèmes, sites, centres…) et leur état. Rouge = critique. |
 | **Portefeuille d'initiatives** | Les investissements possibles, leur coût, leurs effets et leur durée. |
+| **Marché** (certains scénarios) | Vos prix et votre marketing par segment, l'entrée sur de nouveaux marchés, l'estimation de vos ventes et de votre compte de résultat. |
 | **Gouvernance & crise** | La posture de gouvernance du trimestre et votre réponse à la crise. |
 | **War Room** | Les entretiens individuels et le conseil d'administration. |
 | **Historique** | Le compte rendu de chaque trimestre joué. |
@@ -37,6 +38,17 @@ Vous dirigez une transformation pendant **4 trimestres**. Chaque trimestre, votr
 - **Insolvabilité** : une trésorerie négative fait chuter la confiance de tous et vous empêche de gagner.
 - **Incidents** : les éléments très fragiles peuvent tomber en panne ; chaque incident coûte de l'argent et de la vélocité.
 
+## Le marché (scénarios concurrentiels)
+
+Dans certains scénarios, votre entreprise vend sur des **segments de clients**, face aux autres équipes et à des concurrents simulés.
+
+- **Ce que regardent les clients** : le prix (par rapport au prix de référence du marché), la qualité (faible dette et bonne conformité), la disponibilité (votre capacité) et la fiabilité (votre résilience), plus votre marketing. Chaque segment pondère ces critères différemment.
+- **La capacité plafonne les ventes** : la demande que vous ne pouvez pas livrer part chez les concurrents.
+- **Décalage d'un trimestre** : le marché se règle sur les capacités que vous avez en début de trimestre. Ce que vous investissez maintenant se vend au trimestre suivant.
+- **Compte de résultat** : marge brute moins coûts fixes, coûts de fonctionnement et marketing. Une part du résultat revient dans la trésorerie du programme ; une perte y est prélevée.
+- **Nouveaux marchés** : certains segments sont fermés au départ ; y entrer coûte un droit d'entrée payé une fois.
+- **Secret** : les prix des autres équipes pour le trimestre en cours restent secrets. L'onglet Marché estime vos ventes avec leurs prix du trimestre précédent.
+
 ## Les décideurs
 
 Chaque décideur a une **personnalité**, un **biais**, un **agenda caché** et des **priorités**. Il juge vos propositions selon ses intérêts, pas selon la « bonne réponse ».
@@ -50,10 +62,10 @@ Chaque décideur a une **personnalité**, un **biais**, un **agenda caché** et 
 
 ## Comment gagner
 
-Le verdict compte **7 objectifs** : dette, confiance, vélocité, résilience, coût total, éléments modernisés, trésorerie positive.
+Le verdict compte **7 objectifs** : dette, confiance, vélocité, résilience, coût total, éléments modernisés, trésorerie positive. Les scénarios avec marché en ajoutent deux : **part de marché** (la cible s'ajuste au nombre d'équipes) et **résultat cumulé**.
 
-- **Victoire** : les 7 tenus. A+ si vous les dépassez largement, A sinon.
-- **Victoire partielle** : trésorerie positive et au moins 4 objectifs tenus.
+- **Victoire** : tous les objectifs tenus. A+ si vous les dépassez largement, A sinon.
+- **Victoire partielle** : trésorerie positive et au moins la moitié des objectifs tenus (4 sur 7, 5 sur 9).
 - **Défaite** : sinon.
 
 ## Conseils
@@ -62,3 +74,4 @@ Le verdict compte **7 objectifs** : dette, confiance, vélocité, résilience, c
 - Une proposition chiffrée (montant, délai, jalon, indicateur) convainc plus qu'une intention.
 - Les raccourcis (contourner les contrôles, cadence forcée) paient au trimestre 1 et coûtent cher ensuite.
 - Gardez de la trésorerie pour les crises : elles arrivent à chaque trimestre.
+- Sur un marché, acheter de la part par les prix détruit la marge : il vaut mieux gagner les clients par la qualité, la capacité et la fiabilité.

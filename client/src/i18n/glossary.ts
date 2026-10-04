@@ -177,8 +177,8 @@ export const GLOSSARY: GlossaryEntry[] = [
     id: 'verdict',
     term: { fr: 'Verdict et note', en: 'Verdict and grade' },
     definition: {
-      fr: "Victoire (7 objectifs tenus, A+ ou A), victoire partielle (trésorerie positive et au moins 4 objectifs, B ou C), défaite (D ou F).",
-      en: 'Victory (all 7 objectives, A+ or A), partial success (positive cash and at least 4 objectives, B or C), defeat (D or F).',
+      fr: "Victoire (tous les objectifs tenus, A+ ou A), victoire partielle (trésorerie positive et au moins la moitié des objectifs, B ou C), défaite (D ou F). 7 objectifs, 9 avec un marché concurrentiel.",
+      en: 'Victory (every objective met, A+ or A), partial success (positive cash and at least half of the objectives, B or C), defeat (D or F). 7 objectives, 9 with a competitive market.',
     },
   },
   {
@@ -187,6 +187,46 @@ export const GLOSSARY: GlossaryEntry[] = [
     definition: {
       fr: "Modèle de décision rapide qui fixe le verdict, la confiance et les scores des décideurs. Le LLM (System 2) rédige ensuite leur réponse.",
       en: 'A fast decision model that sets the executives’ verdict, trust and scores. The LLM (System 2) then writes their reply.',
+    },
+  },
+  {
+    id: 'marketShare',
+    term: { fr: 'Part de marché', en: 'Market share' },
+    definition: {
+      fr: "Part de la demande des clients que vous captez face aux concurrents (autres équipes et concurrents simulés). Elle se gagne par le prix, la qualité, la capacité de livraison, la fiabilité et le marketing.",
+      en: 'The share of customer demand you capture against competitors (other teams and simulated rivals). It is won through price, quality, delivery capacity, reliability and marketing.',
+    },
+  },
+  {
+    id: 'attractiveness',
+    term: { fr: 'Attractivité (modèle de choix)', en: 'Attractiveness (choice model)' },
+    definition: {
+      fr: "Chaque client choisit selon un score qui additionne prix, qualité, disponibilité, fiabilité et marketing. Votre part est votre attractivité divisée par celle de tous les vendeurs (modèle logit, utilisé en marketing et en économie).",
+      en: 'Each customer chooses with a score adding price, quality, availability, reliability and marketing. Your share is your attractiveness divided by that of all sellers (logit model, used in marketing and economics).',
+    },
+  },
+  {
+    id: 'priceElasticity',
+    term: { fr: 'Sensibilité au prix', en: 'Price sensitivity' },
+    definition: {
+      fr: "À quel point un segment réagit au prix. Sur un segment sensible, baisser le prix gagne beaucoup de volume ; sur un segment exigeant, la qualité et la fiabilité comptent plus. Baisser le prix réduit toujours la marge par unité.",
+      en: 'How strongly a segment reacts to price. In a sensitive segment, a lower price wins a lot of volume; in a demanding one, quality and reliability matter more. A lower price always cuts the margin per unit.',
+    },
+  },
+  {
+    id: 'grossMargin',
+    term: { fr: 'Marge brute et résultat', en: 'Gross margin and profit' },
+    definition: {
+      fr: "Marge brute = chiffre d'affaires − coûts variables. Résultat opérationnel = marge brute − coûts fixes − coûts de fonctionnement − marketing. Une partie du résultat revient dans la trésorerie de votre programme.",
+      en: 'Gross margin = revenue − variable costs. Operating profit = gross margin − fixed costs − run costs − marketing. Part of the profit flows back into your program cash.',
+    },
+  },
+  {
+    id: 'lostSales',
+    term: { fr: 'Ventes perdues', en: 'Lost sales' },
+    definition: {
+      fr: "Demande que vous avez attirée mais ne pouvez pas livrer faute de capacité. Elle part chez les concurrents : vendre plus exige d'abord de produire plus.",
+      en: 'Demand you attracted but cannot deliver for lack of capacity. It goes to competitors: selling more first requires delivering more.',
     },
   },
 ];

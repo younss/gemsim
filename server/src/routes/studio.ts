@@ -62,6 +62,13 @@ function summarizeBalance(scenario: Scenario) {
       strategies: Object.fromEntries(
         Object.entries(report.results).map(([k, o]) => [k, { verdict: o.verdict, grade: o.grade, score: o.score }])
       ),
+      ...(report.tournament
+        ? {
+            tournament: Object.fromEntries(
+              Object.entries(report.tournament).map(([k, o]) => [k, { verdict: o.verdict, grade: o.grade, score: o.score }])
+            ),
+          }
+        : {}),
     };
   } catch (err: any) {
     return { playable: false, issues: [`Balance simulation failed: ${err.message}`] };

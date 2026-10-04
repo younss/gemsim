@@ -7,6 +7,7 @@
 import { RoundResult, Scenario, SimulationSession } from '../types/index.js';
 import { SimulationResolver } from './resolver.js';
 import { evaluateOutcome } from './outcome.js';
+import { clearMarket } from './market.js';
 
 // Patience recovered by every stakeholder at the start of a new quarter
 const QUARTERLY_PATIENCE_RECOVERY = 50;
@@ -20,12 +21,20 @@ export function advanceSession(
   }
 
   const results: Record<string, RoundResult> = {};
+  // The only coupling between teams: they sell into the same market
+  const market = clearMarket(
+    scenario,
+    session.teams.map(team => ({ team, decision: team.currentRoundDecisions?.market })),
+    session.currentRound,
+    session.id
+  );
   session.teams = session.teams.map(team => {
     const { updatedTeam, roundResult } = SimulationResolver.resolveRound(
       scenario,
       team,
       session.currentRound,
-      session.injectedEvents
+      session.injectedEvents,
+      market[team.id]
     );
     results[team.id] = roundResult;
 
@@ -43,7 +52,7 @@ export function advanceSession(
     session.state = 'COMPLETED';
     session.isTimerRunning = false;
     for (const team of session.teams) {
-      team.outcome = evaluateOutcome(scenario, team.metrics);
+      team.outcome = evaluateOutcome(scenario, team.metrics, session.teams.length);
     }
   } else {
     session.currentRound += 1;

@@ -38,6 +38,7 @@ gemsim/
 │       │   ├── 3d/EnterpriseCanvas.tsx            # Three.js 3D Spatial Digital Twin
 │       │   ├── arena/PlayerArena.tsx              # Quarter decisions, objectives tracker, final verdict
 │       │   ├── arena/OutcomePanels.tsx            # Win-condition tracker & end-of-game screen
+│       │   ├── arena/MarketPanel.tsx              # Prices, marketing, entries, live projection & P&L
 │       │   ├── stakeholder/StakeholderWarRoom.tsx # 1-on-1 & Boardroom AI negotiations, patience, pacts
 │       │   ├── warroom/FacilitatorCockpit.tsx     # Multi-squad telemetry, crisis injector, debrief
 │       │   ├── warroom/TeamRadarChart.tsx         # Comparative radar
@@ -73,6 +74,7 @@ gemsim/
 │   │   │   ├── outcome.ts                         # Win/loss evaluation (shared with client)
 │   │   │   ├── balance.ts                         # Bot strategies, beam search, replayStrategy (demo)
 │   │   │   ├── vocabulary.ts                      # Per-domain FR/EN labels for metrics, layers, postures
+│   │   │   ├── market.ts                          # Competitive market: logit choice, capacity, P&L, calibration
 │   │   │   └── session-service.ts                 # Advance a session (patience recovery, final outcomes)
 │   │   ├── services/round-service.ts              # Single round path for REST, WebSocket, BullMQ
 │   │   ├── queue/index.ts                         # BullMQ queues & workers
@@ -348,6 +350,21 @@ Pre-seed the database with the flagship enterprise scenario:
 
 ### Facilitator kit (`docs/kit/{fr,en}/`)
 Player manual, learning objectives with references, workshop agenda (3h30 and 2h), debrief guide, assessment rubric, pilot protocol with a 7-question pre/post quiz, and a guide to adapting a case. Shipped in the container image and served by `GET /api/docs?lang=fr|en`.
+
+---
+
+## 15. COMPETITIVE MARKET & P&L
+
+- **Model** (`Scenario.market`, optional): segments `{ id, name, baseDemand, growth, referencePrice, priceSensitivity, qualitySensitivity, speedSensitivity, reliabilitySensitivity, openAtStart?, entryCost? }`, rivals `{ id, name, priceIndex, quality, aggressiveness, segmentIds? }`, and `unitCost`, `fixedCosts`, `unitsPerCapacityPoint`, `cashRetention`.
+- **Decision** (`TeamDecision.market`): price and marketing per segment, segments to enter. Rules: price within 50–200% of the reference, marketing ≥ 0 and only where the team sells, no double entry; marketing and entry fees count in the budget envelope. Last quarter's prices carry over.
+- **Clearing** (`clearMarket`, pure, shared with the client): at the start of the quarter, on each team's current metrics. Attractiveness = exp(−3·priceSens·ln(price/ref) + 3·qualSens·(quality−0.5) + 3·speedSens·(velocity/100−0.5) + 3·relSens·(resilience/100−0.5) + 0.6·ln(1+marketing/scale)), quality = (0.6·(100−TDI) + 0.4·compliance)/100, scale = 2% of the segment's reference revenue. Rivals use their price (cut by 3%·aggressiveness per quarter), quality and a 0.6 capability. Shares = attractiveness / total; demand × (N teams + R rivals)/(1 + R) per segment, ±5% seeded shock. Sales capped by velocity × unitsPerCapacityPoint, unserved demand redistributed to sellers with spare capacity and rivals.
+- **P&L**: operating profit = revenue − unit cost × units − fixed costs − OpEx − marketing. Program cash += cashRetention × (gross margin − fixed costs − run budget − marketing) − entry fees, applied before insolvency and trust are evaluated. Finance-minded executives read the margin. Metrics `revenue`, `operatingProfit`, `cumulativeProfit`, `marketShare`.
+- **Objectives**: `minMarketShare` (scaled by (1+R)/(N+R)) and `minCumulativeProfit`, so a market scenario has 9 objectives; partial success needs half of them.
+- **Balance**: bots carry a market style (architect at reference with brand investment, prudent at a premium, cowboy cutting prices); the beam search explores the three styles; `playTournament` runs the three bots in one shared market and the check fails if the price war beats the balanced strategy.
+- **Studio**: `withMarket` asks the model for a market; `sanitizeMarket` bounds every number and `calibrateMarket` sets fixed costs so the starting company breaks even and derives missing objectives. Without a usable answer, a generic three-segment market is used.
+- **Seeds**: the Vénissieux plant (pumps: industry & automotive, rail & energy, Middle-East export) and **Maison Dumas** (cookware maker opening Germany and Canada against a German premium brand, a low-cost marketplace seller and a Canadian leader). Both: best path VICTORY A+, architect bot alone PARTIAL B, cowboy DEFEAT F; in the tournament the architect wins.
+- **UI**: Market tab (prices, marketing, entries, projected share, capacity use, choice drivers, competitors, P&L), market HUD card, P&L in history, market objectives in the tracker and case file, market rule, tutorial step, cockpit columns, radar axis and share/profit-by-quarter debrief table, demo rows and commentary, glossary entries.
+- **Secrecy**: REST answers (`playerView` middleware, `x-gemsim-team` header) and WebSocket messages (per-connection replacer) hide other teams' pending decisions from players; a WebSocket join with a valid PIN gets the full view.
 
 ---
 

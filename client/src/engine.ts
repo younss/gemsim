@@ -14,3 +14,14 @@ export {
 } from '../../server/src/engine/rules';
 export type { DecisionCheck } from '../../server/src/engine/rules';
 export { evaluateOutcome } from '../../server/src/engine/outcome';
+export {
+  clearMarket,
+  effectiveMarketDecision,
+  marketShareTarget,
+  marketSpend,
+  rivalPrice,
+  segmentDemand,
+  teamPresence,
+  productQuality,
+  MARKET_PRICE_BOUNDS,
+} from '../../server/src/engine/market';

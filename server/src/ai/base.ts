@@ -302,6 +302,9 @@ CRITICAL DESIGN DIRECTIVES:
    Initiative "category" must be one of: ${INITIATIVE_CATEGORIES.join(', ')}.
    Provide a "vocabulary" object, written in the scenario language, naming each engine metric in this business's terms (keys: technicalDebtIndex, deliveryVelocity, stakeholderTrust, resilienceIndex, complianceScore, budgetRemaining, opEx, tco, modernizedNodesCount), the four layers (BUSINESS, APPLICATION, DATA, INFRASTRUCTURE), the four governance postures (BYPASS_ARCH, BALANCED_AGILE, STRICT_GOVERNANCE, ACCELERATED_MODERN) and the "nodeNoun".
 
+${prompt.withMarket ? `8. COMPETITIVE MARKET: Add a "market" object. 2 to 4 customer segments drawn from the prompt (at least one open at start; a segment the company must still enter has "openAtStart": false and an "entryCost" in $K), each with baseDemand (units per quarter), growth (0-0.1), referencePrice ($K per unit) and four purchase criteria between 0 and 1 (priceSensitivity, qualitySensitivity, speedSensitivity, reliabilitySensitivity). 1 to 3 named fictional rivals (never real companies) with priceIndex (0.7-1.3 of the reference price), quality (0-100), aggressiveness (0-1) and optional segmentIds. Also unitCost ($K per unit, below every reference price), unitsPerCapacityPoint and cashRetention (0.3-0.7).
+   Example: "market": { "unitCost": 6, "unitsPerCapacityPoint": 10, "cashRetention": 0.5, "segments": [{ "id": "seg-core", "name": "<segment>", "baseDemand": 900, "growth": 0.02, "referencePrice": 8, "priceSensitivity": 0.7, "qualitySensitivity": 0.4, "speedSensitivity": 0.6, "reliabilitySensitivity": 0.4 }], "rivals": [{ "id": "riv-1", "name": "<fictional rival>", "priceIndex": 0.85, "quality": 45, "aggressiveness": 0.5 }] }
+` : ''}
 Output ONLY valid JSON matching this structure:
 {
   "title": "<Specific, evocative scenario title, e.g. from prompt>",

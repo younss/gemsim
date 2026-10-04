@@ -9,13 +9,35 @@ import type { EnterpriseLayer, GovernancePosture, MetricKey, Scenario, ScenarioD
 
 export type Lang = 'fr' | 'en';
 
-type FullVocabulary = Required<Pick<ScenarioVocabulary, 'nodeNoun'>> & {
-  metrics: Record<MetricKey, { label: string; description: string }>;
+type MarketMetricKey = 'revenue' | 'marketShare' | 'operatingProfit' | 'cumulativeProfit';
+type CoreMetricKey = Exclude<MetricKey, MarketMetricKey>;
+type MetricText = { label: string; description: string };
+
+export type FullVocabulary = Required<Pick<ScenarioVocabulary, 'nodeNoun'>> & {
+  metrics: Record<MetricKey, MetricText>;
   layers: Record<EnterpriseLayer, string>;
   postures: Record<GovernancePosture, { name: string; description: string }>;
 };
 
-const IT_FR: FullVocabulary = {
+type DomainVocabulary = Omit<FullVocabulary, 'metrics'> & { metrics: Record<CoreMetricKey, MetricText> };
+
+// Market metrics mean the same thing in every business
+const MARKET_METRICS: Record<Lang, Record<MarketMetricKey, MetricText>> = {
+  fr: {
+    revenue: { label: "Chiffre d'affaires", description: 'Ventes du trimestre (unités vendues × prix).' },
+    marketShare: { label: 'Part de marché', description: 'Part de la demande totale captée, tous segments confondus. Elle dépend du prix, de la qualité, de la capacité, de la fiabilité et du marketing, comparés aux concurrents.' },
+    operatingProfit: { label: 'Résultat opérationnel', description: "Marge sur les ventes moins les coûts fixes, les coûts d'exploitation et le marketing du trimestre." },
+    cumulativeProfit: { label: 'Résultat cumulé', description: 'Somme des résultats opérationnels depuis le premier trimestre : la valeur créée.' },
+  },
+  en: {
+    revenue: { label: 'Revenue', description: "The quarter's sales (units sold × price)." },
+    marketShare: { label: 'Market share', description: 'Share of total demand captured across segments. It depends on price, quality, capacity, reliability and marketing compared with competitors.' },
+    operatingProfit: { label: 'Operating profit', description: "Margin on sales minus fixed costs, run costs and the quarter's marketing." },
+    cumulativeProfit: { label: 'Cumulative profit', description: 'Sum of operating profits since the first quarter: the value created.' },
+  },
+};
+
+const IT_FR: DomainVocabulary = {
   nodeNoun: 'système',
   metrics: {
     technicalDebtIndex: { label: 'Dette technique', description: "Part de l'effort absorbée par des systèmes vieillissants ou bricolés. Elle se compose chaque trimestre comme une dette financière." },
@@ -37,7 +59,7 @@ const IT_FR: FullVocabulary = {
   },
 };
 
-const IT_EN: FullVocabulary = {
+const IT_EN: DomainVocabulary = {
   nodeNoun: 'system',
   metrics: {
     technicalDebtIndex: { label: 'Technical debt', description: 'Share of effort absorbed by ageing or patched systems. It compounds every quarter like financial debt.' },
@@ -59,7 +81,7 @@ const IT_EN: FullVocabulary = {
   },
 };
 
-const INDUSTRIAL_FR: FullVocabulary = {
+const INDUSTRIAL_FR: DomainVocabulary = {
   nodeNoun: 'site',
   metrics: {
     technicalDebtIndex: { label: 'Vétusté industrielle', description: "Usure des équipements et retard de maintenance. Elle s'aggrave chaque trimestre si rien n'est fait." },
@@ -81,7 +103,7 @@ const INDUSTRIAL_FR: FullVocabulary = {
   },
 };
 
-const INDUSTRIAL_EN: FullVocabulary = {
+const INDUSTRIAL_EN: DomainVocabulary = {
   nodeNoun: 'site',
   metrics: {
     technicalDebtIndex: { label: 'Asset ageing', description: 'Equipment wear and maintenance backlog. It worsens every quarter if left alone.' },
@@ -103,9 +125,9 @@ const INDUSTRIAL_EN: FullVocabulary = {
   },
 };
 
-const EXPANSION_FR: FullVocabulary = {
+const EXPANSION_FR: DomainVocabulary = {
   ...INDUSTRIAL_FR,
-  nodeNoun: 'implantation',
+  nodeNoun: 'site',
   metrics: {
     ...INDUSTRIAL_FR.metrics,
     technicalDebtIndex: { label: "Dette d'intégration", description: "Écart entre les nouvelles implantations et le modèle opératoire cible. Il s'accumule si l'expansion va plus vite que l'intégration." },
@@ -117,7 +139,7 @@ const EXPANSION_FR: FullVocabulary = {
   layers: { BUSINESS: 'Marchés', APPLICATION: 'Opérations', DATA: 'Pilotage', INFRASTRUCTURE: 'Implantations' },
 };
 
-const EXPANSION_EN: FullVocabulary = {
+const EXPANSION_EN: DomainVocabulary = {
   ...INDUSTRIAL_EN,
   nodeNoun: 'location',
   metrics: {
@@ -131,7 +153,7 @@ const EXPANSION_EN: FullVocabulary = {
   layers: { BUSINESS: 'Markets', APPLICATION: 'Operations', DATA: 'Steering', INFRASTRUCTURE: 'Locations' },
 };
 
-const SOURCING_FR: FullVocabulary = {
+const SOURCING_FR: DomainVocabulary = {
   ...IT_FR,
   nodeNoun: 'centre de service',
   metrics: {
@@ -144,7 +166,7 @@ const SOURCING_FR: FullVocabulary = {
   },
 };
 
-const SOURCING_EN: FullVocabulary = {
+const SOURCING_EN: DomainVocabulary = {
   ...IT_EN,
   nodeNoun: 'delivery centre',
   metrics: {
@@ -157,7 +179,7 @@ const SOURCING_EN: FullVocabulary = {
   },
 };
 
-const GENERIC_FR: FullVocabulary = {
+const GENERIC_FR: DomainVocabulary = {
   ...IT_FR,
   nodeNoun: 'composant',
   metrics: {
@@ -169,7 +191,7 @@ const GENERIC_FR: FullVocabulary = {
   layers: { BUSINESS: 'Clients & marché', APPLICATION: 'Opérations', DATA: 'Pilotage', INFRASTRUCTURE: 'Moyens' },
 };
 
-const GENERIC_EN: FullVocabulary = {
+const GENERIC_EN: DomainVocabulary = {
   ...IT_EN,
   nodeNoun: 'component',
   metrics: {
@@ -181,12 +203,14 @@ const GENERIC_EN: FullVocabulary = {
   layers: { BUSINESS: 'Customers & market', APPLICATION: 'Operations', DATA: 'Steering', INFRASTRUCTURE: 'Assets' },
 };
 
+const full = (v: DomainVocabulary, lang: Lang): FullVocabulary => ({ ...v, metrics: { ...v.metrics, ...MARKET_METRICS[lang] } });
+
 export const DOMAIN_VOCABULARY: Record<ScenarioDomain, Record<Lang, FullVocabulary>> = {
-  IT: { fr: IT_FR, en: IT_EN },
-  INDUSTRIAL: { fr: INDUSTRIAL_FR, en: INDUSTRIAL_EN },
-  MARKET_EXPANSION: { fr: EXPANSION_FR, en: EXPANSION_EN },
-  SOURCING: { fr: SOURCING_FR, en: SOURCING_EN },
-  GENERIC: { fr: GENERIC_FR, en: GENERIC_EN },
+  IT: { fr: full(IT_FR, 'fr'), en: full(IT_EN, 'en') },
+  INDUSTRIAL: { fr: full(INDUSTRIAL_FR, 'fr'), en: full(INDUSTRIAL_EN, 'en') },
+  MARKET_EXPANSION: { fr: full(EXPANSION_FR, 'fr'), en: full(EXPANSION_EN, 'en') },
+  SOURCING: { fr: full(SOURCING_FR, 'fr'), en: full(SOURCING_EN, 'en') },
+  GENERIC: { fr: full(GENERIC_FR, 'fr'), en: full(GENERIC_EN, 'en') },
 };
 
 /**

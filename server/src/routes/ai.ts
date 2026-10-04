@@ -119,12 +119,25 @@ export function describeTeamDecisions(scenario: Scenario, session: SimulationSes
     for (const pact of d.customPacts) {
       lines.push(`Pact with ${pact.stakeholderId}: ${pact.concession} ($${pact.committedBudget}K)`);
     }
+    if (scenario.market && d.market) {
+      for (const seg of scenario.market.segments) {
+        const price = d.market.prices?.[seg.id];
+        const marketing = d.market.marketing?.[seg.id] ?? 0;
+        const entering = d.market.enter?.includes(seg.id);
+        if (price === undefined && !marketing && !entering) continue;
+        const index = price !== undefined ? Math.round((price / seg.referencePrice) * 100) : 100;
+        lines.push(`Market "${seg.name}": ${entering ? `entering (entry $${seg.entryCost ?? 0}K), ` : ''}price at ${index}% of the market reference, marketing $${Math.round(marketing)}K`);
+      }
+    }
     lines.push(team.decisionSubmitted ? 'These decisions are submitted for this quarter.' : 'These decisions are a draft, not yet submitted.');
   }
   const last = team.history[team.history.length - 1];
   if (last) {
     const md = last.metricDeltas;
     lines.push(`Last quarter (Q${last.roundNumber}) results: ${vocab.metrics.technicalDebtIndex.label.toLowerCase()} ${md.technicalDebtIndex >= 0 ? '+' : ''}${md.technicalDebtIndex}, ${vocab.metrics.deliveryVelocity.label.toLowerCase()} ${md.deliveryVelocity >= 0 ? '+' : ''}${md.deliveryVelocity}, budget ${md.budgetRemaining}K, ${last.incidentsTriggered.length} incident(s)`);
+    if (last.market) {
+      lines.push(`Last quarter's market: ${last.market.marketShare}% share, revenue $${last.market.revenue}K, operating profit $${last.market.operatingProfit}K${last.market.lostSales ? `, ${last.market.lostSales} units lost for lack of capacity` : ''}`);
+    }
   }
   return lines;
 }

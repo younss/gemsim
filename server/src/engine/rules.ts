@@ -5,6 +5,7 @@
 // ============================================================================
 
 import type { BoardMandate, MessageCode, RiskLevel, RoundEvent, Scenario, Team, TeamDecision } from '../types/index.js';
+import { marketDecisionIssues, marketSpend } from './market.js';
 
 export const DEFAULT_MAX_INITIATIVES_PER_ROUND = 2;
 
@@ -33,7 +34,7 @@ export interface DecisionCheck {
   ok: boolean;
   errors: string[];
   issues: MessageCode[]; // same problems as `errors`, as translatable codes
-  committedCost: number; // CapEx + crisis response + pacts ($K)
+  committedCost: number; // CapEx + crisis response + pacts + marketing and market entries ($K)
   budgetAvailable: number;
   capacity: number;
 }
@@ -49,7 +50,7 @@ export function lockedInitiativeIds(team: Pick<Team, 'completedInitiativeIds' | 
 
 export function checkDecisions(
   scenario: Scenario,
-  team: Pick<Team, 'metrics' | 'completedInitiativeIds' | 'activeInitiatives' | 'boardMandate'>,
+  team: Pick<Team, 'metrics' | 'completedInitiativeIds' | 'activeInitiatives' | 'boardMandate' | 'marketPresence'>,
   decisions: TeamDecision,
   roundNumber: number,
   injectedEvents?: RoundEvent[]
@@ -104,6 +105,9 @@ export function checkDecisions(
   for (const pact of decisions.customPacts ?? []) {
     committedCost += Math.max(0, pact.committedBudget);
   }
+
+  for (const issue of marketDecisionIssues(scenario, team, decisions.market)) fail(issue.message, issue.code, issue.params);
+  committedCost += marketSpend(scenario, decisions.market);
 
   const budgetAvailable = team.metrics.budgetRemaining;
   if (committedCost > 0 && committedCost > budgetAvailable) {

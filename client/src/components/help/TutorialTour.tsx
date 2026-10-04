@@ -9,21 +9,23 @@ import { GraduationCap } from 'lucide-react';
 import { useHelpStore } from '../../stores/useHelpStore';
 import { useI18n, TranslationKey } from '../../i18n';
 
-export type ArenaTab = '3D' | 'INITIATIVES' | 'GOVERNANCE' | 'STAKEHOLDERS' | 'HISTORY';
+export type ArenaTab = '3D' | 'INITIATIVES' | 'MARKET' | 'GOVERNANCE' | 'STAKEHOLDERS' | 'HISTORY';
 
 interface Step {
   id: string;
   anchor?: string; // data-tour value
   tab?: ArenaTab;
+  marketOnly?: boolean; // shown only for scenarios with a competitive market
 }
 
-const STEPS: Step[] = [
+const ALL_STEPS: Step[] = [
   { id: 'welcome' },
   { id: 'hud', anchor: 'hud' },
   { id: 'objectives', anchor: 'objectives' },
   { id: 'dossier', anchor: 'dossier' },
   { id: 'map', anchor: 'map', tab: '3D' },
   { id: 'portfolio', anchor: 'constraints', tab: 'INITIATIVES' },
+  { id: 'market', anchor: 'market', tab: 'MARKET', marketOnly: true },
   { id: 'posture', anchor: 'posture', tab: 'GOVERNANCE' },
   { id: 'crisis', anchor: 'crisis', tab: 'GOVERNANCE' },
   { id: 'warroom', anchor: 'tab-STAKEHOLDERS', tab: 'STAKEHOLDERS' },
@@ -36,9 +38,12 @@ const STEPS: Step[] = [
 interface Props {
   onTabChange: (tab: ArenaTab) => void;
   isSolo: boolean;
+  hasMarket?: boolean;
+  objectiveCount?: number;
 }
 
-export const TutorialTour: React.FC<Props> = ({ onTabChange, isSolo }) => {
+export const TutorialTour: React.FC<Props> = ({ onTabChange, isSolo, hasMarket = false, objectiveCount = 7 }) => {
+  const STEPS = ALL_STEPS.filter(s => hasMarket || !s.marketOnly);
   const { t } = useI18n();
   const endTutorial = useHelpStore(s => s.endTutorial);
   const [index, setIndex] = useState(0);
@@ -144,7 +149,7 @@ export const TutorialTour: React.FC<Props> = ({ onTabChange, isSolo }) => {
             {index + 1}/{STEPS.length}
           </span>
         </div>
-        <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{t(bodyKey)}</p>
+        <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-line">{t(bodyKey, { n: objectiveCount, half: Math.ceil(objectiveCount / 2) })}</p>
         <div className="flex items-center justify-between pt-1">
           <button onClick={endTutorial} className="text-[11px] text-slate-500 hover:text-slate-300">
             {t('tutorial.skip')}

@@ -27,6 +27,9 @@ Link results to mechanics, then to concepts:
 | Executive out of patience | "What new did you bring to each exchange?" | Credibility, cost of repetition |
 | Series of incidents | "Which signals had you seen on the 3D map?" | Reliability, risk, feedback loops (Meadows) |
 | Pacts signed too fast | "What did political or social peace cost you?" | Concessions and credible commitments |
+| Market share bought with prices, negative profit | "What did you win, and what did you destroy?" | Price wars, margin and value creation (Porter) |
+| Sales lost for lack of capacity | "Why sell what you could not deliver?" | Capacity and bottlenecks (Goldratt) |
+| A disciplined team ends up leading the market | "When did quality become a commercial advantage?" | Capability-based competitive advantage |
 
 ## 4. And in real life? (8 min)
 
@@ -46,3 +49,7 @@ Each participant writes **one lesson** and **one action** they will apply.
 - Repeating the same proposal instead of enriching it.
 - Keeping no margin for the quarter's crisis.
 - Modernising a little everywhere instead of finishing projects.
+- (Market) Cutting prices to win share without watching the margin.
+- (Market) Opening new countries before having the capacity to serve them.
+
+In market scenarios, use the cockpit's "Market: share and profit by quarter" table: it shows at a glance who bought their share and who earned it.

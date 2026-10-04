@@ -17,7 +17,8 @@ const VERDICT_STYLE: Record<SimulationOutcome['verdict'], string> = {
 };
 
 function formatValue(o: OutcomeObjective, value: number): string {
-  if (o.key === 'tco' || o.key === 'solvency') return `${value.toLocaleString()}K$`;
+  if (o.key === 'tco' || o.key === 'solvency' || o.key === 'cumulativeProfit') return `${value.toLocaleString()}K$`;
+  if (o.key === 'marketShare') return `${value} %`;
   return `${value}`;
 }
 

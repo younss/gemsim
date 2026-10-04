@@ -21,6 +21,7 @@ The platform features:
 - **Facilitator War Room Cockpit**: Real-time telemetry monitoring all competing teams, master timer controls, black swan crisis injection, and post-simulation debriefing radar scorecards.
 - **Pluggable AI Abstraction Layer ("Bring Your Own AI")**: Seamless runtime switching between Local Ollama (Gemma 4/2), Google Gemini, Anthropic Claude, OpenAI, and a zero-dependency heuristic fallback engine.
 - **Hybrid System 1 / System 2 Decisions**: A non-autoregressive decision model (Clef-flash, Jev-compatible) decides stakeholder verdicts, trust shifts and board votes as calibrated probabilities; the LLM only writes the dialogue.
+- **Competitive market & P&L**: teams sell into the same customer segments, against each other and scripted rivals. Customers choose on price, quality, capacity, reliability and marketing, so debt, resilience and compliance become measurable competitive advantages. Revenue, margin, market share and cumulative profit feed the verdict.
 - **Any business case, not only IT**: each scenario declares a domain (IT, industrial, market expansion, sourcing/offshore, generic) and its own vocabulary, so a plant acquisition talks about *asset ageing* and *production capacity* while the engine stays the same.
 - **Learning by design**: FR/EN interface, glossary and contextual tooltips, a guided tutorial with a practice game, a commented demo, and a facilitator kit (learning objectives, agenda, debrief guide, assessment rubric, pilot protocol).
 - **Rootless Podman Containerization**: Fully unprivileged multi-container compose architecture running under UID `10001`.
@@ -199,6 +200,7 @@ Each quarter's choices are checked by the same pure rule function on the server 
 | **Insolvency** | Negative cash costs every executive trust (weighted by financial focus). The team can still submit an empty quarter. |
 | **Incidents** | At-risk nodes (P(Fail) > 0.45) fail on a seeded roll against P(Fail): reproducible per session/team/quarter, not deterministic. Each incident also costs velocity. |
 | **Board mandate** | The latest board resolution of the quarter shapes it: **APPROVED** = +1 initiative capacity and +5 velocity at resolution; **CONDITIONAL QUORUM** = EXTREME-risk initiatives blocked; **REJECTED** = -1 capacity (min 1) and HIGH/EXTREME-risk initiatives blocked. No board meeting = no effect. |
+| **Market (optional)** | Prices must stay within 50–200% of the segment's reference price; marketing and new-market entries count in the budget envelope; marketing only where the team sells. |
 | **Crisis injection** | An injected crisis hits immediately and is not charged again at resolution; teams that answered the old dilemma must choose again. |
 
 | Budget, capacity, multi-quarter delivery & pacts | Patience meters & binding pacts |
@@ -211,8 +213,8 @@ After the final quarter every team gets a verdict against the scenario's `winLos
 
 | Verdict | Condition |
 | :--- | :--- |
-| **VICTORY** (A+/A) | All 7 objectives met (TDI, trust, velocity, resilience, TCO, capabilities modernized, cash ≥ 0). |
-| **PARTIAL** (B/C) | Solvent and at least 4 objectives met. |
+| **VICTORY** (A+/A) | Every objective met: TDI, trust, velocity, resilience, TCO, capabilities modernized, cash ≥ 0, plus market share and cumulative profit in market scenarios (7 or 9 objectives). |
+| **PARTIAL** (B/C) | Solvent and at least half of the objectives met (4 of 7, 5 of 9). |
 | **DEFEAT** (D/F) | Otherwise. |
 
 The score (0–100) is 90 points for reaching the targets (partial credit by distance) plus 10 for the headroom beyond them: a narrow win is an A, a dominant one an A+. It ranks teams in the facilitator debrief. Players see a live objectives tracker each quarter and a final verdict screen at the end. A node counts as a modernized capability when a completed modernization initiative brings its debt to 50 or below.
@@ -232,7 +234,10 @@ Three bots play every quarter through the real resolver, and a beam search explo
 | NeoTitan (Intermediate) | VICTORY A+ | VICTORY A+ | PARTIAL C | DEFEAT F |
 | HealthNova (Executive) | VICTORY A+ | PARTIAL B | PARTIAL B | DEFEAT F |
 | Mirage Offshore (Executive) | VICTORY A+ | VICTORY A+ | PARTIAL C | DEFEAT F |
-| Vénissieux plant acquisition (Executive, industrial) | VICTORY A | PARTIAL B | DEFEAT F | DEFEAT F |
+| Vénissieux plant acquisition (Executive, industrial, market) | VICTORY A+ | PARTIAL B | DEFEAT D | DEFEAT F |
+| Maison Dumas expansion (Executive, market) | VICTORY A+ | PARTIAL B | DEFEAT F | DEFEAT F |
+
+In market scenarios the three bots also play a **tournament** in one shared market (architect at reference prices with brand investment, prudent at a premium without marketing, cowboy buying share with low prices): in both market scenarios the architect wins (VICTORY A+) while the price war ends in DEFEAT F. Bots and beam search resolve against the scripted rivals.
 
 A test fails if any seeded scenario becomes unwinnable or lets the bypass strategy win. The Studio runs the same check on every generated scenario and shows the report before publishing.
 
@@ -241,6 +246,22 @@ A test fails if any seeded scenario becomes unwinnable or lets the bypass strate
 When a session has a single team, the player can resolve the quarter from the arena after submitting; no facilitator PIN is needed.
 
 ---
+
+## 📈 Competitive Market & P&L (`server/src/engine/market.ts`)
+
+A scenario may declare a `market`: customer segments (demand, growth, reference price, purchase criteria, some closed until the team pays an entry fee), scripted rivals (price index, quality, aggressiveness) and the business economics (unit cost, fixed costs, units per capacity point, share of the result credited to the program).
+
+| Mechanism | Rule |
+| :--- | :--- |
+| **Customer choice** | Multinomial logit. Attractiveness = exp(price + quality + availability + reliability + marketing terms); price uses log(price / reference), quality blends low debt and compliance, availability is delivery capacity, reliability is resilience, marketing has diminishing returns. |
+| **Shared market** | All teams of a session and the rivals split each segment by attractiveness. Market size scales with the number of teams (per segment, by its rival count) so each team faces the same opportunity as a solo player. |
+| **Capacity** | Sales are capped by delivery capacity × units per point; unserved demand goes to the sellers that can still deliver. |
+| **Timing** | The market clears at the start of the quarter on the capabilities each team brings into it: investments sell from the next quarter. A seeded ±5% demand shock applies per segment. |
+| **P&L** | Operating profit = revenue − variable costs − fixed costs − run cost (OpEx) − marketing. The program cash receives `cashRetention` × (margin − fixed costs − run budget − marketing), minus entry fees. Finance-minded executives read the margin. |
+| **Objectives** | `minMarketShare` (scaled to the number of teams) and `minCumulativeProfit` join the verdict. |
+| **Secrecy** | Players never receive other teams' pending decisions (REST and WebSocket player views); the facilitator with the PIN sees everything. |
+
+The player's **Market** tab sets prices, marketing and entries per segment and projects demand, share, capacity use, the drivers of customer choice and the P&L with the same clearing function as the server (other teams at last quarter's public prices). The history shows each quarter's P&L, the cockpit adds market columns, a market radar axis and a share/profit-by-quarter table for the debrief. The Studio can generate a market (*Competitive market* checkbox): numbers are bounded and calibrated (fixed costs so the starting company breaks even, objectives derived from the starting position), and the balance report includes the tournament.
 
 ## 🎓 Learning Design: Making the Case Playable for Everyone
 
@@ -259,7 +280,7 @@ GemSim targets executives, MBA students and professionals without a technical ba
 | **Generic crises** | The facilitator's injectable crises (security, outage, investor pressure, audit) are built from the current scenario: they hit its most fragile critical element and move the executives who care. | `warroom/crisisTemplates.ts` |
 | **Facilitator kit** | Player manual, learning objectives, workshop agenda (3h30 and 2h), debrief guide, assessment rubric, pilot protocol with a pre/post quiz, and a guide to adapting a case. FR and EN, served in the *Docs & kit* portal. | `docs/kit/{fr,en}/` |
 
-The Studio has a domain selector and presets for banking, health, a plant acquisition, a market expansion and an offshore transfer. The seeded **Vénissieux plant acquisition** (`scen-industrial-lyon`, French) shows a fully non-technical case: line retrofit, MES/ERP integration, single-source foundry, HSE compliance, unions and a 3x8 trap initiative.
+The Studio has a domain selector and presets for banking, health, a plant acquisition, a market expansion and an offshore transfer. The seeded **Vénissieux plant acquisition** (`scen-industrial-lyon`, French) shows a fully non-technical case: line retrofit, MES/ERP integration, single-source foundry, HSE compliance, unions and a 3x8 trap initiative. It sells pumps to three segments (industry & automotive, rail & energy, Middle-East export to enter) against a premium and a low-cost rival. **Maison Dumas** (`scen-expansion-dumas`, French) is a market-expansion case: a cookware maker from Thiers opens Germany and Canada and defends its brand against low-cost marketplaces.
 
 ---
 
@@ -268,6 +289,7 @@ The Studio has a domain selector and presets for banking, health, a plant acquis
 - The facilitator PIN (`FACILITATOR_PIN`) is never sent to clients: it is stripped from every REST and WebSocket payload.
 - Facilitator actions require the `x-facilitator-pin` header, checked server-side: advancing a round (except in solo sessions), timer, crisis injection, broadcast, reset, session deletion, scenario creation/deletion, Studio generation/publication, AI settings and provider tests.
 - The client keeps the verified PIN for the browser session and opens the unlock dialog whenever the server answers 401.
+- Players only see their own pending decisions: other teams' initiatives, posture, prices and marketing for the open quarter are replaced by an empty decision in every REST answer (`x-gemsim-team` header) and WebSocket message. Joining the WebSocket with a valid PIN gives the full view.
 
 ---
 
@@ -488,13 +510,14 @@ Test Results:
  ✓ client/src/i18n/i18n.test.ts (7 tests)
  ✓ server/test/scenario-generation.test.ts (3 tests)
  ✓ server/src/ai/production-enhancements.test.ts (4 tests)
- ✓ server/test/game-rules.test.ts (24 tests)
+ ✓ server/test/game-rules.test.ts (25 tests)
+ ✓ server/test/market.test.ts (16 tests)
 
- Test Files  6 passed (6)
-      Tests  52 passed (52)
+ Test Files  7 passed (7)
+      Tests  69 passed (69)
 ```
 
-`game-rules.test.ts` covers the budget and capacity rules, one-time and multi-quarter initiatives, run-budget economics, insolvency, pacts, crisis injection, seeded incidents, win/loss verdicts, request validation (Zod) and the balance check of every seeded scenario. `i18n.test.ts` checks that French and English define the same keys and placeholders, that every message code emitted by the engine is translated, and that every domain names every metric, layer and posture. `npm test` works from the repository root or from `server/`.
+`game-rules.test.ts` covers the budget and capacity rules, one-time and multi-quarter initiatives, run-budget economics, insolvency, pacts, crisis injection, seeded incidents, win/loss verdicts, request validation (Zod) and the balance check of every seeded scenario. `market.test.ts` covers market sharing, price and quality effects, capacity caps and lost sales, entries, price bounds and budget, determinism, a shared-market quarter through `advanceSession`, scaled objectives, request validation, Studio market generation and bounds, the balance and tournament of both market scenarios, and the player view that hides other teams' decisions. `i18n.test.ts` checks that French and English define the same keys and placeholders, that every message code emitted by the engine is translated, and that every domain names every metric, layer and posture. `npm test` works from the repository root or from `server/`.
 
 ---
 

@@ -53,6 +53,7 @@ export interface ScenarioGenerationPrompt {
   difficulty?: 'ENTRY' | 'INTERMEDIATE' | 'EXECUTIVE' | 'CRISIS_CHIEF';
   customDirectives?: string;
   domain?: 'IT' | 'INDUSTRIAL' | 'MARKET_EXPANSION' | 'SOURCING' | 'GENERIC';
+  withMarket?: boolean; // add a competitive market (segments, rivals, P&L)
 }
 
 export interface AIProvider {

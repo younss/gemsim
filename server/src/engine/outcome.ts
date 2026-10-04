@@ -5,6 +5,7 @@
 // ============================================================================
 
 import type { OutcomeObjective, Scenario, SimulationOutcome, TeamMetrics } from '../types/index.js';
+import { marketShareTarget } from './market.js';
 
 function attainment(comparator: '<=' | '>=', target: number, actual: number, span: number): number {
   const gap = comparator === '<=' ? actual - target : target - actual;
@@ -12,7 +13,15 @@ function attainment(comparator: '<=' | '>=', target: number, actual: number, spa
   return Math.max(0, 1 - gap / span);
 }
 
-export function evaluateOutcome(scenario: Pick<Scenario, 'winLossConditions' | 'baselineMetrics'>, metrics: TeamMetrics): SimulationOutcome {
+/**
+ * `teamsInMarket` is the number of teams competing in the session's market: the
+ * market-share target is scaled to it (see marketShareTarget).
+ */
+export function evaluateOutcome(
+  scenario: Pick<Scenario, 'winLossConditions' | 'baselineMetrics'> & Partial<Pick<Scenario, 'market'>>,
+  metrics: TeamMetrics,
+  teamsInMarket = 1
+): SimulationOutcome {
   const base = scenario.baselineMetrics;
   // Generated scenarios may omit conditions: fall back to reasonable targets
   const w: Scenario['winLossConditions'] = {
@@ -34,6 +43,16 @@ export function evaluateOutcome(scenario: Pick<Scenario, 'winLossConditions' | '
     { key: 'modernizedNodesCount', label: 'Capabilities Modernized', comparator: '>=', target: w.targetCapabilitiesModernized, actual: metrics.modernizedNodesCount, span: Math.max(1, w.targetCapabilitiesModernized) },
     { key: 'solvency', label: 'Cash Remaining ($K)', comparator: '>=', target: 0, actual: metrics.budgetRemaining, span: Math.max(500, base.budgetRemaining) },
   ];
+
+  // Competitive market objectives, only when the scenario sets them
+  const shareTarget = marketShareTarget({ market: scenario.market, winLossConditions: w }, teamsInMarket);
+  if (shareTarget !== undefined) {
+    defs.push({ key: 'marketShare', label: 'Market Share (%)', comparator: '>=', target: shareTarget, actual: metrics.marketShare ?? 0, span: Math.max(5, shareTarget) });
+  }
+  if (scenario.market && w.minCumulativeProfit !== undefined) {
+    const target = w.minCumulativeProfit;
+    defs.push({ key: 'cumulativeProfit', label: 'Cumulative Profit ($K)', comparator: '>=', target, actual: metrics.cumulativeProfit ?? 0, span: Math.max(500, Math.abs(target)) });
+  }
 
   const objectives: OutcomeObjective[] = defs.map(({ span, ...d }) => {
     const met = d.comparator === '<=' ? d.actual <= d.target : d.actual >= d.target;

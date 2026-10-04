@@ -9,9 +9,10 @@ You lead a transformation over **4 quarters**. Each quarter your team decides wh
 | Area | What it is for |
 | --- | --- |
 | **Metrics bar** | Cash, debt, velocity, trust, resilience, compliance. Hover a label for its definition. |
-| **Win conditions** | The 7 objectives to reach by the end, green when met today. The projected verdict shows where you stand. |
+| **Win conditions** | The objectives to reach by the end (7, or 9 with a market), green when met today. The projected verdict shows where you stand. |
 | **3D map** | The elements of the organisation (systems, sites, centres…) and their state. Red = critical. |
 | **Initiative portfolio** | Possible investments, their cost, effects and duration. |
+| **Market** (some scenarios) | Your prices and marketing per segment, entering new markets, and the estimate of your sales and P&L. |
 | **Governance & crisis** | The quarter's governance posture and your answer to the crisis. |
 | **War Room** | 1-on-1 meetings and the board. |
 | **History** | The report of each quarter played. |
@@ -37,6 +38,17 @@ You lead a transformation over **4 quarters**. Each quarter your team decides wh
 - **Insolvency**: negative cash hits everyone's trust and prevents victory.
 - **Incidents**: very fragile elements can fail; each incident costs money and velocity.
 
+## The market (competitive scenarios)
+
+In some scenarios your company sells to **customer segments**, against the other teams and simulated rivals.
+
+- **What customers weigh**: price (against the market reference price), quality (low debt and good compliance), availability (your capacity) and reliability (your resilience), plus your marketing. Each segment weighs these criteria differently.
+- **Capacity caps sales**: demand you cannot deliver goes to competitors.
+- **One-quarter lag**: the market clears on the capabilities you have at the start of the quarter. What you invest now sells from the next quarter.
+- **P&L**: gross margin minus fixed costs, run costs and marketing. Part of the profit flows back into the program cash; a loss is charged to it.
+- **New markets**: some segments are closed at the start; entering costs a one-off fee.
+- **Secrecy**: other teams' prices for the current quarter stay secret. The Market tab estimates your sales with their prices from last quarter.
+
 ## The executives
 
 Each executive has a **personality**, a **bias**, a **hidden agenda** and **priorities**. They judge your proposals by their interests, not by a "right answer".
@@ -50,10 +62,10 @@ Each executive has a **personality**, a **bias**, a **hidden agenda** and **prio
 
 ## How to win
 
-The verdict counts **7 objectives**: debt, trust, velocity, resilience, total cost, elements modernised, positive cash.
+The verdict counts **7 objectives**: debt, trust, velocity, resilience, total cost, elements modernised, positive cash. Market scenarios add two: **market share** (the target scales with the number of teams) and **cumulative profit**.
 
-- **Victory**: all 7 met. A+ with a wide margin, A otherwise.
-- **Partial success**: positive cash and at least 4 objectives met.
+- **Victory**: every objective met. A+ with a wide margin, A otherwise.
+- **Partial success**: positive cash and at least half of the objectives met (4 of 7, 5 of 9).
 - **Defeat**: otherwise.
 
 ## Tips
@@ -62,3 +74,4 @@ The verdict counts **7 objectives**: debt, trust, velocity, resilience, total co
 - A quantified proposal (amount, deadline, milestone, metric) beats an intention.
 - Shortcuts (bypassing controls, forced throughput) pay in quarter 1 and cost a lot later.
 - Keep cash for crises: one comes every quarter.
+- In a market, buying share with low prices destroys margin: win customers through quality, capacity and reliability instead.

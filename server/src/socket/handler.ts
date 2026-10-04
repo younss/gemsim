@@ -9,13 +9,14 @@ import { WSClientMessage, WSServerMessage } from '../types/index.js';
 import { DatabaseRepository } from '../db/index.js';
 import { checkDecisions } from '../engine/rules.js';
 import { advanceRound } from '../services/round-service.js';
-import { isValidFacilitatorPin, stripSecrets } from '../auth.js';
+import { isValidFacilitatorPin, stripSecrets, viewerReplacer } from '../auth.js';
 
 interface ClientConnection {
   ws: WebSocket;
   sessionId?: string;
   teamId?: string;
   role?: 'PLAYER' | 'FACILITATOR';
+  fullView?: boolean; // facilitator with a valid PIN: sees every team's pending decisions
 }
 
 const connections = new Set<ClientConnection>();
@@ -61,6 +62,7 @@ function handleClientMessage(conn: ClientConnection, msg: WSClientMessage) {
       conn.sessionId = msg.sessionId;
       conn.teamId = msg.teamId;
       conn.role = msg.role;
+      conn.fullView = isValidFacilitatorPin(msg.pin);
 
       const session = db.getSession(msg.sessionId);
       if (session) {
@@ -148,18 +150,24 @@ function handleClientMessage(conn: ClientConnection, msg: WSClientMessage) {
 }
 
 export function broadcastToSession(sessionId: string, message: WSServerMessage) {
-  const json = JSON.stringify(message, stripSecrets);
+  const full = JSON.stringify(message, stripSecrets);
+  const views = new Map<string, string>(); // one serialization per viewing team
   for (const conn of connections) {
-    if (conn.sessionId === sessionId && conn.ws.readyState === WebSocket.OPEN) {
-      conn.ws.send(json);
+    if (conn.sessionId !== sessionId || conn.ws.readyState !== WebSocket.OPEN) continue;
+    if (conn.fullView) {
+      conn.ws.send(full);
+      continue;
     }
+    const key = conn.teamId ?? '';
+    if (!views.has(key)) views.set(key, JSON.stringify(message, viewerReplacer(conn.teamId)));
+    conn.ws.send(views.get(key)!);
   }
 }
 
 function sendToClient(ws: WebSocket, message: WSServerMessage) {
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(message, stripSecrets));
-  }
+  if (ws.readyState !== WebSocket.OPEN) return;
+  const conn = [...connections].find(c => c.ws === ws);
+  ws.send(JSON.stringify(message, conn?.fullView ? stripSecrets : viewerReplacer(conn?.teamId)));
 }
 
 function startSessionTimerLoop() {

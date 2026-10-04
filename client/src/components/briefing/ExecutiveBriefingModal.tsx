@@ -43,7 +43,8 @@ export const ExecutiveBriefingModal: React.FC<Props> = ({ isOpen, onClose, scena
     ...scenario.baselineMetrics,
     modernizedNodesCount: scenario.topology.nodes.filter(n => n.status === 'MODERNIZED').length,
   };
-  const startOutcome = evaluateOutcome(scenario, baseline);
+  const startOutcome = evaluateOutcome(scenario, baseline, session?.teams.length ?? 1);
+  const isMarketKey = (key: string) => key === 'marketShare' || key === 'cumulativeProfit';
   const capacity = scenario.maxInitiativesPerRound ?? DEFAULT_MAX_INITIATIVES_PER_ROUND;
   const runAllocation = getRunAllocation(scenario);
   const multiQuarter = scenario.initiativesCatalog.filter(i => (i.durationRounds ?? 1) > 1).map(i => i.name);
@@ -52,7 +53,8 @@ export const ExecutiveBriefingModal: React.FC<Props> = ({ isOpen, onClose, scena
     .sort((a, b) => a.tdiDelta - b.tdiDelta)
     .slice(0, 3)
     .map(i => i.name);
-  const fmt = (key: string, value: number) => (key === 'tco' || key === 'solvency' ? `${value.toLocaleString()}K$` : `${value}`);
+  const fmt = (key: string, value: number) =>
+    key === 'tco' || key === 'solvency' || key === 'cumulativeProfit' ? `${value.toLocaleString()}K$` : key === 'marketShare' ? `${value} %` : `${value}`;
 
   const tabs: Array<{ id: Tab; label: string; icon: React.ElementType }> = [
     { id: 'CASE', label: t('brief.tab.case'), icon: FileText },
@@ -78,6 +80,21 @@ export const ExecutiveBriefingModal: React.FC<Props> = ({ isOpen, onClose, scena
     { title: t('brief.rule.patience.title'), body: t('brief.rule.patience.body') },
     { title: t('brief.rule.pacts.title'), body: t('brief.rule.pacts.body') },
     { title: t('brief.rule.board.title'), body: t('brief.rule.board.body', { extreme: risk('EXTREME'), high: risk('HIGH'), velocity: m.deliveryVelocity.label.toLowerCase() }) },
+    ...(scenario.market
+      ? [
+          {
+            title: t('brief.rule.market.title'),
+            body: t('brief.rule.market.body', {
+              segments: scenario.market.segments.length,
+              rivals: scenario.market.rivals.map(r => r.name).join(', '),
+              debt: m.technicalDebtIndex.label.toLowerCase(),
+              velocity: m.deliveryVelocity.label.toLowerCase(),
+              resilience: m.resilienceIndex.label.toLowerCase(),
+              retention: Math.round(scenario.market.cashRetention * 100),
+            }),
+          },
+        ]
+      : []),
   ];
 
   const weightLabels: Array<[keyof Scenario['stakeholders'][number]['decisionWeights'], string]> = [
@@ -292,14 +309,14 @@ export const ExecutiveBriefingModal: React.FC<Props> = ({ isOpen, onClose, scena
                         <td className="py-1.5 text-cyan-300 font-bold">
                           {o.comparator} {fmt(o.key, o.target)}
                         </td>
-                        <td className={`py-1.5 ${o.met ? 'text-emerald-400' : 'text-rose-400'}`}>{fmt(o.key, o.actual)}</td>
+                        <td className={`py-1.5 ${o.met ? 'text-emerald-400' : 'text-rose-400'}`}>{isMarketKey(o.key) ? '—' : fmt(o.key, o.actual)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
                 <ul className="text-xs text-slate-300 space-y-1">
-                  <li>🏆 {t('brief.rules.victory')}</li>
-                  <li>🥈 {t('brief.rules.partial')}</li>
+                  <li>🏆 {t('brief.rules.victory', { n: startOutcome.objectives.length })}</li>
+                  <li>🥈 {t('brief.rules.partial', { half: Math.ceil(startOutcome.objectives.length / 2) })}</li>
                   <li>❌ {t('brief.rules.defeat')}</li>
                 </ul>
               </section>

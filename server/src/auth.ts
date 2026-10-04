@@ -17,6 +17,35 @@ export function stripSecrets(key: string, value: unknown): unknown {
   return FACILITATOR_SECRET_KEYS.has(key) ? undefined : value;
 }
 
+/** Header a player client sends with its team id, so REST answers show it its own decisions. */
+export const VIEWER_TEAM_HEADER = 'x-gemsim-team';
+
+const HIDDEN_DECISIONS = { selectedInitiativeIds: [], governancePosture: 'BALANCED_AGILE', customPacts: [] };
+
+/**
+ * JSON replacer for a player's view: other teams' decisions for the open quarter
+ * (initiatives, prices, marketing...) stay secret until the quarter is resolved.
+ * The facilitator (valid PIN) gets the full view.
+ */
+export function viewerReplacer(viewerTeamId: string | undefined) {
+  return function (this: unknown, key: string, value: unknown): unknown {
+    if (FACILITATOR_SECRET_KEYS.has(key)) return undefined;
+    if (key === 'currentRoundDecisions' && this && typeof this === 'object' && 'decisionSubmitted' in this) {
+      return (this as { id?: string }).id === viewerTeamId ? value : HIDDEN_DECISIONS;
+    }
+    return value;
+  };
+}
+
+/** Express middleware: non-facilitator requests get the player view of every JSON answer. */
+export const playerView: RequestHandler = (req, res, next) => {
+  if (isValidFacilitatorPin(req.header(FACILITATOR_PIN_HEADER))) return next();
+  const replacer = viewerReplacer(req.header(VIEWER_TEAM_HEADER) || undefined);
+  const json = res.json.bind(res);
+  res.json = (body: unknown) => json(JSON.parse(JSON.stringify(body, replacer)));
+  next();
+};
+
 function expectedPin(): string {
   return (process.env.FACILITATOR_PIN || '1337').trim();
 }

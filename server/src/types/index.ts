@@ -82,7 +82,89 @@ export type MetricKey =
   | 'budgetRemaining'
   | 'opEx'
   | 'tco'
-  | 'modernizedNodesCount';
+  | 'modernizedNodesCount'
+  | 'revenue'
+  | 'marketShare'
+  | 'operatingProfit'
+  | 'cumulativeProfit';
+
+// ----------------------------------------------------------------------------
+// Competitive market (optional per scenario). Teams of a session sell into the
+// same segments, against each other and against scripted rivals.
+// ----------------------------------------------------------------------------
+
+export interface MarketSegment {
+  id: string;
+  name: string;
+  description?: string;
+  baseDemand: number; // units per quarter in Q1
+  growth: number; // demand growth per quarter (0.03 = +3%)
+  referencePrice: number; // $K per unit, the market's usual price
+  // Purchase criteria (each 0-1): how much customers weigh price, quality
+  // (low debt + compliance), availability (delivery capacity) and reliability (resilience)
+  priceSensitivity: number;
+  qualitySensitivity: number;
+  speedSensitivity: number;
+  reliabilitySensitivity: number;
+  openAtStart?: boolean; // default true; false = the team must pay entryCost to sell there
+  entryCost?: number; // $K, paid once from the program cash
+}
+
+export interface MarketRival {
+  id: string;
+  name: string;
+  priceIndex: number; // price relative to the reference price (0.9 = 10% cheaper)
+  quality: number; // 0-100
+  aggressiveness: number; // 0-1: how fast it cuts prices quarter after quarter
+  segmentIds?: string[]; // where it sells (default: every segment)
+}
+
+export interface MarketModel {
+  segments: MarketSegment[];
+  rivals: MarketRival[];
+  unitCost: number; // variable cost per unit ($K)
+  fixedCosts: number; // business fixed costs per quarter, outside the transformation run budget ($K)
+  unitsPerCapacityPoint: number; // units the team can deliver per point of delivery capacity
+  cashRetention: number; // share of the business result (after run budget and marketing) credited to the program (0-1)
+  currencyUnit?: string; // display only
+}
+
+export interface MarketDecision {
+  prices: Record<string, number>; // segmentId -> $K per unit
+  marketing: Record<string, number>; // segmentId -> $K this quarter
+  enter?: string[]; // closed segments the team opens this quarter
+}
+
+export interface MarketSegmentResult {
+  segmentId: string;
+  demand: number; // total segment demand this quarter (units)
+  price: number;
+  marketing: number;
+  attractiveness: number;
+  share: number; // 0-1 of the segment's demand
+  unitsDemanded: number;
+  unitsSold: number;
+  revenue: number; // $K
+  drivers: { price: number; quality: number; availability: number; reliability: number; marketing: number }; // logit terms
+}
+
+export interface TeamMarketResult {
+  segments: MarketSegmentResult[];
+  capacityUnits: number;
+  unitsSold: number;
+  lostSales: number; // demand the team could not serve (capacity)
+  revenue: number;
+  variableCost: number;
+  grossMargin: number;
+  marketing: number;
+  entryCosts: number;
+  fixedCosts: number;
+  opEx: number;
+  operatingProfit: number; // revenue - variable cost - fixed costs - opEx - marketing
+  programCashDelta: number; // cashRetention × (margin - fixed costs - run budget - marketing) - entry costs
+  marketShare: number; // percent, demand-weighted over every segment
+  rivals: Array<{ id: string; name: string; share: number; price: number }>; // average over segments
+}
 
 /**
  * Scenario-specific wording, written in the scenario's language. The engine keeps
@@ -174,6 +256,8 @@ export interface WinLossConditions {
   minResilienceIndex: number;
   maxTCOBudget: number;
   targetCapabilitiesModernized: number;
+  minMarketShare?: number; // percent, for a solo team against the rivals (scaled for multi-team sessions)
+  minCumulativeProfit?: number; // $K over the game
 }
 
 export interface Scenario {
@@ -194,6 +278,7 @@ export interface Scenario {
   language?: 'fr' | 'en';
   vocabulary?: ScenarioVocabulary;
   maxInitiativesPerRound?: number; // delivery capacity per quarter (default 2)
+  market?: MarketModel;
   tags: string[];
   author: string;
   isDefault: boolean;
@@ -212,6 +297,11 @@ export interface TeamMetrics {
   resilienceIndex: number; // Enterprise uptime & fault tolerance (0 - 100)
   complianceScore: number; // Regulatory audit adherence (0 - 100)
   modernizedNodesCount: number;
+  // Competitive market scenarios only
+  revenue?: number; // $K this quarter
+  operatingProfit?: number; // $K this quarter
+  cumulativeProfit?: number; // $K since Q1
+  marketShare?: number; // percent
 }
 
 export interface TeamDecision {
@@ -223,6 +313,7 @@ export interface TeamDecision {
     concession: string;
     committedBudget: number;
   }>;
+  market?: MarketDecision;
 }
 
 /** Language-neutral message: the client translates `code` with `params`. */
@@ -253,7 +344,9 @@ export interface RoundResult {
     eventCost: number;
     pactCost: number;
     regulatoryFine: number;
+    marketCash?: number; // business result credited to the program, minus market entries
   };
+  market?: TeamMarketResult;
   incidentsTriggered: Array<{
     id: string;
     title: string;
@@ -303,10 +396,12 @@ export interface Team {
   honoredPacts?: TeamDecision['customPacts'];
   outcome?: SimulationOutcome;
   nodeHealthOverrides: Record<string, { health: number; technicalDebt: number; status: NodeHealthStatus }>;
+  marketPresence?: string[]; // segments the team sells in (default: segments open at start)
+  lastMarketDecision?: MarketDecision; // carried over when a quarter's decision has none
 }
 
 export interface OutcomeObjective {
-  key: 'technicalDebtIndex' | 'stakeholderTrust' | 'deliveryVelocity' | 'resilienceIndex' | 'tco' | 'modernizedNodesCount' | 'solvency';
+  key: 'technicalDebtIndex' | 'stakeholderTrust' | 'deliveryVelocity' | 'resilienceIndex' | 'tco' | 'modernizedNodesCount' | 'solvency' | 'marketShare' | 'cumulativeProfit';
   label: string;
   comparator: '<=' | '>=';
   target: number;
@@ -448,7 +543,7 @@ export interface ArchivedSimulationRun {
 
 // WebSocket Telemetry Protocol Messages
 export type WSClientMessage =
-  | { type: 'JOIN_SESSION'; sessionId: string; teamId?: string; role: 'PLAYER' | 'FACILITATOR' }
+  | { type: 'JOIN_SESSION'; sessionId: string; teamId?: string; role: 'PLAYER' | 'FACILITATOR'; pin?: string }
   | { type: 'SUBMIT_DECISIONS'; sessionId: string; teamId: string; decisions: TeamDecision }
   | { type: 'STAKEHOLDER_CHAT'; sessionId: string; teamId: string; stakeholderId: string; message: string }
   | { type: 'FACILITATOR_CONTROL'; sessionId: string; action: 'START' | 'PAUSE' | 'RESUME' | 'ADVANCE_ROUND' | 'RESET'; targetRound?: number; pin?: string }

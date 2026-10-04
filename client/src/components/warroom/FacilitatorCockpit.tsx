@@ -155,7 +155,8 @@ export const FacilitatorCockpit: React.FC<Props> = ({
 
   // Debrief Winner Calculation
   // Ranked on the scenario's win conditions (final verdict once completed, projection before)
-  const outcomes = new Map(session.teams.map(t => [t.id, t.outcome ?? evaluateOutcome(scenario, t.metrics)]));
+  const outcomes = new Map(session.teams.map(t => [t.id, t.outcome ?? evaluateOutcome(scenario, t.metrics, session.teams.length)]));
+  const hasMarket = !!scenario.market;
   const sortedTeams = [...session.teams].sort((a, b) => outcomes.get(b.id)!.score - outcomes.get(a.id)!.score);
 
   const allTeamsSubmitted = session.teams.every(t => t.decisionSubmitted);
@@ -184,6 +185,11 @@ export const FacilitatorCockpit: React.FC<Props> = ({
       const o = outcomes.get(tm.id)!;
       lines.push('', `## ${tm.name} — ${verdict(o.verdict)} (${o.grade})`, '', `| ${t('outcome.col.objective')} | ${t('outcome.col.target')} | ${t('outcome.col.final')} | ✓ |`, '| --- | --- | --- | --- |');
       for (const ob of o.objectives) lines.push(`| ${objective(ob.key)} | ${ob.comparator} ${ob.target} | ${ob.actual} | ${ob.met ? '✅' : '❌'} |`);
+      const marketRows = tm.history.filter(h => h.market);
+      if (marketRows.length) {
+        lines.push('', `### ${t('cockpit.market.title')}`, '', `| ${t('common.quarter')} | ${m.marketShare.label} | ${m.revenue.label} | ${m.operatingProfit.label} |`, '| --- | --- | --- | --- |');
+        for (const h of marketRows) lines.push(`| ${h.roundNumber} | ${h.market!.marketShare} % | ${h.market!.revenue}K$ | ${h.market!.operatingProfit}K$ |`);
+      }
       lines.push('', `### ${t('cockpit.md.log')}`, '');
       for (const h of tm.history) {
         const notes = h.notes?.length ? h.notes.map(n => code(n)).join(' ') : h.facilitatorFeedback;
@@ -457,6 +463,21 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                       <span className="text-slate-500 text-[10px] block truncate">{vocab.metrics.resilienceIndex.label}</span>
                       <span className="font-bold text-emerald-400">{tm.metrics.resilienceIndex}/100</span>
                     </div>
+
+                    {hasMarket && (
+                      <>
+                        <div>
+                          <span className="text-slate-500 text-[10px] block truncate">{vocab.metrics.marketShare.label}</span>
+                          <span className="font-bold text-cyan-300">{tm.metrics.marketShare !== undefined ? `${tm.metrics.marketShare} %` : '—'}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 text-[10px] block truncate">{vocab.metrics.cumulativeProfit.label}</span>
+                          <span className={`font-bold ${(tm.metrics.cumulativeProfit ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {(tm.metrics.cumulativeProfit ?? 0).toLocaleString()}K$
+                          </span>
+                        </div>
+                      </>
+                    )}
 
                     <div>
                       <span className="text-slate-500 text-[10px] block truncate">{vocab.metrics.complianceScore.label}</span>
@@ -758,6 +779,8 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                       <th className="p-3">{vocab.metrics.resilienceIndex.label}</th>
                       <th className="p-3">{vocab.metrics.budgetRemaining.label}</th>
                       <th className="p-3">{vocab.metrics.tco.label}</th>
+                      {hasMarket && <th className="p-3">{vocab.metrics.marketShare.label}</th>}
+                      {hasMarket && <th className="p-3">{vocab.metrics.cumulativeProfit.label}</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800 text-slate-200">
@@ -782,11 +805,56 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                         <td className="p-3 text-emerald-400">{tm.metrics.resilienceIndex}/100</td>
                         <td className="p-3">${tm.metrics.budgetRemaining.toLocaleString()}K</td>
                         <td className="p-3 text-slate-400">${tm.metrics.tco.toLocaleString()}K</td>
+                        {hasMarket && <td className="p-3 text-cyan-300">{tm.metrics.marketShare !== undefined ? `${tm.metrics.marketShare} %` : '—'}</td>}
+                        {hasMarket && (
+                          <td className={`p-3 ${(tm.metrics.cumulativeProfit ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {(tm.metrics.cumulativeProfit ?? 0).toLocaleString()}K$
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+
+              {hasMarket && (
+                <section className="bg-dark-850 rounded-xl border border-slate-800 overflow-x-auto" aria-label={t('cockpit.market.title')}>
+                  <h4 className="p-3 text-xs font-mono font-bold text-cyan-300 border-b border-slate-800">{t('cockpit.market.title')}</h4>
+                  <table className="w-full text-left text-xs font-mono">
+                    <thead className="bg-dark-900 text-slate-400 text-[10px]">
+                      <tr>
+                        <th className="p-2">{t('cockpit.col.team')}</th>
+                        {Array.from({ length: session.totalRounds }, (_, i) => (
+                          <th key={i} className="p-2">{t('common.quarterShort', { n: i + 1 })}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 text-slate-200">
+                      {sortedTeams.map(tm => (
+                        <tr key={tm.id}>
+                          <td className="p-2">{tm.avatar} {tm.name}</td>
+                          {Array.from({ length: session.totalRounds }, (_, i) => {
+                            const mk = tm.history.find(h => h.roundNumber === i + 1)?.market;
+                            return (
+                              <td key={i} className="p-2">
+                                {mk ? (
+                                  <>
+                                    <span className="text-cyan-300">{mk.marketShare} %</span>{' '}
+                                    <span className={mk.operatingProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}>({mk.operatingProfit.toLocaleString()}K$)</span>
+                                  </>
+                                ) : (
+                                  '—'
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="p-3 text-[10px] text-slate-500">{t('cockpit.market.hint')}</p>
+                </section>
+              )}
             </>
           )}
         </div>

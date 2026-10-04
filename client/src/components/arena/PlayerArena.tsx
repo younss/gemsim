@@ -5,7 +5,7 @@
 // ============================================================================
 
 import React, { useState } from 'react';
-import { SimulationSession, Team, Scenario, TeamDecision, GovernancePosture } from '../../types/index';
+import { SimulationSession, Team, Scenario, TeamDecision, GovernancePosture, MarketDecision } from '../../types/index';
 import { EnterpriseCanvas } from '../3d/EnterpriseCanvas';
 import { StakeholderWarRoom } from '../stakeholder/StakeholderWarRoom';
 import { api } from '../../services/api';
@@ -23,10 +23,13 @@ import {
   ChevronRight,
   Flame,
   BookOpen,
+  Store,
+  BarChart3,
 } from 'lucide-react';
 import { ExecutiveBriefingModal } from '../briefing/ExecutiveBriefingModal';
 import { ObjectivesTracker, FinalVerdict } from './OutcomePanels';
-import { activeBoardMandate, checkDecisions, evaluateOutcome, lockedInitiativeIds } from '../../engine';
+import { activeBoardMandate, checkDecisions, effectiveMarketDecision, evaluateOutcome, lockedInitiativeIds } from '../../engine';
+import { MarketPanel, PnL } from './MarketPanel';
 import { BOARD_MANDATE_EFFECTS } from '../../../../server/src/engine/rules';
 import { useSimulationStore } from '../../stores/useSimulationStore';
 import { useHelpStore } from '../../stores/useHelpStore';
@@ -70,6 +73,12 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
     team.currentRoundDecisions?.governancePosture || 'BALANCED_AGILE'
   );
   const [selectedEventChoice, setSelectedEventChoice] = useState<string | undefined>(team.currentRoundDecisions?.eventChoiceId);
+  // Market decision: last quarter's prices by default, no marketing, no entry
+  const initialMarket = (): MarketDecision => {
+    const d = effectiveMarketDecision(scenario, team, team.currentRoundDecisions?.market);
+    return { ...d, enter: team.currentRoundDecisions?.market?.enter ?? [] };
+  };
+  const [marketDecision, setMarketDecision] = useState<MarketDecision>(initialMarket);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isResolving, setIsResolving] = useState(false);
@@ -89,6 +98,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
     setSelectedInitiatives(team.currentRoundDecisions?.selectedInitiativeIds || []);
     setGovernancePosture(team.currentRoundDecisions?.governancePosture || 'BALANCED_AGILE');
     setSelectedEventChoice(team.currentRoundDecisions?.eventChoiceId);
+    setMarketDecision(initialMarket());
   }, [team.id, session.currentRound, team.decisionSubmitted, session.updatedAt]);
 
   // First visit: guided tutorial if never seen, otherwise the case file of a new scenario/team
@@ -121,7 +131,13 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
   const decisionCheck = checkDecisions(
     scenario,
     team,
-    { selectedInitiativeIds: selectedInitiatives, governancePosture, eventChoiceId: selectedEventChoice, customPacts: pacts },
+    {
+      selectedInitiativeIds: selectedInitiatives,
+      governancePosture,
+      eventChoiceId: selectedEventChoice,
+      customPacts: pacts,
+      ...(scenario.market ? { market: marketDecision } : {}),
+    },
     session.currentRound,
     session.injectedEvents
   );
@@ -129,7 +145,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
   const boardMandate = activeBoardMandate(team, session.currentRound);
   const activeById = new Map((team.activeInitiatives ?? []).map(a => [a.initiativeId, a.roundsRemaining]));
   const isCompleted = session.state === 'COMPLETED';
-  const outcome = team.outcome ?? evaluateOutcome(scenario, team.metrics);
+  const outcome = team.outcome ?? evaluateOutcome(scenario, team.metrics, session.teams.length);
   const isSolo = session.teams.length === 1;
   const nodeName = (id: string) => scenario.topology.nodes.find(n => n.id === id)?.name ?? id;
   const stakeholderName = (id: string) => scenario.stakeholders.find(s => s.id === id)?.name ?? id;
@@ -189,6 +205,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
         governancePosture,
         eventChoiceId: selectedEventChoice,
         customPacts: [],
+        ...(scenario.market ? { market: marketDecision } : {}),
       });
       onTeamUpdated(updatedTeam);
       setSubmissionSuccess(true);
@@ -203,6 +220,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
   const tabs: Array<{ id: ArenaTab; label: string; icon: React.ElementType; badge?: number; alert?: boolean }> = [
     { id: '3D', label: t('arena.tab.map'), icon: Compass },
     { id: 'INITIATIVES', label: t('arena.tab.initiatives'), icon: Layers, badge: selectedInitiatives.length || undefined },
+    ...(scenario.market ? [{ id: 'MARKET' as ArenaTab, label: t('arena.tab.market'), icon: Store }] : []),
     { id: 'GOVERNANCE', label: t('arena.tab.governance'), icon: Shield, alert: !!currentEvent },
     { id: 'STAKEHOLDERS', label: t('arena.tab.warroom'), icon: Zap },
     { id: 'HISTORY', label: t('arena.tab.history', { n: team.history.length }), icon: FileText },
@@ -265,6 +283,22 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
       icon: CheckCircle,
       tone: team.metrics.complianceScore < 50 ? 'text-rose-400' : 'text-slate-100',
     },
+    ...(scenario.market
+      ? [
+          {
+            key: 'share',
+            label: m.marketShare.label,
+            help: m.marketShare.description,
+            value: team.metrics.marketShare !== undefined ? `${team.metrics.marketShare} %` : '—',
+            sub:
+              team.metrics.revenue !== undefined
+                ? t('metric.shareSub', { revenue: team.metrics.revenue.toLocaleString(lang), profit: (team.metrics.operatingProfit ?? 0).toLocaleString(lang) })
+                : t('metric.shareNone'),
+            icon: BarChart3,
+            tone: 'text-cyan-300',
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -297,7 +331,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
       </div>
 
       {/* Metrics HUD */}
-      <div data-tour="hud" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div data-tour="hud" className={`grid grid-cols-2 sm:grid-cols-3 ${scenario.market ? 'lg:grid-cols-7' : 'lg:grid-cols-6'} gap-3`}>
         {hud.map(item => (
           <div key={item.key} className="bg-dark-850 p-3.5 rounded-xl border border-slate-800 shadow-lg relative">
             <div className="flex items-center justify-between text-slate-400 text-xs font-mono mb-1">
@@ -454,6 +488,18 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
         <div className="h-[600px] w-full" data-tour="map">
           <EnterpriseCanvas topology={scenario.topology} nodeHealthOverrides={team.nodeHealthOverrides} layerLabels={vocab.layers} />
         </div>
+      )}
+
+      {/* Market */}
+      {activeTab === 'MARKET' && scenario.market && (
+        <MarketPanel
+          scenario={scenario}
+          session={session}
+          team={team}
+          decision={marketDecision}
+          onChange={setMarketDecision}
+          disabled={team.decisionSubmitted || isCompleted}
+        />
       )}
 
       {/* Initiative portfolio */}
@@ -904,6 +950,19 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
                     </div>
                   )}
 
+                  {hist.market && (
+                    <div className="bg-dark-900 p-3 rounded-lg border border-slate-800 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[11px] font-mono text-cyan-300 font-semibold">{t('market.history.title')}</span>
+                        <span className="text-[11px] font-mono text-slate-400">
+                          {m.marketShare.label} {hist.market.marketShare} % ·{' '}
+                          {t('market.capacity', { sold: hist.market.unitsSold.toLocaleString(lang), capacity: hist.market.capacityUnits.toLocaleString(lang) })}
+                        </span>
+                      </div>
+                      <PnL result={hist.market} money={v => `${Math.round(v).toLocaleString(lang)}K$`} />
+                    </div>
+                  )}
+
                   {hist.incidentsTriggered.length > 0 && (
                     <div className="space-y-2">
                       <span className="text-[11px] font-mono text-rose-400 font-semibold flex items-center gap-1">
@@ -963,7 +1022,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
 
       <ExecutiveBriefingModal isOpen={isBriefingOpen} onClose={() => setIsBriefingOpen(false)} scenario={scenario} session={session} team={team} />
 
-      {tutorialActive && <TutorialTour onTabChange={setActiveTab} isSolo={isSolo} />}
+      {tutorialActive && <TutorialTour onTabChange={setActiveTab} isSolo={isSolo} hasMarket={!!scenario.market} objectiveCount={outcome.objectives.length} />}
     </div>
   );
 };

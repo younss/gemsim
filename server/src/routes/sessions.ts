@@ -18,11 +18,14 @@ import {
 } from '../types/index.js';
 import { broadcastToSession } from '../socket/handler.js';
 import { broadcastSchema, timerSchema, createSessionSchema, injectEventSchema, pactSchema, submitDecisionsSchema, validateBody } from '../validation.js';
-import { isValidFacilitatorPin, requireFacilitator, requireFacilitatorUnlessSolo } from '../auth.js';
+import { isValidFacilitatorPin, playerView, requireFacilitator, requireFacilitatorUnlessSolo } from '../auth.js';
 
 export const sessionsRouter = Router();
 
 // GET /api/sessions
+// Players never see other teams' pending decisions; the facilitator (PIN) sees everything
+sessionsRouter.use(playerView);
+
 sessionsRouter.get('/', (req, res) => {
   try {
     const db = DatabaseRepository.getInstance();
@@ -483,7 +486,7 @@ sessionsRouter.post('/:id/reset', requireFacilitator, (req, res) => {
       const runNumber = existingRuns.length + 1;
 
       // Sort teams to determine winner and rankings
-      const outcomes = new Map(session.teams.map(t => [t.id, t.outcome ?? evaluateOutcome(scenario, t.metrics)]));
+      const outcomes = new Map(session.teams.map(t => [t.id, t.outcome ?? evaluateOutcome(scenario, t.metrics, session.teams.length)]));
       const sortedTeams = [...session.teams].sort((a, b) => outcomes.get(b.id)!.score - outcomes.get(a.id)!.score);
 
       archivedRun = {
@@ -549,6 +552,8 @@ sessionsRouter.post('/:id/reset', requireFacilitator, (req, res) => {
       team.outcome = undefined;
       team.boardMandate = undefined;
       team.nodeHealthOverrides = {};
+      team.marketPresence = undefined;
+      team.lastMarketDecision = undefined;
       team.currentRoundDecisions = {
         selectedInitiativeIds: [],
         governancePosture: 'BALANCED_AGILE',

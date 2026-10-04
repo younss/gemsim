@@ -16,7 +16,74 @@ import {
   INITIATIVE_CATEGORIES,
   MetricKey,
   ScenarioVocabulary,
+  MarketModel,
+  MarketSegment,
+  MarketRival,
 } from '../types/index.js';
+import { calibrateMarket } from '../engine/market.js';
+
+const clamp = (v: unknown, min: number, max: number, fallback: number) =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : fallback;
+
+/** A generic three-segment market, used when the model returns none. */
+function defaultMarket(french: boolean): MarketModel {
+  return {
+    unitCost: 0.6,
+    fixedCosts: 0,
+    unitsPerCapacityPoint: 20,
+    cashRetention: 0.5,
+    segments: [
+      { id: 'seg-core', name: french ? 'Clients historiques' : 'Core customers', baseDemand: 2400, growth: 0.01, referencePrice: 1, priceSensitivity: 0.5, qualitySensitivity: 0.6, speedSensitivity: 0.4, reliabilitySensitivity: 0.5 },
+      { id: 'seg-volume', name: french ? 'Clients sensibles au prix' : 'Price-driven customers', baseDemand: 1800, growth: 0.04, referencePrice: 0.8, priceSensitivity: 0.85, qualitySensitivity: 0.25, speedSensitivity: 0.6, reliabilitySensitivity: 0.3 },
+      { id: 'seg-new', name: french ? 'Nouveau marché' : 'New market', baseDemand: 1200, growth: 0.07, referencePrice: 1.1, priceSensitivity: 0.45, qualitySensitivity: 0.6, speedSensitivity: 0.45, reliabilitySensitivity: 0.5, openAtStart: false, entryCost: 180 },
+    ],
+    rivals: [
+      { id: 'riv-premium', name: french ? 'Concurrent premium' : 'Premium competitor', priceIndex: 1.08, quality: 75, aggressiveness: 0.15 },
+      { id: 'riv-low', name: french ? 'Concurrent bas coût' : 'Low-cost competitor', priceIndex: 0.8, quality: 42, aggressiveness: 0.5 },
+    ],
+  };
+}
+
+/** Bounds every number of a generated market; returns undefined when it is unusable. */
+function sanitizeMarket(raw: any): MarketModel | undefined {
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.segments)) return undefined;
+  const str = (v: unknown, fallback: string) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, 120) : fallback);
+  const segments: MarketSegment[] = raw.segments.slice(0, 5).map((seg: any, i: number) => ({
+    id: str(seg?.id, `seg-${i + 1}`).replace(/[^\w-]/g, '-'),
+    name: str(seg?.name, `Segment ${i + 1}`),
+    description: typeof seg?.description === 'string' ? seg.description.slice(0, 300) : undefined,
+    baseDemand: clamp(seg?.baseDemand, 10, 1_000_000, 1000),
+    growth: clamp(seg?.growth, -0.1, 0.2, 0.02),
+    referencePrice: clamp(seg?.referencePrice, 0.01, 100_000, 1),
+    priceSensitivity: clamp(seg?.priceSensitivity, 0, 1, 0.5),
+    qualitySensitivity: clamp(seg?.qualitySensitivity, 0, 1, 0.5),
+    speedSensitivity: clamp(seg?.speedSensitivity, 0, 1, 0.5),
+    reliabilitySensitivity: clamp(seg?.reliabilitySensitivity, 0, 1, 0.5),
+    openAtStart: seg?.openAtStart === false ? false : undefined,
+    entryCost: seg?.openAtStart === false ? clamp(seg?.entryCost, 0, 5000, 150) : undefined,
+  }));
+  const ids = new Set<string>();
+  const unique = segments.filter(s => !ids.has(s.id) && ids.add(s.id));
+  if (unique.length < 2) return undefined;
+  if (!unique.some(s => s.openAtStart !== false)) unique[0].openAtStart = undefined;
+  const rivals: MarketRival[] = (Array.isArray(raw.rivals) ? raw.rivals : []).slice(0, 3).map((r: any, i: number) => ({
+    id: str(r?.id, `riv-${i + 1}`),
+    name: str(r?.name, `Rival ${i + 1}`),
+    priceIndex: clamp(r?.priceIndex, 0.6, 1.5, 1),
+    quality: clamp(r?.quality, 10, 95, 60),
+    aggressiveness: clamp(r?.aggressiveness, 0, 1, 0.3),
+    segmentIds: Array.isArray(r?.segmentIds) ? r.segmentIds.filter((id: unknown) => typeof id === 'string' && ids.has(id)) : undefined,
+  }));
+  const cheapest = Math.min(...unique.map(s => s.referencePrice));
+  return {
+    segments: unique,
+    rivals: rivals.length ? rivals : defaultMarket(false).rivals,
+    unitCost: clamp(raw.unitCost, 0, cheapest * 0.8, cheapest * 0.6),
+    fixedCosts: 0, // calibrated
+    unitsPerCapacityPoint: clamp(raw.unitsPerCapacityPoint, 0.1, 100_000, Math.max(1, Math.round(unique.reduce((sum, s) => sum + s.baseDemand, 0) / 120))),
+    cashRetention: clamp(raw.cashRetention, 0.2, 1, 0.5),
+  };
+}
 
 /** Keeps only well-formed string labels from the model's vocabulary output. */
 function sanitizeVocabulary(raw: any): ScenarioVocabulary | undefined {
@@ -262,7 +329,11 @@ export class StudioScenarioGenerator {
       initiativesCatalog = dynamicBlueprint.initiativesCatalog;
     }
 
-    return {
+    const language: 'fr' | 'en' =
+      raw.language === 'fr' || raw.language === 'en' ? raw.language : /[éèàùç]|\b(le|la|les|des|une|pour)\b/i.test(prompt.businessChallenge) ? 'fr' : 'en';
+    const market = prompt.withMarket ? sanitizeMarket(raw.market) ?? defaultMarket(language === 'fr') : undefined;
+
+    return calibrateMarket({
       id,
       title,
       industry,
@@ -277,13 +348,14 @@ export class StudioScenarioGenerator {
       roundEvents,
       initiativesCatalog,
       domain: raw.domain || prompt.domain || 'IT',
-      language: raw.language === 'fr' || raw.language === 'en' ? raw.language : /[éèàùç]|\b(le|la|les|des|une|pour)\b/i.test(prompt.businessChallenge) ? 'fr' : 'en',
+      language,
+      market,
       vocabulary: sanitizeVocabulary(raw.vocabulary),
       tags: raw.tags || [industry, 'Architecture Strategy', difficulty],
       author: raw.author || (providerUsed === 'fallback' ? 'AI Studio (Heuristic Engine)' : `AI Studio (${providerUsed})`),
       isDefault: false,
       createdAt: raw.createdAt || new Date().toISOString(),
-    };
+    });
   }
 }
 

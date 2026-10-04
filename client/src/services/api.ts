@@ -24,6 +24,7 @@ export interface ScenarioBalanceSummary {
   issues: string[];
   bestAchievable?: { verdict: string; grade: string; score: number };
   strategies?: Record<string, { verdict: string; grade: string; score: number }>;
+  tournament?: Record<string, { verdict: string; grade: string; score: number }>; // bots in one shared market
 }
 
 // Facilitator PIN, kept for the browser session once verified and sent with every request
@@ -56,10 +57,14 @@ export function onFacilitatorPinRequired(handler: (() => void) | null) {
   facilitatorPinRequiredHandler = handler;
 }
 
+// The player's team: the server shows it its own pending decisions and hides the others'
+let viewerTeamId: string | null = null;
+
 async function apiFetch(input: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   const pin = readStoredPin();
   if (pin) headers.set('x-facilitator-pin', pin);
+  if (viewerTeamId) headers.set('x-gemsim-team', viewerTeamId);
   const res = await fetch(input, { ...init, headers });
   if (res.status === 401 && !input.includes('/verify-facilitator')) {
     setFacilitatorPin(null);
@@ -219,7 +224,10 @@ export const api = {
         body: JSON.stringify({ pin }),
       });
       const data = await res.json();
-      if (data.valid === true) setFacilitatorPin(pin);
+      if (data.valid === true) {
+        setFacilitatorPin(pin);
+        wsService.rejoin();
+      }
       return data.valid === true;
     } catch {
       return false;
@@ -228,7 +236,7 @@ export const api = {
 
   // Game Studio
   async generateStudioScenarioStream(
-    prompt: { industry: string; businessChallenge: string; difficulty?: string; customDirectives?: string; domain?: string },
+    prompt: { industry: string; businessChallenge: string; difficulty?: string; customDirectives?: string; domain?: string; withMarket?: boolean },
     onChunk: (text: string) => void
   ): Promise<{ scenario: Scenario; balance?: ScenarioBalanceSummary }> {
     const res = await apiFetch(`${API_BASE}/studio/generate/stream`, {
@@ -461,6 +469,7 @@ export class WebSocketService {
     this.sessionId = sessionId;
     this.teamId = teamId || null;
     this.role = role;
+    viewerTeamId = this.teamId;
 
     if (this.socket) {
       this.socket.close();
@@ -480,6 +489,7 @@ export class WebSocketService {
           sessionId,
           teamId: this.teamId || undefined,
           role: this.role,
+          pin: readStoredPin() || undefined,
         });
       };
 
@@ -512,6 +522,13 @@ export class WebSocketService {
     return () => {
       this.listeners = this.listeners.filter(l => l !== callback);
     };
+  }
+
+  /** Joins the session again, e.g. after the facilitator PIN is verified, to get the full view. */
+  public rejoin() {
+    if (this.sessionId) {
+      this.send({ type: 'JOIN_SESSION', sessionId: this.sessionId, teamId: this.teamId || undefined, role: this.role, pin: readStoredPin() || undefined });
+    }
   }
 
   public send(message: WSClientMessage) {

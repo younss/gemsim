@@ -17,6 +17,8 @@ const OBJECTIVE_METRIC: Record<OutcomeObjective['key'], keyof ReturnType<typeof 
   tco: 'tco',
   modernizedNodesCount: 'modernizedNodesCount',
   solvency: null,
+  marketShare: 'marketShare',
+  cumulativeProfit: 'cumulativeProfit',
 };
 
 /** Translates an engine message code; verdict-like params are translated too. */

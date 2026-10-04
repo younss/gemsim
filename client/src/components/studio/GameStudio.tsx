@@ -50,6 +50,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
   const [industry, setIndustry] = useState(() => t('studio.preset.banking.industry'));
   const [businessChallenge, setBusinessChallenge] = useState(() => t('studio.preset.banking.challenge'));
   const [domain, setDomain] = useState<ScenarioDomain>('IT');
+  const [withMarket, setWithMarket] = useState(false);
   const [difficulty, setDifficulty] = useState<'ENTRY' | 'INTERMEDIATE' | 'EXECUTIVE' | 'CRISIS_CHIEF'>('INTERMEDIATE');
   const [customDirectives, setCustomDirectives] = useState(() => t('studio.defaultDirectives'));
 
@@ -94,6 +95,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
     setIndustry(t(`studio.preset.${preset.id}.industry` as TranslationKey));
     setBusinessChallenge(t(`studio.preset.${preset.id}.challenge` as TranslationKey));
     setDomain(preset.domain);
+    setWithMarket(preset.domain === 'MARKET_EXPANSION' || preset.domain === 'INDUSTRIAL');
   };
 
   const handleProviderSwitch = async (provider: AIProviderType) => {
@@ -147,7 +149,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
       setStreamPreview('');
       let received = 0;
       const { scenario } = await api.generateStudioScenarioStream(
-        { industry, businessChallenge, difficulty, customDirectives, domain },
+        { industry, businessChallenge, difficulty, customDirectives, domain, withMarket },
         chunk => {
           received += chunk.length;
           // Keep the tail of the stream visible and move the phase bar with real progress
@@ -356,6 +358,13 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                   ))}
                 </select>
                 <p className="text-[11px] text-slate-500 mb-3">{t(`studio.domain.${domain}.hint` as TranslationKey)}</p>
+                <label className="flex items-start gap-2 mb-3 cursor-pointer">
+                  <input type="checkbox" checked={withMarket} onChange={e => setWithMarket(e.target.checked)} className="mt-0.5 accent-cyan-500" />
+                  <span>
+                    <span className="text-slate-300 font-semibold block">{t('studio.market')}</span>
+                    <span className="text-[11px] text-slate-500">{t('studio.market.hint')}</span>
+                  </span>
+                </label>
                 <label htmlFor="studio-industry" className="text-slate-400 font-semibold block mb-1">
                   {t('studio.industry')}
                 </label>
@@ -510,6 +519,14 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                         .map(([name, r]) => `${t(`demo.strategy.${name}` as TranslationKey)} : ${t(`outcome.verdict.${r.verdict}` as TranslationKey)} ${r.grade}`)
                         .join(' · ')}
                     </div>
+                    {validationResult.balance.tournament && (
+                      <div className="text-slate-400">
+                        {t('studio.balance.tournament')}{' '}
+                        {Object.entries(validationResult.balance.tournament)
+                          .map(([name, r]) => `${t(`demo.strategy.${name}` as TranslationKey)} : ${t(`outcome.verdict.${r.verdict}` as TranslationKey)} ${r.grade}`)
+                          .join(' · ')}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -531,6 +548,11 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                     {synthesizedScenario.domain && (
                       <span className="text-xs px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 font-mono">
                         {t(`studio.domain.${synthesizedScenario.domain}` as TranslationKey)}
+                      </span>
+                    )}
+                    {synthesizedScenario.market && (
+                      <span className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30 font-mono">
+                        {t('studio.market.badge', { segments: synthesizedScenario.market.segments.length, rivals: synthesizedScenario.market.rivals.length })}
                       </span>
                     )}
                     <span className="text-xs text-slate-400 font-mono">{synthesizedScenario.industry}</span>
