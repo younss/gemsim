@@ -312,6 +312,7 @@ Output ONLY valid JSON matching this structure:
   "difficulty": "${prompt.difficulty || 'INTERMEDIATE'}",
   "domain": "${prompt.domain || 'IT'}",
   "language": "<fr or en, the language of the user's prompt>",
+  "currency": "<USD, EUR, GBP, CHF or CAD: the currency of the country where the case takes place>",
   "vocabulary": {
     "nodeNoun": "<what a topology node is in this business>",
     "metrics": { "technicalDebtIndex": { "label": "<business name of the debt metric>", "description": "<one sentence>" }, "deliveryVelocity": { "label": "<...>", "description": "<...>" } },

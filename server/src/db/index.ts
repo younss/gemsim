@@ -105,10 +105,15 @@ export class DatabaseRepository {
       VALUES (?, ?, ?, 1, ?, ?, ?)
     `);
 
+    // Translations made by the Studio are kept (a stale one is ignored when the seed text changes)
+    const existing = this.db.prepare('SELECT data FROM scenarios WHERE id = ?');
     const tx = this.db.transaction((scenarios: Scenario[]) => {
       for (const s of scenarios) {
         const now = new Date().toISOString();
-        insert.run(s.id, s.title, s.industry, JSON.stringify(s), now, now);
+        const row = existing.get(s.id) as { data: string } | undefined;
+        const previous = row ? (JSON.parse(row.data) as Scenario) : undefined;
+        const seeded = previous?.translations ? { ...s, translations: previous.translations } : s;
+        insert.run(s.id, s.title, s.industry, JSON.stringify(seeded), now, now);
       }
     });
 
@@ -125,7 +130,11 @@ export class DatabaseRepository {
     const prisma = PrismaRepository.getInstance();
     if (!(await prisma.whenReady())) return;
 
-    for (const s of SEED_SCENARIOS) await prisma.saveScenario(s);
+    const stored = new Map((await prisma.getScenarios()).map(sc => [sc.id, sc]));
+    for (const s of SEED_SCENARIOS) {
+      const translations = stored.get(s.id)?.translations;
+      await prisma.saveScenario(translations ? { ...s, translations } : s);
+    }
 
     const [scenarios, sessions, messages, runs] = await Promise.all([
       prisma.getScenarios(),

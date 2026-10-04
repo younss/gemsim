@@ -31,14 +31,13 @@ const CRITERIA: Array<{ key: 'priceSensitivity' | 'qualitySensitivity' | 'speedS
 ];
 
 export const MarketPanel: React.FC<Props> = ({ scenario, session, team, decision, onChange, disabled }) => {
-  const { t, lang } = useGameText(scenario);
+  const { t, lang, cur, money } = useGameText(scenario);
   const market = scenario.market!;
   const round = session.currentRound;
   const presence = teamPresence(scenario, team);
   const entering = decision.enter ?? [];
 
-  const money = (v: number) => `${Math.round(v).toLocaleString(lang)}K$`;
-  const price = (v: number) => `${v.toLocaleString(lang, { maximumFractionDigits: 2 })}K$`;
+  const price = (v: number) => `${v.toLocaleString(lang, { maximumFractionDigits: 2 })}${cur}`;
 
   // Other teams are projected on last quarter's public prices: their new prices stay secret
   const others = session.teams.filter(o => o.id !== team.id).map(o => ({ team: o, decision: o.lastMarketDecision }));

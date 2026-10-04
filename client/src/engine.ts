@@ -29,3 +29,5 @@ export { coachQuarter, priceIndex } from '../../server/src/engine/coach';
 export type { CoachReport } from '../../server/src/engine/coach';
 export { buildDebrief } from '../../server/src/engine/debrief';
 export type { SessionDebrief, TeamDebrief, DebriefPattern } from '../../server/src/engine/debrief';
+export { localizeScenario, translationStatus } from '../../server/src/engine/scenario-text';
+export { currencySuffix, CURRENCIES } from '../../server/src/engine/currency';

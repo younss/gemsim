@@ -389,5 +389,15 @@ Player manual, learning objectives with references, workshop agenda (3h30 and 2h
 
 ---
 
+## 18. CASE TRANSLATION & CURRENCY (STUDIO)
+
+- `extractText(scenario)` → flat map `path → text` (title, industry, description, businessContext, vocabulary.*, nodes.<id>.name/description, edges.<id>.protocol, stakeholders.<id>.{title, role, personality, bias, hiddenAgenda, sampleDialogue.*}, events.<i>.{title, description, choices.<id>.text}, initiatives.<id>.{name, description}, market.segments.<id>.{name, description}, market.rivals.<id>.name). `applyText` writes texts back by path on a copy; `textHash` (FNV-1a) fingerprints the source.
+- `translateScenario(scenario, to)` (server): chunks of 25, dedicated system prompt, `generateJSON` with `temperature 0.2`, `reasoning: false` (Ollama `think: false`, retried without it if the model rejects it); `validateTranslation` (same keys, non-empty, same digits); valid texts are kept and only the missing or rejected ones are re-requested, up to 3 attempts; quarter labels normalised (T1 : ↔ Q1:). Throws `NoTranslatorError` when only the heuristic provider answers.
+- Stored as `Scenario.translations[lang] = { sourceHash, texts, provider, translatedAt }`. `translationStatus` = ORIGINAL | TRANSLATED | STALE | MISSING; `localizeScenario(scenario, lang)` applies an up-to-date translation (memoised) and sets `language = lang` so the scenario's own vocabulary applies. Seeding keeps stored translations of built-in cases.
+- Studio: background translation after publish; case library with status and *Translate* (SSE progress, `POST /api/studio/translate/:id`). Arena badge when the case is not available in the interface language.
+- `Scenario.currency` (USD | EUR | GBP | CHF | CAD), chosen by the Studio prompt (default EUR for French cases, USD otherwise). `currencySuffix`, `withCurrency` (rewrites "350K$"/"$350K") and `formatMoney` (locale number format) are shared; `useGameText` returns `cur` and `money()` and applies the currency to every translated string; teaching notes use it too.
+
+---
+
 ## EXECUTION INSTRUCTIONS
 Generate clean, modular, and fully tested TypeScript code. Unit-test the System 1 answer-to-evaluation mapping without a live model. Ensure all Three.js materials, mathematical state transitions, AI streaming handlers, and UI dashboards compile without errors (`npm run build` client & server with 0 errors, `npm test` passing 100%).

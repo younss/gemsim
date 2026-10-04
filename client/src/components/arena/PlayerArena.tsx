@@ -64,7 +64,7 @@ const DRIFT_RATE: Record<GovernancePosture, string> = {
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
 export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUpdated }) => {
-  const { t, lang, vocab, code, category, risk, severity, eventType } = useGameText(scenario);
+  const { t, lang, vocab, code, category, risk, severity, eventType, money } = useGameText(scenario);
   const tutorialActive = useHelpStore(s => s.tutorialActive);
   const tutorialSeen = useHelpStore(s => s.tutorialSeen);
   const startTutorial = useHelpStore(s => s.startTutorial);
@@ -233,7 +233,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
       key: 'cash',
       label: m.budgetRemaining.label,
       help: m.budgetRemaining.description,
-      value: `${team.metrics.budgetRemaining.toLocaleString(lang)}K$`,
+      value: money(team.metrics.budgetRemaining),
       sub: t('metric.cashSub', { opex: team.metrics.opEx }),
       icon: DollarSign,
       tone: team.metrics.budgetRemaining < 0 ? 'text-rose-400' : 'text-slate-100',
@@ -318,6 +318,11 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
                 {t('arena.quarterOf', { n: session.currentRound, total: scenario.totalRounds || 4 })}
               </span>
+              {scenario.language && scenario.language !== lang && (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/30" title={t('arena.untranslated.hint')}>
+                  {t('arena.untranslated', { lang: scenario.language.toUpperCase() })}
+                </span>
+              )}
             </div>
             <h2 className="text-sm sm:text-base font-bold text-slate-100 truncate mt-0.5">{scenario.title}</h2>
           </div>
@@ -516,7 +521,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
               <div>
                 <span className="text-slate-500">{t('arena.portfolio.committed')} </span>
                 <span className={decisionCheck.committedCost > decisionCheck.budgetAvailable ? 'text-rose-400 font-bold' : 'text-cyan-400 font-bold'}>
-                  {decisionCheck.committedCost}K$
+                  {money(decisionCheck.committedCost)}
                 </span>
                 <span className="text-slate-600"> {t('arena.portfolio.ofCash', { cash: Math.max(0, team.metrics.budgetRemaining) })}</span>
                 <InfoTip text={t('arena.portfolio.committedHelp')} align="right" />
@@ -552,7 +557,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
               {pacts.map(p => (
                 <div key={p.stakeholderId} className="flex items-center justify-between gap-2">
                   <span className="text-slate-300">
-                    {stakeholderName(p.stakeholderId)} : « {p.concession} » — {p.committedBudget}K$
+                    {stakeholderName(p.stakeholderId)} : « {p.concession} » — {money(p.committedBudget)}
                   </span>
                   {!team.decisionSubmitted && (
                     <button onClick={() => handleWithdrawPact(p.stakeholderId)} className="text-rose-400 hover:text-rose-300">
@@ -618,12 +623,12 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
                         <span className="text-slate-500 block">{t('arena.init.capex')}</span>
-                        <span className="font-bold text-slate-100">{init.capExCost}K$</span>
+                        <span className="font-bold text-slate-100">{money(init.capExCost)}</span>
                       </div>
                       <div>
                         <span className="text-slate-500 block">{t('arena.init.opex')}</span>
                         <span className={init.opExDelta <= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                          {signed(init.opExDelta)}K$ {t('common.perQuarter')}
+                          {init.opExDelta > 0 ? '+' : ''}{money(init.opExDelta)} {t('common.perQuarter')}
                         </span>
                       </div>
                       <div>
@@ -788,7 +793,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div className="bg-dark-900/80 p-2 rounded border border-rose-500/20">
                           <span className="text-[10px] text-slate-400 block">{t('arena.crisis.cash')}</span>
-                          <span className="text-rose-400 font-bold">-{currentEvent.immediateImpact.budgetFine}K$</span>
+                          <span className="text-rose-400 font-bold">-{money(currentEvent.immediateImpact.budgetFine)}</span>
                         </div>
                         <div className="bg-dark-900/80 p-2 rounded border border-rose-500/20">
                           <span className="text-[10px] text-slate-400 block truncate">{m.technicalDebtIndex.label}</span>
@@ -949,7 +954,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
                       ].map(([label, value]) => (
                         <div key={String(label)} className="bg-dark-900 p-2 rounded border border-slate-800">
                           <span className="text-slate-500 text-[10px] block">{label}</span>
-                          <span className="text-slate-200 font-bold">{value}K$</span>
+                          <span className="text-slate-200 font-bold">{money(value as number)}</span>
                         </div>
                       ))}
                     </div>
@@ -964,7 +969,7 @@ export const PlayerArena: React.FC<Props> = ({ session, team, scenario, onTeamUp
                           {t('market.capacity', { sold: hist.market.unitsSold.toLocaleString(lang), capacity: hist.market.capacityUnits.toLocaleString(lang) })}
                         </span>
                       </div>
-                      <PnL result={hist.market} money={v => `${Math.round(v).toLocaleString(lang)}K$`} />
+                      <PnL result={hist.market} money={money} />
                     </div>
                   )}
 

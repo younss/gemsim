@@ -13,6 +13,7 @@ import { playTournament, searchBestTeam, simulateStrategy, type BotStrategy } fr
 import { priceIndex } from '../engine/coach.js';
 import { getRunAllocation } from '../engine/resolver.js';
 import { DEFAULT_MAX_INITIATIVES_PER_ROUND } from '../engine/rules.js';
+import { currencySuffix, withCurrency } from '../engine/currency.js';
 
 type Weight = keyof StakeholderPersona['decisionWeights'];
 
@@ -342,5 +343,6 @@ export function buildTeachingNote(scenario: Scenario, lang: Lang): TeachingNote 
   questions.forEach((q, i) => out.push(`${i + 1}. ${q}`));
   out.push('');
 
-  return { title: L.title(scenario.title), summary: L.summary, content: out.join('\n') };
+  // Amounts in the case's currency
+  return { title: L.title(scenario.title), summary: L.summary, content: withCurrency(out.join('\n'), currencySuffix(scenario)) };
 }

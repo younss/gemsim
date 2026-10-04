@@ -941,4 +941,23 @@ export const fr = {
 
   // --- Notes pédagogiques (2) ---
   'docs.note.retry': "Ouvrir la note",
+
+  // --- Studio : traduction des cas ---
+  'studio.library.title': "Bibliothèque de cas",
+  'studio.library.subtitle': "Chaque cas existe dans sa langue d'origine ; le Studio le traduit dans l'autre langue avec le modèle d'IA actif. Seuls les textes sont traduits et vérifiés : les chiffres et l'équilibrage ne changent pas.",
+  'studio.library.language': "Langue d'origine : {lang}",
+  'studio.library.status.ORIGINAL': "—",
+  'studio.library.status.TRANSLATED': "Traduit en {lang}",
+  'studio.library.status.STALE': "Traduction {lang} obsolète (le cas a changé)",
+  'studio.library.status.MISSING': "Pas encore traduit en {lang}",
+  'studio.library.seed': "Cas fourni",
+  'studio.library.translate': "Traduire en {lang}",
+  'studio.library.retranslate': "Retraduire en {lang}",
+  'studio.library.starting': "Traduction…",
+  'studio.library.progress': "Traduction {done}/{total}",
+  'studio.library.noLlm': "Aucun modèle d'IA n'est configuré : la traduction a besoin d'Ollama, Gemini, Claude ou OpenAI (Réglages).",
+
+  // --- Cas non traduit ---
+  'arena.untranslated': "Cas en {lang}",
+  'arena.untranslated.hint': "Ce cas n'est pas encore traduit dans la langue de l'interface : l'animateur peut le traduire depuis la bibliothèque du Studio.",
 } as const;

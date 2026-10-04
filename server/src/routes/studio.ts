@@ -11,6 +11,29 @@ import { Scenario } from '../types/index.js';
 import { studioGenerateSchema, validateBody } from '../validation.js';
 import { requireFacilitator } from '../auth.js';
 import { checkScenarioBalance } from '../engine/balance.js';
+import { NoTranslatorError, translateScenario } from '../ai/scenario-translator.js';
+
+const otherLang = (lang?: 'fr' | 'en'): 'fr' | 'en' => (lang === 'en' ? 'fr' : 'en');
+const translating = new Set<string>(); // scenario ids being translated, to avoid duplicate runs
+
+/** Translates a scenario into `lang` and stores the result on it (re-read before saving). */
+async function translateAndStore(scenarioId: string, lang: 'fr' | 'en', onProgress?: (done: number, total: number) => void): Promise<Scenario> {
+  const db = DatabaseRepository.getInstance();
+  const scenario = db.getScenario(scenarioId);
+  if (!scenario) throw new Error('Scenario not found');
+  const key = `${scenarioId}|${lang}`;
+  if (translating.has(key)) throw new Error('A translation of this scenario is already running.');
+  translating.add(key);
+  try {
+    const translation = await translateScenario(scenario, lang, onProgress);
+    const latest = db.getScenario(scenarioId) ?? scenario;
+    const updated: Scenario = { ...latest, translations: { ...latest.translations, [lang]: translation } };
+    db.saveScenario(updated);
+    return updated;
+  } finally {
+    translating.delete(key);
+  }
+}
 
 export const studioRouter = Router();
 
@@ -75,6 +98,27 @@ function summarizeBalance(scenario: Scenario) {
   }
 }
 
+// POST /api/studio/translate/:id (SSE: progress per chunk, then the scenario with its translation)
+studioRouter.post('/translate/:id', requireFacilitator, async (req, res) => {
+  const db = DatabaseRepository.getInstance();
+  const scenario = db.getScenario(req.params.id);
+  if (!scenario) return res.status(404).json({ error: 'Scenario not found' });
+  const lang: 'fr' | 'en' = req.body?.lang === 'fr' || req.body?.lang === 'en' ? req.body.lang : otherLang(scenario.language);
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+  const send = (payload: unknown) => res.write(`data: ${JSON.stringify(payload)}\n\n`);
+  try {
+    const updated = await translateAndStore(scenario.id, lang, (done, total) => send({ type: 'progress', done, total }));
+    send({ type: 'done', scenario: updated });
+  } catch (err: any) {
+    send({ type: 'error', error: err.message, code: err instanceof NoTranslatorError ? 'NO_LLM' : undefined });
+  }
+  res.end();
+});
+
 // POST /api/studio/validate
 studioRouter.post('/validate', (req, res) => {
   try {
@@ -127,7 +171,15 @@ studioRouter.post('/publish', requireFacilitator, (req, res) => {
     const db = DatabaseRepository.getInstance();
     db.saveScenario(scenario);
 
-    res.status(201).json({ success: true, scenario });
+    // Translate into the other language in the background (needs an LLM; slow models are fine)
+    if (scenario.language) {
+      translateAndStore(scenario.id, otherLang(scenario.language)).then(
+        () => console.log(`[GameStudio] Translated '${scenario.title}' into ${otherLang(scenario.language)}.`),
+        err => console.warn(`[GameStudio] Background translation of '${scenario.title}' skipped: ${err.message}`)
+      );
+    }
+
+    res.status(201).json({ success: true, scenario, translation: scenario.language ? 'STARTED' : 'NONE' });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

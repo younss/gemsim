@@ -943,4 +943,23 @@ export const en: Record<keyof typeof fr, string> = {
 
   // --- Teaching notes (2) ---
   'docs.note.retry': "Open the note",
+
+  // --- Studio: case translation ---
+  'studio.library.title': "Case library",
+  'studio.library.subtitle': "Each case exists in its original language; the Studio translates it into the other language with the active AI model. Only texts are translated and checked: figures and balance never change.",
+  'studio.library.language': "Original language: {lang}",
+  'studio.library.status.ORIGINAL': "—",
+  'studio.library.status.TRANSLATED': "Translated into {lang}",
+  'studio.library.status.STALE': "{lang} translation out of date (the case changed)",
+  'studio.library.status.MISSING': "Not yet translated into {lang}",
+  'studio.library.seed': "Built-in case",
+  'studio.library.translate': "Translate into {lang}",
+  'studio.library.retranslate': "Translate again into {lang}",
+  'studio.library.starting': "Translating…",
+  'studio.library.progress': "Translating {done}/{total}",
+  'studio.library.noLlm': "No AI model is configured: translation needs Ollama, Gemini, Claude or OpenAI (Settings).",
+
+  // --- Untranslated case ---
+  'arena.untranslated': "Case in {lang}",
+  'arena.untranslated.hint': "This case is not yet translated into the interface language: the facilitator can translate it from the Studio library.",
 };

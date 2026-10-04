@@ -14,6 +14,7 @@ import { api, wsService, onFacilitatorPinRequired } from './services/api';
 import { useSimulationStore } from './stores/useSimulationStore';
 import { useHelpStore } from './stores/useHelpStore';
 import { useI18n } from './i18n';
+import { useLocalizedScenario } from './i18n/game';
 import { GlossaryPanel } from './components/help/GlossaryPanel';
 import { DemoPlayer } from './components/help/DemoPlayer';
 import { Navbar } from './components/navbar/Navbar';
@@ -60,6 +61,7 @@ export const App: React.FC = () => {
   const [unlockError, setUnlockError] = useState<string | null>(null);
 
   const { t } = useI18n();
+  const shownScenario = useLocalizedScenario(currentScenario);
   const { setGlossaryOpen, setDemoOpen, startTutorial } = useHelpStore();
 
   // Practice game: a solo session on the current (or first) scenario, with the tutorial
@@ -239,7 +241,7 @@ export const App: React.FC = () => {
           <PlayerArena
             session={currentSession}
             team={currentTeam}
-            scenario={currentScenario}
+            scenario={shownScenario!}
             onTeamUpdated={updateTeam}
           />
         )}
@@ -247,7 +249,7 @@ export const App: React.FC = () => {
         {activeView === 'FACILITATOR' && userRole !== 'PLAYER' && currentSession && currentScenario && (
           <FacilitatorCockpit
             session={currentSession}
-            scenario={currentScenario}
+            scenario={shownScenario!}
             onSessionUpdated={setCurrentSession}
           />
         )}

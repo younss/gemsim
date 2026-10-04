@@ -16,14 +16,14 @@ const VERDICT_STYLE: Record<SimulationOutcome['verdict'], string> = {
   DEFEAT: 'text-rose-300 border-rose-500/60 bg-rose-500/10',
 };
 
-function formatValue(o: OutcomeObjective, value: number): string {
-  if (o.key === 'tco' || o.key === 'solvency' || o.key === 'cumulativeProfit') return `${value.toLocaleString()}K$`;
+function formatValue(o: OutcomeObjective, value: number, money: (v: number) => string): string {
+  if (o.key === 'tco' || o.key === 'solvency' || o.key === 'cumulativeProfit') return money(value);
   if (o.key === 'marketShare') return `${value} %`;
   return `${value}`;
 }
 
 export const ObjectivesTracker: React.FC<{ outcome: SimulationOutcome; scenario: Scenario; roundsLeft: number }> = ({ outcome, scenario, roundsLeft }) => {
-  const { t, objective, vocab } = useGameText(scenario);
+  const { t, objective, vocab, money } = useGameText(scenario);
   const description = (key: OutcomeObjective['key']) =>
     key === 'solvency' ? vocab.metrics.budgetRemaining.description : vocab.metrics[key as Exclude<OutcomeObjective['key'], 'solvency'>].description;
 
@@ -50,9 +50,9 @@ export const ObjectivesTracker: React.FC<{ outcome: SimulationOutcome; scenario:
               <InfoTip text={description(o.key)} label={objective(o.key)} />
             </div>
             <div className={o.met ? 'text-emerald-300 font-bold' : 'text-rose-300 font-bold'}>
-              {formatValue(o, o.actual)}{' '}
+              {formatValue(o, o.actual, money)}{' '}
               <span className="text-slate-500 font-normal">
-                {o.comparator} {formatValue(o, o.target)}
+                {o.comparator} {formatValue(o, o.target, money)}
               </span>
               <span className="sr-only">{o.met ? '✓' : '✗'}</span>
             </div>
@@ -69,7 +69,7 @@ export const FinalVerdict: React.FC<{ session: SimulationSession; team: Team; ou
   outcome,
   scenario,
 }) => {
-  const { t, objective } = useGameText(scenario);
+  const { t, objective, money } = useGameText(scenario);
   const ranking = [...session.teams].map(tm => ({ team: tm, score: tm.outcome?.score ?? 0 })).sort((a, b) => b.score - a.score);
   const rank = ranking.findIndex(r => r.team.id === team.id) + 1;
 
@@ -104,9 +104,9 @@ export const FinalVerdict: React.FC<{ session: SimulationSession; team: Team; ou
             <tr key={o.key} className="border-b border-slate-800/60">
               <td className="py-1.5 text-slate-200">{objective(o.key)}</td>
               <td className="py-1.5 text-slate-400">
-                {o.comparator} {formatValue(o, o.target)}
+                {o.comparator} {formatValue(o, o.target, money)}
               </td>
-              <td className="py-1.5 text-slate-100 font-bold">{formatValue(o, o.actual)}</td>
+              <td className="py-1.5 text-slate-100 font-bold">{formatValue(o, o.actual, money)}</td>
               <td className="py-1.5 text-right">
                 {o.met ? (
                   <CheckCircle className="w-4 h-4 text-emerald-400 inline" aria-label="✓" />

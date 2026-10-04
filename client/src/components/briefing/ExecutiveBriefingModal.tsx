@@ -25,7 +25,7 @@ interface Props {
 type Tab = 'CASE' | 'MAP' | 'PEOPLE' | 'RULES';
 
 export const ExecutiveBriefingModal: React.FC<Props> = ({ isOpen, onClose, scenario, session, team }) => {
-  const { t, vocab, objective, risk } = useGameText(scenario);
+  const { t, vocab, objective, risk, money } = useGameText(scenario);
   const setGlossaryOpen = useHelpStore(s => s.setGlossaryOpen);
   const [activeTab, setActiveTab] = useState<Tab>('CASE');
 
@@ -54,7 +54,7 @@ export const ExecutiveBriefingModal: React.FC<Props> = ({ isOpen, onClose, scena
     .slice(0, 3)
     .map(i => i.name);
   const fmt = (key: string, value: number) =>
-    key === 'tco' || key === 'solvency' || key === 'cumulativeProfit' ? `${value.toLocaleString()}K$` : key === 'marketShare' ? `${value} %` : `${value}`;
+    key === 'tco' || key === 'solvency' || key === 'cumulativeProfit' ? money(value) : key === 'marketShare' ? `${value} %` : `${value}`;
 
   const tabs: Array<{ id: Tab; label: string; icon: React.ElementType }> = [
     { id: 'CASE', label: t('brief.tab.case'), icon: FileText },
@@ -193,7 +193,7 @@ export const ExecutiveBriefingModal: React.FC<Props> = ({ isOpen, onClose, scena
                     [
                       ['technicalDebtIndex', `${baseline.technicalDebtIndex}`],
                       ['deliveryVelocity', `${baseline.deliveryVelocity}`],
-                      ['budgetRemaining', `${baseline.budgetRemaining}K$`],
+                      ['budgetRemaining', money(baseline.budgetRemaining)],
                       ['stakeholderTrust', `${baseline.stakeholderTrust} %`],
                       ['resilienceIndex', `${baseline.resilienceIndex}`],
                       ['complianceScore', `${baseline.complianceScore} %`],

@@ -13,7 +13,7 @@ import {
 } from '../../types/index';
 import { api } from '../../services/api';
 import { useSimulationStore } from '../../stores/useSimulationStore';
-import { useGameText } from '../../i18n/game';
+import { useGameText, useLocalizedScenario } from '../../i18n/game';
 import type { TranslationKey } from '../../i18n';
 import { InfoTip } from '../help/InfoTip';
 import { BOARD_MANDATE_EFFECTS } from '../../../../server/src/engine/rules';
@@ -48,7 +48,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
   stakeholders,
   onTrustUpdated,
 }) => {
-  const scenario = useSimulationStore(s => s.currentScenario);
+  const scenario = useLocalizedScenario(useSimulationStore(s => s.currentScenario));
   const { t, vocab, risk } = useGameText(scenario);
   // Can be 'BOARDROOM' for Plenary Executive Meeting, or individual stakeholder ID
   const [activeStakeholderId, setActiveStakeholderId] = useState<string>('BOARDROOM');

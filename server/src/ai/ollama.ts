@@ -141,17 +141,27 @@ export class OllamaProvider extends BaseAIProvider {
       if (options?.responseFormat === 'json') {
         body.format = 'json';
       }
+      if (options?.reasoning === false) body.think = false;
 
-      const response = await fetch(`${this.baseUrl}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
+      const post = (payload: Record<string, any>) =>
+        fetch(`${this.baseUrl}/api/chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+      let response = await post(body);
 
       if (!response.ok) {
         const errText = await response.text();
-        throw new Error(`Ollama API error (${response.status}): ${errText}`);
+        // Models without a thinking mode may reject the setting: retry without it
+        if ('think' in body && /think/i.test(errText)) {
+          delete body.think;
+          response = await post(body);
+          if (!response.ok) throw new Error(`Ollama API error (${response.status}): ${await response.text()}`);
+        } else {
+          throw new Error(`Ollama API error (${response.status}): ${errText}`);
+        }
       }
 
       const data = (await response.json()) as { message?: { content: string } };

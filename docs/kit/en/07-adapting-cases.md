@@ -23,6 +23,10 @@ The **"Vénissieux plant"** scenario ships as an industrial example (plant acqui
 5. Read the **balance report**: the case must be **playable** (a victory exists, the shortcut strategy loses).
 6. Adjust if needed (scenario JSON), then publish.
 
+## Language and currency
+
+Write your case in your own language: the Studio **translates it automatically** into the other language as soon as it is published (with the configured AI model), and the Studio's **case library** lets you translate it again. Only texts are translated; figures and balance never change. The currency (euro, dollar, pound, Swiss franc, Canadian dollar) follows the case's country.
+
 ## The teaching note is written for you
 
 Every case, Studio ones included, has its **teaching note** in Docs & kit (facilitator PIN). The engine plays the case to write it: the winning path quarter by quarter, typical strategies' results, a reading of each crisis dilemma (most lasting answer, cheapest one), tensions between executives, traps and debrief questions. Read it before publishing a case: if the winning path looks absurd, the case needs work.

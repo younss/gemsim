@@ -4,6 +4,9 @@
 // With Live AI Diagnostics, Model Selector, and Progressive Generation Telemetry
 // ============================================================================
 
+import { useSimulationStore } from '../../stores/useSimulationStore';
+import { translationStatus, currencySuffix } from '../../engine';
+import { CaseLibrary } from './CaseLibrary';
 import React, { useState, useEffect } from 'react';
 import { Scenario, AISettingsState, AIProviderType } from '../../types/index';
 import { api, ScenarioBalanceSummary } from '../../services/api';
@@ -179,6 +182,18 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
       const published = await api.publishScenario(synthesizedScenario);
       setPublishSuccess(true);
       if (onScenarioPublished) onScenarioPublished(published);
+      // The server translates the new case into the other language in the background: refresh the library until it lands
+      if (published.language) {
+        const other = published.language === 'en' ? 'fr' : 'en';
+        let tries = 0;
+        const poll = window.setInterval(async () => {
+          tries++;
+          const list = await api.getScenarios().catch(() => null);
+          const fresh = list?.find(x => x.id === published.id);
+          if (list) useSimulationStore.getState().setScenarios(list);
+          if ((fresh && translationStatus(fresh, other) === 'TRANSLATED') || tries >= 20) window.clearInterval(poll);
+        }, 30000);
+      }
       setTimeout(() => setPublishSuccess(false), 4000);
     } catch (err) {
       console.error('Publish error:', err);
@@ -765,7 +780,7 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
                     <div key={init.id} className="bg-dark-900 p-3.5 rounded-xl border border-slate-800 space-y-2 text-xs">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-slate-100 text-xs">{init.name}</span>
-                        <span className="text-[10px] font-mono text-cyan-400">{init.capExCost}K$</span>
+                        <span className="text-[10px] font-mono text-cyan-400">{init.capExCost}{currencySuffix(synthesizedScenario)}</span>
                       </div>
                       <p className="text-slate-400 text-[11px] line-clamp-2">{init.description}</p>
                       <div className="flex flex-wrap items-center gap-3 font-mono text-[10px] text-slate-300">
@@ -797,6 +812,8 @@ export const GameStudio: React.FC<Props> = ({ onScenarioPublished }) => {
           )}
         </div>
       </div>
+
+      <CaseLibrary />
     </div>
   );
 };

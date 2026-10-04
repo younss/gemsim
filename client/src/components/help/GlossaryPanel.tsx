@@ -6,7 +6,7 @@
 import React, { useEffect, useState } from 'react';
 import { BookOpen, Search, X } from 'lucide-react';
 import { GLOSSARY } from '../../i18n/glossary';
-import { useGameText } from '../../i18n/game';
+import { useGameText, useLocalizedScenario } from '../../i18n/game';
 import { useHelpStore } from '../../stores/useHelpStore';
 import { useSimulationStore } from '../../stores/useSimulationStore';
 import type { MetricKey } from '../../types/index';
@@ -26,7 +26,7 @@ const METRIC_ORDER: MetricKey[] = [
 export const GlossaryPanel: React.FC = () => {
   const open = useHelpStore(s => s.glossaryOpen);
   const setOpen = useHelpStore(s => s.setGlossaryOpen);
-  const scenario = useSimulationStore(s => s.currentScenario);
+  const scenario = useLocalizedScenario(useSimulationStore(s => s.currentScenario));
   const { t, lang, vocab } = useGameText(scenario);
   const [query, setQuery] = useState('');
 

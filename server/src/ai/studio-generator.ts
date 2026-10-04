@@ -19,8 +19,10 @@ import {
   MarketModel,
   MarketSegment,
   MarketRival,
+  ScenarioCurrency,
 } from '../types/index.js';
 import { calibrateMarket } from '../engine/market.js';
+import { CURRENCIES } from '../engine/currency.js';
 
 const clamp = (v: unknown, min: number, max: number, fallback: number) =>
   typeof v === 'number' && Number.isFinite(v) ? Math.max(min, Math.min(max, v)) : fallback;
@@ -350,6 +352,7 @@ export class StudioScenarioGenerator {
       domain: raw.domain || prompt.domain || 'IT',
       language,
       market,
+      currency: CURRENCIES.includes(raw.currency as ScenarioCurrency) ? (raw.currency as ScenarioCurrency) : language === 'fr' ? 'EUR' : 'USD',
       vocabulary: sanitizeVocabulary(raw.vocabulary),
       tags: raw.tags || [industry, 'Architecture Strategy', difficulty],
       author: raw.author || (providerUsed === 'fallback' ? 'AI Studio (Heuristic Engine)' : `AI Studio (${providerUsed})`),

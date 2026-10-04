@@ -53,7 +53,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
   scenario,
   onSessionUpdated,
 }) => {
-  const { t, vocab, objective, severity, code } = useGameText(scenario);
+  const { t, vocab, objective, severity, code, money } = useGameText(scenario);
   const { text: debriefText } = useDebriefText(scenario);
   const crisisTemplates = buildCrisisTemplates(scenario, t);
   const [broadcastText, setBroadcastText] = useState('');
@@ -181,7 +181,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
       ...sortedTeams.map((tm, i) => {
         const o = outcomes.get(tm.id)!;
         const mt = tm.metrics;
-        return `| ${i + 1} | ${tm.name} | ${verdict(o.verdict)} | ${o.grade} | ${o.score} | ${mt.technicalDebtIndex} | ${mt.deliveryVelocity} | ${mt.stakeholderTrust} | ${mt.resilienceIndex} | ${mt.budgetRemaining}K$ | ${mt.tco}K$ |`;
+        return `| ${i + 1} | ${tm.name} | ${verdict(o.verdict)} | ${o.grade} | ${o.score} | ${mt.technicalDebtIndex} | ${mt.deliveryVelocity} | ${mt.stakeholderTrust} | ${mt.resilienceIndex} | ${money(mt.budgetRemaining)} | ${money(mt.tco)} |`;
       }),
     ];
     for (const tm of sortedTeams) {
@@ -191,7 +191,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
       const marketRows = tm.history.filter(h => h.market);
       if (marketRows.length) {
         lines.push('', `### ${t('cockpit.market.title')}`, '', `| ${t('common.quarter')} | ${m.marketShare.label} | ${m.revenue.label} | ${m.operatingProfit.label} |`, '| --- | --- | --- | --- |');
-        for (const h of marketRows) lines.push(`| ${h.roundNumber} | ${h.market!.marketShare} % | ${h.market!.revenue}K$ | ${h.market!.operatingProfit}K$ |`);
+        for (const h of marketRows) lines.push(`| ${h.roundNumber} | ${h.market!.marketShare} % | ${money(h.market!.revenue)} | ${money(h.market!.operatingProfit)} |`);
       }
       lines.push('', `### ${t('cockpit.md.log')}`, '');
       for (const h of tm.history) {
@@ -249,8 +249,8 @@ export const FacilitatorCockpit: React.FC<Props> = ({
         technicalDebtIndex: `${t.metrics.technicalDebtIndex}%`,
         deliveryVelocity: `${t.metrics.deliveryVelocity} pts`,
         stakeholderTrust: `${t.metrics.stakeholderTrust}%`,
-        budgetRemaining: `$${t.metrics.budgetRemaining}K`,
-        totalTCO: `$${t.metrics.tco}K`,
+        budgetRemaining: money(t.metrics.budgetRemaining),
+        totalTCO: money(t.metrics.tco),
         resilienceIndex: `${t.metrics.resilienceIndex}/100`,
         complianceScore: `${t.metrics.complianceScore}%`,
         verdict: outcomes.get(t.id)!.verdict,
@@ -467,7 +467,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
 
                     <div>
                       <span className="text-slate-500 text-[10px] block truncate">{vocab.metrics.budgetRemaining.label}</span>
-                      <span className="font-bold text-slate-200">{tm.metrics.budgetRemaining}K$</span>
+                      <span className="font-bold text-slate-200">{money(tm.metrics.budgetRemaining)}</span>
                     </div>
 
                     <div>
@@ -489,7 +489,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                         <div>
                           <span className="text-slate-500 text-[10px] block truncate">{vocab.metrics.cumulativeProfit.label}</span>
                           <span className={`font-bold ${(tm.metrics.cumulativeProfit ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {(tm.metrics.cumulativeProfit ?? 0).toLocaleString()}K$
+                            {money(tm.metrics.cumulativeProfit ?? 0)}
                           </span>
                         </div>
                       </>
@@ -576,7 +576,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                     <div className="text-[11px] font-mono bg-dark-900/60 p-2.5 rounded-lg border border-slate-800/80 mb-4 space-y-1">
                       <div className="text-slate-400 flex items-center justify-between">
                         <span>{t('cockpit.crisis.fine')}</span>
-                        <span className="text-rose-400 font-bold">-{crisis.immediateImpact.budgetFine}K$</span>
+                        <span className="text-rose-400 font-bold">-{money(crisis.immediateImpact.budgetFine)}</span>
                       </div>
                       <div className="text-slate-400 flex items-center justify-between">
                         <span>{vocab.metrics.technicalDebtIndex.label} / {vocab.metrics.deliveryVelocity.label} :</span>
@@ -820,12 +820,12 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                         <td className="p-3 font-bold text-cyan-400">{tm.metrics.deliveryVelocity} pts</td>
                         <td className="p-3">{tm.metrics.stakeholderTrust}%</td>
                         <td className="p-3 text-emerald-400">{tm.metrics.resilienceIndex}/100</td>
-                        <td className="p-3">${tm.metrics.budgetRemaining.toLocaleString()}K</td>
-                        <td className="p-3 text-slate-400">${tm.metrics.tco.toLocaleString()}K</td>
+                        <td className="p-3">{money(tm.metrics.budgetRemaining)}</td>
+                        <td className="p-3 text-slate-400">{money(tm.metrics.tco)}</td>
                         {hasMarket && <td className="p-3 text-cyan-300">{tm.metrics.marketShare !== undefined ? `${tm.metrics.marketShare} %` : '—'}</td>}
                         {hasMarket && (
                           <td className={`p-3 ${(tm.metrics.cumulativeProfit ?? 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {(tm.metrics.cumulativeProfit ?? 0).toLocaleString()}K$
+                            {money(tm.metrics.cumulativeProfit ?? 0)}
                           </td>
                         )}
                       </tr>
@@ -857,7 +857,7 @@ export const FacilitatorCockpit: React.FC<Props> = ({
                                 {mk ? (
                                   <>
                                     <span className="text-cyan-300">{mk.marketShare} %</span>{' '}
-                                    <span className={mk.operatingProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}>({mk.operatingProfit.toLocaleString()}K$)</span>
+                                    <span className={mk.operatingProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}>({money(mk.operatingProfit)})</span>
                                   </>
                                 ) : (
                                   '—'

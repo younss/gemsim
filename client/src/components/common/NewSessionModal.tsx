@@ -2,6 +2,7 @@
 // GEMSIM: NEW SIMULATION SESSION MODAL
 // ============================================================================
 
+import { useLocalizedScenarios } from '../../i18n/game';
 import React, { useState } from 'react';
 import { Scenario, SimulationSession } from '../../types/index';
 import { api } from '../../services/api';
@@ -22,6 +23,7 @@ export const NewSessionModal: React.FC<Props> = ({
   onSessionCreated,
 }) => {
   const { t } = useI18n();
+  const shown = useLocalizedScenarios(scenarios);
   const [sessionName, setSessionName] = useState(() => t('newSession.defaultName'));
   const [selectedScenarioId, setSelectedScenarioId] = useState(scenarios[0]?.id || '');
   const [teamCount, setTeamCount] = useState<number>(3);
@@ -90,7 +92,7 @@ export const NewSessionModal: React.FC<Props> = ({
               onChange={e => setSelectedScenarioId(e.target.value)}
               className="w-full bg-dark-900 border border-slate-700 rounded-lg px-3 py-2 text-slate-100 focus:outline-none focus:border-cyan-500"
             >
-              {scenarios.map(s => (
+              {shown.map(s => (
                 <option key={s.id} value={s.id}>
                   {s.title} ({s.industry} — {t(`brief.difficulty.${s.difficulty}` as TranslationKey)})
                 </option>

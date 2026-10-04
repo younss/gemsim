@@ -22,6 +22,7 @@ export interface AIGenerateOptions {
   systemPrompt?: string;
   responseFormat?: 'json' | 'text';
   timeoutMs?: number;
+  reasoning?: boolean; // false: ask models with a thinking mode to answer directly (mechanical tasks such as translation)
 }
 
 export interface StakeholderNegotiationContext {

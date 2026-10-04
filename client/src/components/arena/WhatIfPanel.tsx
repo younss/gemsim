@@ -21,7 +21,7 @@ interface Props {
 const POSTURES: GovernancePosture[] = ['BYPASS_ARCH', 'BALANCED_AGILE', 'STRICT_GOVERNANCE', 'ACCELERATED_MODERN'];
 
 export const WhatIfPanel: React.FC<Props> = ({ scenario, session, team }) => {
-  const { t, vocab, code, objective } = useGameText(scenario);
+  const { t, vocab, code, objective, money } = useGameText(scenario);
   const rounds = team.history.filter(h => h.decision).map(h => h.roundNumber);
   const [round, setRound] = useState<number>(rounds[0] ?? 1);
   const [decision, setDecision] = useState<Omit<TeamDecision, 'customPacts'> | null>(null);
@@ -116,7 +116,7 @@ export const WhatIfPanel: React.FC<Props> = ({ scenario, session, team }) => {
             <label key={init.id} className="flex items-center gap-2 text-slate-300">
               <input type="checkbox" checked={decision.selectedInitiativeIds.includes(init.id)} onChange={() => toggle(init.id)} className="accent-amber-500" />
               <span>{init.name}</span>
-              <span className="text-slate-500 font-mono">{init.capExCost}K$</span>
+              <span className="text-slate-500 font-mono">{money(init.capExCost)}</span>
             </label>
           ))}
         </div>

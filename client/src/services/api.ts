@@ -271,6 +271,37 @@ export const api = {
     throw new Error('Generation stream ended before the scenario was received');
   },
 
+  // Studio translation pass (SSE): progress per chunk, then the scenario with its stored translation
+  async translateScenario(id: string, lang: 'fr' | 'en', onProgress: (done: number, total: number) => void): Promise<Scenario> {
+    const res = await apiFetch(`${API_BASE}/studio/translate/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lang }),
+    });
+    if (!res.ok || !res.body) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Translation failed');
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split('\n\n');
+      buffer = events.pop() || '';
+      for (const event of events) {
+        if (!event.startsWith('data: ')) continue;
+        const data = JSON.parse(event.slice(6));
+        if (data.type === 'progress') onProgress(data.done, data.total);
+        else if (data.type === 'done') return data.scenario;
+        else if (data.type === 'error') throw Object.assign(new Error(data.error), { code: data.code });
+      }
+    }
+    throw new Error('Translation stream ended before the scenario was received');
+  },
+
   async generateStudioScenario(prompt: {
     industry: string;
     businessChallenge: string;

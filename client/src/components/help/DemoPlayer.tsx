@@ -7,7 +7,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { PlayCircle, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { replayStrategy, BotStrategy, StrategyReplay } from '../../../../server/src/engine/balance';
-import { useGameText } from '../../i18n/game';
+import { useGameText, useLocalizedScenario, useLocalizedScenarios } from '../../i18n/game';
 import { useHelpStore } from '../../stores/useHelpStore';
 import { useSimulationStore } from '../../stores/useSimulationStore';
 import type { Scenario, TeamMetrics } from '../../types/index';
@@ -23,13 +23,13 @@ function delta(before: number, after: number, suffix = '') {
 export const DemoPlayer: React.FC = () => {
   const open = useHelpStore(s => s.demoOpen);
   const setOpen = useHelpStore(s => s.setDemoOpen);
-  const scenarios = useSimulationStore(s => s.scenarios);
-  const current = useSimulationStore(s => s.currentScenario);
+  const scenarios = useLocalizedScenarios(useSimulationStore(s => s.scenarios));
+  const current = useLocalizedScenario(useSimulationStore(s => s.currentScenario));
   const [scenarioId, setScenarioId] = useState<string | null>(null);
   const [step, setStep] = useState(0);
 
   const scenario: Scenario | undefined = scenarios.find(s => s.id === scenarioId) ?? current ?? scenarios[0];
-  const { t, vocab, code, category, objective } = useGameText(scenario);
+  const { t, vocab, code, category, objective, cur, money } = useGameText(scenario);
 
   useEffect(() => {
     if (!open) return;
@@ -55,13 +55,13 @@ export const DemoPlayer: React.FC = () => {
   const metricRows = (before: TeamMetrics, after: TeamMetrics) => [
     [vocab.metrics.technicalDebtIndex.label, delta(before.technicalDebtIndex, after.technicalDebtIndex)],
     [vocab.metrics.deliveryVelocity.label, delta(before.deliveryVelocity, after.deliveryVelocity)],
-    [vocab.metrics.budgetRemaining.label, delta(before.budgetRemaining, after.budgetRemaining, 'K$')],
+    [vocab.metrics.budgetRemaining.label, delta(before.budgetRemaining, after.budgetRemaining, cur)],
     [vocab.metrics.stakeholderTrust.label, delta(before.stakeholderTrust, after.stakeholderTrust)],
     [vocab.metrics.resilienceIndex.label, delta(before.resilienceIndex, after.resilienceIndex)],
     ...(after.marketShare !== undefined
       ? [
           [vocab.metrics.marketShare.label, `${after.marketShare} %`],
-          [vocab.metrics.operatingProfit.label, `${(after.operatingProfit ?? 0).toLocaleString()}K$`],
+          [vocab.metrics.operatingProfit.label, money(after.operatingProfit ?? 0)],
         ]
       : []),
   ];

@@ -260,6 +260,16 @@ export interface WinLossConditions {
   minCumulativeProfit?: number; // $K over the game
 }
 
+export type ScenarioCurrency = 'USD' | 'EUR' | 'GBP' | 'CHF' | 'CAD';
+
+/** A scenario's texts translated into another language, tied to the source text it was made from. */
+export interface ScenarioTranslation {
+  sourceHash: string; // fingerprint of the source text; a mismatch means the translation is out of date
+  texts: Record<string, string>; // path -> translated text (see engine/scenario-text.ts)
+  provider?: string;
+  translatedAt: string;
+}
+
 export interface Scenario {
   id: string;
   title: string;
@@ -278,6 +288,8 @@ export interface Scenario {
   language?: 'fr' | 'en';
   vocabulary?: ScenarioVocabulary;
   maxInitiativesPerRound?: number; // delivery capacity per quarter (default 2)
+  translations?: Partial<Record<'fr' | 'en', ScenarioTranslation>>; // texts in the other language
+  currency?: ScenarioCurrency; // display only; amounts are thousands of this currency (default USD)
   market?: MarketModel;
   tags: string[];
   author: string;
