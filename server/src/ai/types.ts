@@ -45,6 +45,8 @@ export interface StakeholderNegotiationContext {
   patience?: number;
   /** Decision already made by System One; the LLM only voices it. */
   decision?: ProposalEvaluation;
+  /** Language of the reply (the player's interface language). Without it the model infers it. */
+  language?: 'fr' | 'en';
 }
 
 export interface ScenarioGenerationPrompt {

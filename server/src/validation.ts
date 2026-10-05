@@ -123,12 +123,14 @@ export const negotiateSchema = z.object({
   teamId: id,
   stakeholderId: id,
   playerMessage: z.string().trim().min(1).max(4000),
+  lang: z.enum(['fr', 'en']).optional(), // the player's interface language: executives answer in it
 });
 
 export const boardroomSchema = z.object({
   sessionId: id,
   teamId: id,
   playerMessage: z.string().trim().min(1).max(4000),
+  lang: z.enum(['fr', 'en']).optional(),
 });
 
 export const systemOneSettingsSchema = z.object({

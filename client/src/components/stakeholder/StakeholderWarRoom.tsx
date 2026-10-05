@@ -49,7 +49,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
   onTrustUpdated,
 }) => {
   const scenario = useLocalizedScenario(useSimulationStore(s => s.currentScenario));
-  const { t, vocab, risk } = useGameText(scenario);
+  const { t, vocab, risk, lang } = useGameText(scenario);
   // Can be 'BOARDROOM' for Plenary Executive Meeting, or individual stakeholder ID
   const [activeStakeholderId, setActiveStakeholderId] = useState<string>('BOARDROOM');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -195,6 +195,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
           sessionId: session.id,
           teamId: team.id,
           playerMessage: userText,
+          lang,
         });
 
         setMessages(prev => [...prev, ...res.replies]);
@@ -223,6 +224,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
               teamId: team.id,
               stakeholderId: activeStakeholder.id,
               playerMessage: userText,
+              lang,
             },
             (chunk: string) => {
               accumulatedText += chunk;
@@ -279,6 +281,7 @@ export const StakeholderWarRoom: React.FC<Props> = ({
             teamId: team.id,
             stakeholderId: activeStakeholder.id,
             playerMessage: userText,
+            lang,
           });
 
           setMessages(prev => [...prev, fallbackRes.reply]);

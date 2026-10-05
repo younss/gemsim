@@ -12,7 +12,7 @@ import { getAITimeout } from '../ai/timeout.js';
 import { sanitizeAndParseJSON } from '../ai/repair-loop.js';
 import type { ScenarioGenerationPrompt } from '../ai/types.js';
 import type { Scenario } from '../types/index.js';
-import { authorSystemPrompt, authorUserPrompt, completionPrompt, missingParts, sanitizeDraft, type CaseDraft } from './draft.js';
+import { authorSystemPrompt, authorUserPrompt, briefLanguage, completionPrompt, missingParts, sanitizeDraft, type CaseDraft } from './draft.js';
 import { judgeDraft } from './judge.js';
 import { quantify } from './quantify.js';
 import { calibrateDifficulty } from './difficulty.js';
@@ -54,7 +54,8 @@ export async function runAuthoringPipeline(
   const domain = prompt.domain ?? 'IT';
   const withMarket = !!prompt.withMarket;
   const rounds = Math.max(1, Math.min(4, prompt.rounds ?? 4));
-  const language: 'fr' | 'en' = /[éèàùç]|\b(le|la|les|des|une|pour)\b/i.test(prompt.businessChallenge) ? 'fr' : 'en';
+  // The brief's language is authoritative: the model is told, and its own guess is not kept
+  const language = briefLanguage(prompt.businessChallenge);
   const options = { temperature: 0.5, maxTokens: 8000, responseFormat: 'json' as const, timeoutMs: getAITimeout('STUDIO'), reasoning: false };
 
   // ① System 2 writes
@@ -62,7 +63,7 @@ export async function runAuthoringPipeline(
   const { result: raw, usedProvider } = await registry.executeWithFallback(provider =>
     provider.generateStream(
       [
-        { role: 'system', content: authorSystemPrompt(domain, withMarket, rounds) },
+        { role: 'system', content: authorSystemPrompt(domain, withMarket, rounds, language) },
         { role: 'user', content: authorUserPrompt(prompt) },
       ],
       chunk => events.onChunk?.(chunk),
@@ -70,7 +71,7 @@ export async function runAuthoringPipeline(
     )
   );
   if (usedProvider === 'fallback') throw new NoAuthorError();
-  let draft: CaseDraft = sanitizeDraft(parse(raw), language);
+  let draft: CaseDraft = { ...sanitizeDraft(parse(raw), language), language };
 
   // An unusable answer (truncated or off-format JSON): write it again once, without streaming
   if (!draft.nodes.length && !draft.crises.length && !draft.initiatives.length) {
@@ -79,13 +80,13 @@ export async function runAuthoringPipeline(
     const { result } = await registry.executeWithFallback(provider =>
       provider.generateJSON<any>(
         [
-          { role: 'system', content: authorSystemPrompt(domain, withMarket, rounds) },
+          { role: 'system', content: authorSystemPrompt(domain, withMarket, rounds, language) },
           { role: 'user', content: authorUserPrompt(prompt) },
         ],
         options
       )
     );
-    draft = sanitizeDraft(result, language);
+    draft = { ...sanitizeDraft(result, language), language };
   }
 
   // Completion: ask again only for what is missing
@@ -99,7 +100,7 @@ export async function runAuthoringPipeline(
       const { result } = await registry.executeWithFallback(provider =>
         provider.generateJSON<any>(
           [
-            { role: 'system', content: authorSystemPrompt(domain, withMarket, rounds) },
+            { role: 'system', content: authorSystemPrompt(domain, withMarket, rounds, language) },
             { role: 'user', content: completionPrompt(draft, missing) },
           ],
           options

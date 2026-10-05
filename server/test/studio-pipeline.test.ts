@@ -273,3 +273,13 @@ describe('Judge robustness', () => {
     expect(j.priorities.cfo.financialAcumen).toBe(0.5); // later batches judged (score 2 of 0..4)
   });
 });
+
+describe('Brief language', () => {
+  it('reads the language from the words, not from a stray accent or currency', async () => {
+    const { briefLanguage, authorSystemPrompt } = await import('../src/studio/draft.js');
+    expect(briefLanguage("A metropolitan authority is hit by ransomware; the CFO counts every euro and the café owners complain.")).toBe('en');
+    expect(briefLanguage('Une métropole est frappée par un rançongiciel : la DAF compte chaque euro et les services sont à l’arrêt.')).toBe('fr');
+    expect(authorSystemPrompt('IT', false, 3, 'en')).toContain('Write every text in English');
+    expect(authorSystemPrompt('IT', false, 3, 'fr')).toContain('"language": "fr"');
+  });
+});

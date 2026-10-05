@@ -88,13 +88,21 @@ export interface CaseDraft {
 export const MINIMUM = { nodes: 6, stakeholders: 4, initiatives: 6, answers: 2 }; // one crisis per quarter on top
 const MAX_NODES = 10; // a readable map, and run costs in proportion to the case
 
-export function authorSystemPrompt(domain: ScenarioDomain, withMarket: boolean, rounds = 4): string {
+/** The brief's language, from its most frequent function words (an accent alone does not make French). */
+export function briefLanguage(text: string): 'fr' | 'en' {
+  const count = (re: RegExp) => (text.match(re) ?? []).length;
+  const fr = count(/\b(le|la|les|des|du|une|un|est|et|pour|avec|dans|sur|qui|que|nous|vous|ne|pas)\b/gi);
+  const en = count(/\b(the|and|of|to|is|are|with|for|in|on|that|which|we|you|not|a|an)\b/gi);
+  return fr > en ? 'fr' : 'en';
+}
+
+export function authorSystemPrompt(domain: ScenarioDomain, withMarket: boolean, rounds = 4, language: 'fr' | 'en' = 'en'): string {
   const swan = rounds >= 3 ? 3 : rounds;
   return `You are the author of business-school case studies and executive simulations.
 Write a complete, realistic case from the user's brief. You write the STORY and you QUALIFY each element in fixed categories; you never invent effect numbers (a calculation engine sets them from your qualifications).
 
 Rules:
-- Write every text in the language of the brief (French brief → French text). Fictional people and fictional companies only; never real brands.
+- Write every text in ${language === 'fr' ? 'French' : 'English'}, the language of the brief, even if names or places in it come from another country. Fictional people and fictional companies only; never real brands.
 - Domain: ${domain}. ${DOMAIN_GUIDANCE[domain] ?? ''}
 - The case lasts ${rounds} quarter(s). At least ${MINIMUM.nodes} nodes, ${MINIMUM.stakeholders} stakeholders with clearly different priorities (finance, speed, rigour, compliance), exactly ${rounds} crises (one per quarter, quarter ${swan} is a black swan) with 2 or 3 answers each, and at least ${MINIMUM.initiatives} initiatives.
 - Initiatives: at least one TRANSFORMATION (deep, slow, lasting), two or more IMPROVEMENT, at most one QUICK_WIN, and exactly one TRAP (tempting shortcut that backfires). Category must be one of: ${INITIATIVE_CATEGORIES.join(', ')}.
@@ -108,7 +116,7 @@ Rules:
 Output ONLY this JSON (ids are short lowercase slugs):
 {
   "title": "", "industry": "", "description": "<2 paragraphs>", "businessContext": "<detailed situation>",
-  "language": "fr|en", "currency": "EUR",
+  "language": "${language}", "currency": "<USD|EUR|GBP|CHF|CAD>",
   "vocabulary": { "nodeNoun": "", "metrics": {}, "layers": {}, "postures": {} },
   "startingState": { "debt": "HIGH", "capacity": "MODERATE", "resilience": "LOW", "compliance": "MODERATE", "cash": "MODERATE" },
   "nodes": [{ "id": "", "name": "", "layer": "BUSINESS|APPLICATION|DATA|INFRASTRUCTURE", "description": "", "condition": "FRAGILE", "critical": true }],

@@ -444,6 +444,7 @@ export const api = {
     teamId: string;
     stakeholderId: string;
     playerMessage: string;
+    lang?: 'fr' | 'en';
   }): Promise<{ reply: ChatMessage; evaluation: ProposalEvaluation; updatedTrust: number; usedProvider: string }> {
     const res = await apiFetch(`${API_BASE}/ai/negotiate`, {
       method: 'POST',
@@ -463,6 +464,7 @@ export const api = {
       teamId: string;
       stakeholderId: string;
       playerMessage: string;
+      lang?: 'fr' | 'en';
     },
     onChunk: (chunk: string) => void
   ): Promise<{ reply: ChatMessage; evaluation: ProposalEvaluation; updatedTrust: number; usedProvider: string }> {
@@ -525,6 +527,7 @@ export const api = {
     sessionId: string;
     teamId: string;
     playerMessage: string;
+    lang?: 'fr' | 'en';
   }): Promise<{
     replies: ChatMessage[];
     boardResolution: any;

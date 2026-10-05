@@ -30,6 +30,16 @@ function spendPatience(team: Team, stakeholderId: string, cost: number): number 
   return value;
 }
 
+/**
+ * Executives answer in the player's interface language. Older clients send no language:
+ * the message itself is then the clue (the executive's stored title is not, since a
+ * French case keeps French titles when played in English).
+ */
+export function replyInFrench(lang: 'fr' | 'en' | undefined, playerMessage: string): boolean {
+  if (lang) return lang === 'fr';
+  return /(?:[éàèùâêîôûëïç]|\b(?:bonjour|merci|nous|vous|pour|dans|avec|projet|stratégie|marge)\b)/i.test(playerMessage);
+}
+
 function closedDoorReply(name: string, isFrench: boolean): string {
   return isFrench
     ? `${name} a épuisé sa patience pour ce trimestre et refuse de poursuivre la discussion. Revenez au prochain trimestre avec des engagements concrets.`
@@ -326,7 +336,8 @@ aiRouter.post('/coach', validateBody(coachSchema), async (req, res) => {
           { role: 'system', content: system },
           { role: 'user', content: user },
         ],
-        { temperature: 0.4, maxTokens: 400 }
+        // A short note from given facts: no thinking mode (it made local models exceed the timeout)
+        { temperature: 0.4, maxTokens: 400, reasoning: false }
       )
     );
     // The heuristic provider cannot write prose: the client shows the facts instead
@@ -338,11 +349,12 @@ aiRouter.post('/coach', validateBody(coachSchema), async (req, res) => {
 
 aiRouter.post('/negotiate', validateBody(negotiateSchema), async (req, res) => {
   try {
-    const { sessionId, teamId, stakeholderId, playerMessage } = req.body as {
+    const { sessionId, teamId, stakeholderId, playerMessage, lang } = req.body as {
       sessionId: string;
       teamId: string;
       stakeholderId: string;
       playerMessage: string;
+      lang?: 'fr' | 'en';
     };
 
     if (!sessionId || !teamId || !stakeholderId || !playerMessage) {
@@ -385,8 +397,7 @@ aiRouter.post('/negotiate', validateBody(negotiateSchema), async (req, res) => {
     const history = db.getChatMessages(sessionId, teamId, stakeholderId);
     const previousPlayerMsgs = history.filter(m => m.sender === 'PLAYER' && m.id !== playerChatMsg.id);
 
-    const isFrench = /(?:[éàèùâêîôûëïç]|bonjour|merci|nous|vous|pour|dans|avec|coût|dette|archi|projet|stratégie|budget|marge)/i.test(playerMessage) ||
-                     /(?:[éàèùâêîôûëïç]|directeur|responsable|chef)/i.test(stakeholder.title);
+    const isFrench = replyInFrench(lang, playerMessage);
 
     // 1b. Patience exhausted: the stakeholder refuses to negotiate until next quarter
     if (getPatience(team, stakeholderId) <= 0) {
@@ -562,6 +573,7 @@ aiRouter.post('/negotiate', validateBody(negotiateSchema), async (req, res) => {
         metricLabels,
         patience: getPatience(team, stakeholderId),
         decision: decision ?? undefined,
+        language: isFrench ? 'fr' : 'en',
       });
     });
     if (decision) {
@@ -614,11 +626,12 @@ aiRouter.post('/negotiate', validateBody(negotiateSchema), async (req, res) => {
 
 // POST /api/ai/negotiate/stream (Real-Time Token Streaming Stakeholder Dialogue via SSE)
 aiRouter.post('/negotiate/stream', validateBody(negotiateSchema), async (req, res) => {
-  const { sessionId, teamId, stakeholderId, playerMessage } = req.body as {
+  const { sessionId, teamId, stakeholderId, playerMessage, lang } = req.body as {
     sessionId: string;
     teamId: string;
     stakeholderId: string;
     playerMessage: string;
+    lang?: 'fr' | 'en';
   };
 
   if (!sessionId || !teamId || !stakeholderId || !playerMessage) {
@@ -666,8 +679,7 @@ aiRouter.post('/negotiate/stream', validateBody(negotiateSchema), async (req, re
   const history = db.getChatMessages(sessionId, teamId, stakeholderId);
   const previousPlayerMsgs = history.filter(m => m.sender === 'PLAYER' && m.id !== playerChatMsg.id);
 
-  const isFrench = /(?:[éàèùâêîôûëïç]|bonjour|merci|nous|vous|pour|dans|avec|coût|dette|archi|projet|stratégie|budget|marge)/i.test(playerMessage) ||
-                   /(?:[éàèùâêîôûëïç]|directeur|responsable|chef)/i.test(stakeholder.title);
+  const isFrench = replyInFrench(lang, playerMessage);
 
   // 1b. Patience exhausted: the stakeholder refuses to negotiate until next quarter
   if (getPatience(team, stakeholderId) <= 0) {
@@ -848,6 +860,7 @@ aiRouter.post('/negotiate/stream', validateBody(negotiateSchema), async (req, re
         metricLabels,
         patience: getPatience(team, stakeholderId),
         decision: decision ?? undefined,
+        language: isFrench ? 'fr' : 'en',
       },
       (chunk: string) => {
         res.write(`data: ${JSON.stringify({ type: 'chunk', text: chunk })}\n\n`);
@@ -911,10 +924,11 @@ aiRouter.post('/negotiate/stream', validateBody(negotiateSchema), async (req, re
 // POST /api/ai/boardroom (Executive Board Meeting / Plenary ComEx Deliberation)
 aiRouter.post('/boardroom', validateBody(boardroomSchema), async (req, res) => {
   try {
-    const { sessionId, teamId, playerMessage } = req.body as {
+    const { sessionId, teamId, playerMessage, lang } = req.body as {
       sessionId: string;
       teamId: string;
       playerMessage: string;
+      lang?: 'fr' | 'en';
     };
 
     if (!sessionId || !teamId || !playerMessage?.trim()) {
@@ -957,7 +971,7 @@ aiRouter.post('/boardroom', validateBody(boardroomSchema), async (req, res) => {
     const history = db.getChatMessages(sessionId, teamId, 'BOARDROOM');
     const previousPlayerMsgs = history.filter(m => m.sender === 'PLAYER' && m.id !== playerChatMsg.id);
 
-    const isFrench = /(?:[éàèùâêîôûëïç]|bonjour|merci|nous|vous|pour|dans|avec|coût|dette|archi|projet|stratégie|budget|marge)/i.test(playerMessage);
+    const isFrench = replyInFrench(lang, playerMessage);
 
     // 2a. Anti-Cheat: Boardroom Repetition / Radotage Check
     const repetition = checkMessageRepetition(playerMessage, previousPlayerMsgs);
@@ -1114,6 +1128,7 @@ aiRouter.post('/boardroom', validateBody(boardroomSchema), async (req, res) => {
             metricLabels,
             patience: getPatience(team, sh.id),
             decision,
+            language: isFrench ? 'fr' : 'en',
           });
         });
         result = evaluated.result;

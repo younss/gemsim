@@ -34,3 +34,14 @@ describe('System 1 emulated by a general LLM', () => {
     expect(empty.concession.noul).toBe(0.5);
   });
 });
+
+describe('Negotiation reply language', () => {
+  it("follows the player's interface language, the message only without it", async () => {
+    const { replyInFrench } = await import('../src/routes/ai.js');
+    expect(replyInFrench('en', 'Nous proposons un budget de 300 K€')).toBe(false);
+    expect(replyInFrench('fr', 'We propose a 300K budget')).toBe(true);
+    // English words that used to trigger French ("budget", "architecture")
+    expect(replyInFrench(undefined, 'Our budget covers the architecture work')).toBe(false);
+    expect(replyInFrench(undefined, 'Nous proposons un plan pour la marge')).toBe(true);
+  });
+});

@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { DatabaseRepository } from '../db/index.js';
 import { requireFacilitator } from '../auth.js';
 import { buildTeachingNote } from '../docs/teaching-note.js';
+import { localizeScenario } from '../engine/scenario-text.js';
 
 export const docsRouter = Router();
 
@@ -226,6 +227,8 @@ const noteCache = new Map<string, DocSection>();
 function teachingNoteEntries(lang: 'fr' | 'en'): DocSection[] {
   return DatabaseRepository.getInstance()
     .getScenarios()
+    // A translated case is listed (and its note written) in the reader's language
+    .map(scenario => localizeScenario(scenario, lang))
     .map(scenario => ({
       id: `${NOTE_PREFIX}${scenario.id}`,
       title: lang === 'fr' ? `Note pédagogique — ${scenario.title}` : `Teaching note — ${scenario.title}`,
@@ -250,7 +253,7 @@ docsRouter.get(`/${NOTE_PREFIX}:scenarioId`, requireFacilitator, (req, res) => {
   const key = `${scenario.id}|${scenario.updatedAt ?? scenario.createdAt}|${lang}`;
   let doc = noteCache.get(key);
   if (!doc) {
-    const note = buildTeachingNote(scenario, lang);
+    const note = buildTeachingNote(localizeScenario(scenario, lang), lang);
     doc = { id: `${NOTE_PREFIX}${scenario.id}`, title: note.title, category: 'TEACHING_NOTE', summary: note.summary, content: note.content, restricted: true };
     noteCache.set(key, doc);
   }

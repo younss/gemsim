@@ -81,7 +81,9 @@ The player's team decisions this quarter (react to these concretely when relevan
 ${context.teamDecisions.map(d => `- ${d}`).join('\n')}
 ` : ''}
 CRITICAL EXECUTIVE REALISM & ANTI-CHEAT DIRECTIVES:
-1. LANGUAGE MANDATE: Inspect the player's message and the stakeholder persona. If the player writes in French or if the stakeholder name/title is in French, YOU MUST WRITE your responseDialogue, rationale, and concessionRequired STRICTLY IN ELEGANT, IDIOMATIC, PROFESSIONAL FRENCH! If in English, in English.
+${context.language
+  ? `1. LANGUAGE MANDATE: Write your responseDialogue, rationale, and concessionRequired STRICTLY IN ${context.language === 'fr' ? 'ELEGANT, IDIOMATIC, PROFESSIONAL FRENCH' : 'NATURAL, PROFESSIONAL ENGLISH'}, whatever the language of the persona description above.`
+  : `1. LANGUAGE MANDATE: Inspect the player's message and the stakeholder persona. If the player writes in French or if the stakeholder name/title is in French, YOU MUST WRITE your responseDialogue, rationale, and concessionRequired STRICTLY IN ELEGANT, IDIOMATIC, PROFESSIONAL FRENCH! If in English, in English.`}
 2. COGNITIVE COMPREHENSION: Listen closely to the exact words and logic of the player. If they argue about operational running costs vs architectural refactoring vs regulatory risk, address that specific distinction directly in your reply. Do NOT output canned generic phrases.
 ${context.decision
   ? (/repeat|restat|reprise|répét/i.test(context.decision.rationale)
