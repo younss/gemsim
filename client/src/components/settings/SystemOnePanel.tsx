@@ -179,7 +179,7 @@ export const SystemOnePanel: React.FC = () => {
             <input id="s1-timeout" type="number" min={1} max={120} value={timeoutS} onChange={e => setTimeoutS(Math.max(1, Math.min(120, Number(e.target.value) || 1)))} className={INPUT} />
           </div>
         </div>
-        <p className={`text-[11px] ${native ? 'text-emerald-300/90' : 'text-amber-300/90'}`}>{t(native ? 'settings.s1.nativeBody' : 'settings.s1.emulated')}</p>
+        <p className={`text-[11px] ${native ? 'text-emerald-300/90' : 'text-amber-300/90'}`}>{native ? t('settings.s1.nativeBody', { model: model.replace(/:latest$/, '') }) : t('settings.s1.emulated')}</p>
 
         <div className="flex flex-wrap items-center gap-2">
           <button

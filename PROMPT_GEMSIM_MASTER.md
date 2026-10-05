@@ -231,7 +231,7 @@ In addition to 1-on-1 negotiations, players can convene an All-Hands Executive C
 5. **Pluggable Providers**:
    Adapter pattern supporting Local Ollama (Gemma 2/4), Google Gemini (BYOK), Anthropic Claude (BYOK), OpenAI (BYOK), any OpenAI-compatible API (`custom`: `CUSTOM_AI_BASE_URL`, `CUSTOM_AI_API_KEY`, `CUSTOM_AI_MODEL`; `OpenAIProvider` with a base URL), and a built-in deterministic heuristic fallback.
 6. **Two engines, configured separately**:
-   The settings dialog has a **System 2 · writing** tab (the providers above) and a **System 1 · judgments** tab (Section 9). Neither changes the other.
+   The settings dialog has a **System 2 · writing** tab and a **System 1 · judgments** tab (Section 9), laid out the same way: provider grid, one settings card (model picker from the installed Ollama models, address, key), a test that does not apply the configuration, an apply button and a comparison table. Neither changes the other. System 2's test (`POST /api/ai/sample`, `AIRegistry.sample`) writes the same short CFO reply with a candidate provider built by `buildCandidate`; Ollama decision models are hidden from System 2 since they do not write text.
 
 ---
 

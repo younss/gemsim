@@ -20,6 +20,16 @@ import {
 import type { WhatIfResult } from '../../../server/src/engine/whatif';
 import type { PipelineReport } from '../../../server/src/studio/report';
 
+/** System 2: one sample reply written by a candidate provider configuration (not applied). */
+export interface SystemTwoSample {
+  ok: boolean;
+  provider: AIProviderType;
+  model: string;
+  latencyMs: number;
+  text?: string;
+  message?: string;
+}
+
 export type SystemOneProvider = 'ollama' | 'gemini' | 'claude' | 'openai' | 'custom';
 
 /** An installed Ollama model; `decision` = native System 1 model such as Clef. */
@@ -396,6 +406,16 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+    return res.json();
+  },
+
+  async sampleSystemTwo(candidate: { provider: AIProviderType; model?: string; baseUrl?: string; apiKey?: string; lang?: 'fr' | 'en' }): Promise<SystemTwoSample> {
+    const res = await apiFetch(`${API_BASE}/ai/sample`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(candidate),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'System 2 test failed');
     return res.json();
   },
 

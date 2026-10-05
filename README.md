@@ -482,7 +482,14 @@ If the decision model is unreachable or disabled, GemSim falls back to the LLM-o
 
 `ProposalEvaluation` gains two optional fields: `verdictProbabilities` (the distribution) and `decisionEngine` (the model that decided).
 
-### Choosing and comparing System 1 models (admin console)
+### Choosing and comparing models (admin console)
+
+The settings dialog has two tabs laid out the same way: pick a provider, set its model (installed Ollama models are listed), address and key, **test** it without applying it, then **apply** it.
+
+- **System 2 · writing** (dialogue, Studio cases, coach, debriefs): Ollama, Gemini, Claude, OpenAI, Other (OpenAI-compatible) or Offline (rule-based replies, also the last fallback). Decision models such as Clef are not offered here: they do not write text. *Test this model* writes the same short in-character reply (a cautious CFO answers a 300K request) with the candidate configuration and adds it to a comparison table (time and reply), via `POST /api/ai/sample`.
+- **System 1 · judgments:** see below.
+
+#### Choosing and comparing System 1 models (admin console)
 
 The settings dialog has two tabs, one per engine. The **System 1 · judgments** tab sets the provider (Ollama, Gemini, Claude, OpenAI, Other OpenAI-compatible), model, API address, key and timeout, and switches System 1 off (the engine rules then decide). Clef is not a provider: it is an Ollama model.
 

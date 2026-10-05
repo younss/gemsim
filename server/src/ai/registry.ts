@@ -235,6 +235,63 @@ export class AIRegistry {
     }
   }
 
+  /** A provider built from a candidate configuration (empty or masked key: the stored one), not registered. */
+  public buildCandidate(type: AIProviderType, candidate: Partial<AIProviderConfig>): AIProvider {
+    const stored = this.configs[type];
+    const apiKey = candidate.apiKey && !candidate.apiKey.includes('...') ? candidate.apiKey : stored?.apiKey ?? '';
+    const model = candidate.model || stored?.model || '';
+    const baseUrl = candidate.baseUrl || stored?.baseUrl || '';
+    switch (type) {
+      case 'ollama':
+        return new OllamaProvider(baseUrl || 'http://localhost:11434', model);
+      case 'gemini':
+        return new GeminiProvider(apiKey, model);
+      case 'claude':
+        return new ClaudeProvider(apiKey, model);
+      case 'openai':
+        return new OpenAIProvider(apiKey, model);
+      case 'custom':
+        return new OpenAIProvider(apiKey, model, baseUrl, 'custom');
+      default:
+        return new FallbackProvider();
+    }
+  }
+
+  /**
+   * The same short in-character reply written by a candidate configuration, without applying it:
+   * the admin console compares System 2 models on speed and writing.
+   */
+  public async sample(type: AIProviderType, candidate: Partial<AIProviderConfig>, lang: 'fr' | 'en') {
+    const provider = this.buildCandidate(type, candidate);
+    const model = type === 'fallback' ? this.configs.fallback.model : candidate.model || this.configs[type]?.model || '';
+    const start = Date.now();
+    const system =
+      lang === 'fr'
+        ? "Tu es Marc Vidal, directeur financier prudent d'une PME industrielle, jugé sur la marge à court terme. Réponds en français, en 2 ou 3 phrases, en personnage, sans liste ni titre."
+        : 'You are Marc Vidal, the cautious CFO of an industrial SME, judged on short-term margin. Answer in English, in 2 or 3 sentences, in character, with no list or heading.';
+    const user =
+      lang === 'fr'
+        ? "L'équipe propose : « Nous dépensons 300 K€ ce trimestre pour remplacer la facturation vieillissante. En échange, nous baissons les coûts récurrents de 15 % en deux trimestres et vous rendons compte chaque mois. »"
+        : 'The team proposes: "We spend 300K this quarter to replace the ageing billing system. In exchange, we cut run costs by 15% within two quarters and report to you every month."';
+    try {
+      const text =
+        type === 'fallback'
+          ? (await provider.evaluateStakeholderProposal({
+              stakeholder: { id: 'cfo', name: 'Marc Vidal', title: 'CFO', role: '', personality: 'Cautious', bias: 'Margin', hiddenAgenda: '', avatarIcon: '', decisionWeights: { financial: 0.6, delivery: 0.1, risk: 0.2, compliance: 0.1 } } as any,
+              currentTrust: 50,
+              chatHistory: [],
+              playerMessage: user,
+              currentRound: 1,
+              teamMetrics: { tco: 0, budgetRemaining: 1600, technicalDebtIndex: 60, deliveryVelocity: 50 },
+              language: lang,
+            })).responseDialogue
+          : await provider.generateText([{ role: 'user', content: user }], { systemPrompt: system, temperature: 0.6, maxTokens: 220, reasoning: false, timeoutMs: 120000 });
+      return { ok: true, provider: type, model, latencyMs: Date.now() - start, text: text.trim().slice(0, 420) };
+    } catch (err: any) {
+      return { ok: false, provider: type, model, latencyMs: Date.now() - start, message: err.message as string };
+    }
+  }
+
   public async testProvider(type: AIProviderType) {
     const provider = this.providers.get(type);
     if (!provider) {

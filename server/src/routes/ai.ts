@@ -11,7 +11,7 @@ import { AIProviderType, ChatMessage, ProposalEvaluation, BoardResolution, Scena
 import { broadcastToSession } from '../socket/handler.js';
 import { judgeProposal, judgeBoard, mergeDecision } from '../ai/stakeholder-judge.js';
 import { SystemOneClient, SYSTEMONE_DEFAULTS } from '../ai/systemone.js';
-import { boardroomSchema, coachSchema, negotiateSchema, systemOneSampleSchema, systemOneSettingsSchema, validateBody } from '../validation.js';
+import { aiSampleSchema, boardroomSchema, coachSchema, negotiateSchema, systemOneSampleSchema, systemOneSettingsSchema, validateBody } from '../validation.js';
 import { requireFacilitator } from '../auth.js';
 import { describeBoardMandate } from '../engine/rules.js';
 import { resolveVocabulary } from '../engine/vocabulary.js';
@@ -290,6 +290,12 @@ aiRouter.post('/settings', requireFacilitator, (req, res) => {
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// POST /api/ai/sample: a short in-character reply from a candidate System 2 configuration (not applied)
+aiRouter.post('/sample', requireFacilitator, validateBody(aiSampleSchema), async (req, res) => {
+  const { provider, lang, ...candidate } = req.body;
+  res.json(await AIRegistry.getInstance().sample(provider, candidate, lang ?? 'en'));
 });
 
 // POST /api/ai/test

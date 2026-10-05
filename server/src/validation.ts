@@ -145,6 +145,15 @@ export const systemOneSettingsSchema = z.object({
 // The test runs a candidate configuration without applying it
 export const systemOneSampleSchema = systemOneSettingsSchema;
 
+// System 2: the same sample reply with a candidate provider configuration, without applying it
+export const aiSampleSchema = z.object({
+  provider: z.enum(['ollama', 'gemini', 'claude', 'openai', 'custom', 'fallback']),
+  model: z.string().trim().max(200).optional(),
+  baseUrl: z.union([z.literal(''), z.string().trim().url().max(300)]).optional(),
+  apiKey: z.string().trim().max(500).optional(),
+  lang: z.enum(['fr', 'en']).optional(),
+});
+
 export const studioGenerateSchema = z.object({
   industry: z.string().trim().min(1).max(200),
   businessChallenge: z.string().trim().min(1).max(20000),
