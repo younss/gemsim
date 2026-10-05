@@ -29,6 +29,12 @@ The platform features:
 
 ---
 
+## 🎥 Promo Video
+
+[**Watch the 3-minute tour (MP4, English, captioned)**](docs/video/GemSim-promo-EN.mp4): authoring a case in the AI Studio, launching a 3-team session, playing a quarter (3D map, initiatives, market, crisis, negotiation with an AI executive), running the room from the cockpit, results, coach, "what if" replay, debrief, and the two AI engines. Recorded on the real application.
+
+---
+
 ## 🎬 Live Simulation Showcase: HealthNova EHR & Telehealth Overhaul
 
 > *Featured Scenario:* **HealthNova: Clinical EHR & Telehealth Overhaul**  
