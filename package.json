@@ -11,7 +11,8 @@
     "build:server": "tsc -p server/tsconfig.json",
     "build": "npm run build:client && npm run build:server",
     "start": "node server/dist/index.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

@@ -364,6 +364,16 @@ Audited with axe-core (rules WCAG 2.0/2.1/2.2 A and AA) on every screen — aren
 - Facilitator actions require the `x-facilitator-pin` header, checked server-side: advancing a round (except in solo sessions), timer, crisis injection, broadcast, reset, session deletion, scenario creation/deletion, Studio generation/publication, AI settings and provider tests.
 - The client keeps the verified PIN for the browser session and opens the unlock dialog whenever the server answers 401.
 - Players only see their own pending decisions: other teams' initiatives, posture, prices and marketing for the open quarter are replaced by an empty decision in every REST answer (`x-gemsim-team` header) and WebSocket message. Joining the WebSocket with a valid PIN gives the full view.
+- **Change the default PIN** (`1337`) with `FACILITATOR_PIN` before any shared deployment: the default is public.
+
+### Secret scanning
+
+No API key belongs in the repository: keys go in `.env` (ignored by git) or in the settings dialog at runtime. [gitleaks](https://github.com/gitleaks/gitleaks) guards this twice:
+
+- **Before each commit:** `npm install` enables the hook in `.githooks/pre-commit` (`core.hooksPath`), which scans the staged changes and blocks a commit that adds a key, a token or a private key. Install gitleaks once (`brew install gitleaks`, or a release binary); without it the hook only warns.
+- **On every push and pull request:** the `Secret scan` GitHub Actions workflow scans the whole history with a pinned, checksum-verified gitleaks release.
+
+Run a full scan locally with `gitleaks git . --redact`. A false positive can be listed in `.gitleaksignore`.
 
 ---
 

@@ -1,0 +1,12 @@
+#!/bin/sh
+# Blocks a commit that would add a secret (API key, token, private key) with gitleaks.
+# Enabled by `npm install` (core.hooksPath=.githooks). A false positive can be bypassed
+# with `git commit --no-verify`, or allowed in .gitleaksignore.
+if command -v gitleaks >/dev/null 2>&1; then
+  if ! gitleaks git --pre-commit --staged --redact --no-banner; then
+    echo "gitleaks: a secret was found in the staged changes, commit blocked." >&2
+    exit 1
+  fi
+else
+  echo "warning: gitleaks is not installed, secret scan skipped (https://github.com/gitleaks/gitleaks#installing)" >&2
+fi
